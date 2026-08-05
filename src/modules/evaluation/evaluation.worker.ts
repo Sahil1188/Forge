@@ -13,6 +13,7 @@ import { Evaluation } from './evaluation.schema';
 import { PerformanceService } from '../performance/performance.service';
 import { SkillProgressionService } from '../performance/skill-progression.service';
 import { complexityOf } from '../performance/skill-math';
+import { MemoryService } from '../memory/memory.service';
 
 export interface EvaluationSummary {
   evaluationId: string;
@@ -40,13 +41,14 @@ export class EvaluationWorker implements OnModuleInit {
     private readonly work: WorkService,
     private readonly performance: PerformanceService,
     private readonly skills: SkillProgressionService,
+    private readonly memory: MemoryService,
   ) {}
 
   onModuleInit(): void {
     // Prod trigger: when a work item enters `evaluating`, evaluate it. Tests call
     // evaluate()/runOnce() directly, so skip the subscriber under the runner to
     // avoid firing on artificial transitions / pool teardown.
-    if (process.env.VITEST) {
+    if (process.env.VITEST || process.env.FORGE_MANUAL_DRIVE) {
       return;
     }
     this.bus.subscribe(EventTypes.WorkStatusChanged, (event) => {
@@ -101,6 +103,19 @@ export class EvaluationWorker implements OnModuleInit {
         result.overallScore,
         complexityOf(item.taskType, item.priority),
       );
+      // Write a durable lesson so the employee carries this outcome into future
+      // runs (spec §15). Failures are salient — you learn most from what broke.
+      const passed = result.status !== 'failed';
+      await this.memory.remember({
+        employeeId: item.assignedEmployeeId,
+        kind: passed ? 'outcome' : 'lesson',
+        taskType: item.taskType,
+        sourceRunId: runs[0]?.id ?? null,
+        salience: passed ? 45 : 80,
+        content: passed
+          ? `"${item.title}" (${item.taskType}) passed evaluation at score ${result.overallScore}. The approach worked — reuse it.`
+          : `"${item.title}" (${item.taskType}) FAILED evaluation (score ${result.overallScore}). Revisit the build/test failure before retrying similar work.`,
+      });
     }
 
     this.logger.log(

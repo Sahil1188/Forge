@@ -1,11 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
+import { Injectable, Logger } from '@nestjs/common';
 import { mkdir, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { ToolDefinition } from './model-provider';
-
-const execAsync = promisify(exec);
+import { CommandSandbox, createCommandSandbox } from './command-sandbox';
 
 export interface ToolExecution {
   output: string;
@@ -15,10 +12,21 @@ export interface ToolExecution {
 /**
  * The tools a CustomRuntime agent may call. Mirrors Claude Code's file/command
  * tools; all calls are confined to the run's workspace (cwd) and governed by the
- * same permission gate as ClaudeCodeRuntime.
+ * same permission gate as ClaudeCodeRuntime. `run_command` executes through a
+ * `CommandSandbox` — the host by default, or an isolated Docker container when
+ * `FORGE_SANDBOX=docker` (spec §11).
  */
 @Injectable()
 export class ToolExecutor {
+  private readonly logger = new Logger(ToolExecutor.name);
+  private readonly sandbox: CommandSandbox = createCommandSandbox();
+
+  constructor() {
+    if (this.sandbox.kind !== 'host') {
+      this.logger.log(`Command sandbox: ${this.sandbox.kind}`);
+    }
+  }
+
   definitions(): ToolDefinition[] {
     return [
       {
@@ -71,17 +79,7 @@ export class ToolExecutor {
   }
 
   private async runCommand(input: { command: string }, cwd: string): Promise<ToolExecution> {
-    try {
-      const { stdout, stderr } = await execAsync(input.command, {
-        cwd,
-        timeout: 60_000,
-        maxBuffer: 5 * 1024 * 1024,
-        windowsHide: true,
-      });
-      return { output: `${stdout ?? ''}${stderr ?? ''}` || 'ok', isError: false };
-    } catch (err) {
-      const e = err as { stdout?: string; stderr?: string };
-      return { output: `${e.stdout ?? ''}${e.stderr ?? ''}` || 'command failed', isError: true };
-    }
+    // Delegated to the configured sandbox (host or Docker) — see command-sandbox.ts.
+    return this.sandbox.run(input.command, cwd);
   }
 }

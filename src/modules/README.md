@@ -32,6 +32,7 @@ Grouped here by their role in the pipeline (see [`docs/FLOW.md`](../../docs/FLOW
 | --- | --- |
 | [`evaluation/`](evaluation/README.md) | Objective build/test/lint verification. |
 | [`performance/`](performance/README.md) | Performance records + computed reputation/specialization + skill growth. |
+| [`memory/`](memory/README.md) | Long-term per-employee memory: lessons written from evaluations, recalled into future runs. |
 
 **Platform**
 | Module | Role |

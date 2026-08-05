@@ -7,6 +7,7 @@ import { GovernanceModule } from '../modules/governance/governance.module';
 import { ApprovalsModule } from '../modules/approvals/approvals.module';
 import { BudgetsModule } from '../modules/budgets/budgets.module';
 import { RoutingModule } from '../modules/routing/routing.module';
+import { MemoryModule } from '../modules/memory/memory.module';
 import { ExecutionWorker } from './execution.worker';
 import { ApprovalDecisionListener } from './approval-decision.listener';
 
@@ -20,6 +21,7 @@ import { ApprovalDecisionListener } from './approval-decision.listener';
     ApprovalsModule,
     BudgetsModule,
     RoutingModule,
+    MemoryModule,
   ],
   providers: [ExecutionWorker, ApprovalDecisionListener],
   exports: [ExecutionWorker],

@@ -220,11 +220,17 @@ The core differentiator. Work is **never self‑certified**. Forge discovers the
 ### 📈 Performance, Reputation & Skills — `modules/performance`
 Turns objective results into a persistent capability profile. Stores **raw measurements only** — reputation is *computed* on read (recency‑weighted, task‑type aware), so the formula can change without a migration. **Skill growth is non‑uniform**: trivial work barely moves the needle, hard high‑quality work moves it more, failures decrement, with diminishing returns near the cap. **Specialization is inferred** from history, not labeled.
 
+### 🧠 Agent memory — `modules/memory`
+Durable, per‑employee **lessons that persist across runs** (distinct from the episodic run/transcript record). After each objective evaluation the system writes a memory — *objectively*, never self‑narrated — with a `salience` (failures rank high: you learn most from what broke). Before the next run, the top memories are **recalled** (ranked by salience + task‑type relevance + recency) and injected into the employee's `CLAUDE.md` context. No embeddings in V1 — deterministic and testable, with a vector store able to slot in behind the same interface.
+
 ### 📡 Observability & Events — `modules/observability`, `infrastructure/events`
 A **transactional outbox** records domain events atomically with each write; an in‑process **EventBus** delivers them (no Kafka — swappable interface). The observability layer exposes company/run/history views and a minimal **dashboard at `/ui`**.
 
 ### 🤖 Execution worker — `workers`
-The busiest coordinator: picks up an assigned item → Omni Router → budget precheck → prepare workspace → create `agent_run` → drive the runtime's event stream while enforcing every circuit breaker → collect artifacts → hand off to evaluation. Pauses and resumes runs around human approvals.
+The busiest coordinator: picks up an assigned item → Omni Router → budget precheck → prepare workspace → create `agent_run` → recall the employee's memory → drive the runtime's event stream while enforcing every circuit breaker → collect artifacts → hand off to evaluation. Pauses and resumes runs around human approvals.
+
+### 🖥️ CLI — `bin/forge`
+One command to stand the platform up and drive it: `forge up` (build + Postgres + migrate + seed), `forge serve`, `forge status`, and **`forge goal "<text>"`** — which runs the whole loop live in‑process (CEO plans → routes → workers execute → objective evaluation → performance/memory update), printing each step. See [`bin/README.md`](bin/README.md).
 
 ---
 
@@ -296,6 +302,22 @@ npm run db:seed
 
 # 5. start the API
 npm run start:dev
+```
+
+Or do it all with the **CLI** (`npm link` once for a global `forge`, or use `npm run forge -- <cmd>`):
+
+```bash
+forge up                                        # build + Postgres + migrate + seed
+forge status                                    # companies, employees, work items
+forge goal "Build a Node/Express hello API with a test"   # drive the whole loop, live
+```
+
+`forge goal` uses the **live** runtime for the CEO/leads, so authenticate first (subscription billing,
+never a per‑token API key):
+
+```bash
+claude setup-token                              # prints CLAUDE_CODE_OAUTH_TOKEN
+export CLAUDE_CODE_OAUTH_TOKEN=...              # Forge never sets ANTHROPIC_API_KEY
 ```
 
 Verify it's alive:
@@ -428,23 +450,30 @@ Autonomous agents are treated as **untrusted processes** from day one:
 - **Secret redaction** on every persisted transcript/log.
 - **Resource limits** — budget, duration, and tool‑call circuit breakers.
 - **Audit trail** — every tool call, approval, and kill recorded.
+- **Container sandbox for worker commands** — set `FORGE_SANDBOX=docker` and a CustomRuntime worker's
+  `run_command` runs in an ephemeral `docker run --rm --network none` container with only the workspace
+  mounted (capped memory/CPU/pids, `--cap-drop ALL`). No host filesystem or network reachable.
 
-**Honest V1 caveat:** local process execution is *not* a true sandbox. `DockerWorkspace` (the
-`WorkspacePort` already supports the seam) is the named next hardening boundary for real isolation +
-network egress control.
+**Honest caveat:** the container sandbox covers **worker (CustomRuntime) command execution**. Claude
+Code's own bash runs inside the Agent SDK on the host; sandboxing *that* means running the whole
+runtime in a container — the named next boundary. On the host (default) execution is confined by path
+guards and workspace isolation but is not a true sandbox.
 
 ---
 
 ## 🗺️ Roadmap
 
-V1 is complete (all 11 milestones). Natural next steps:
+V1 is complete (all 11 milestones), plus **M12**: agent memory, the Docker command sandbox, and the
+`forge` CLI. Natural next steps:
 
-- [ ] **`DockerWorkspace`** — true sandboxed execution + network policy
+- [x] **Docker command sandbox** — network‑less, resource‑capped container for worker `run_command`
+- [x] **Agent memory** — durable per‑employee lessons recalled into future runs
+- [x] **`forge` CLI** — one‑command setup + live goal runner
+- [ ] **Containerize the whole Claude Code runtime** (sandbox its host bash too)
 - [ ] **Live local‑model provider** (Ollama/vLLM) wiring for CustomRuntime workers
 - [ ] **Full mid‑task session resume** (preserve context across an approval pause)
-- [ ] **Promotions & role changes** with real routing/permission effects
+- [ ] **Vector‑backed memory recall** behind the existing `MemoryService` interface
 - [ ] **Richer dashboard** — live run streaming, org chart, cost analytics
-- [ ] **Persistent memory tiers** (working / episodic / organizational)
 
 ---
 

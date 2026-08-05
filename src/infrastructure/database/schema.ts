@@ -15,5 +15,6 @@ export * from '../../modules/approvals/approvals.schema';
 export * from '../../modules/budgets/budgets.schema';
 export * from '../../modules/evaluation/evaluation.schema';
 export * from '../../modules/performance/performance.schema';
+export * from '../../modules/memory/memory.schema';
 export * from '../../modules/heartbeats/heartbeats.schema';
 export * from '../events/events.schema';

@@ -15,6 +15,7 @@ import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { BudgetsModule } from './modules/budgets/budgets.module';
 import { EvaluationModule } from './modules/evaluation/evaluation.module';
 import { PerformanceModule } from './modules/performance/performance.module';
+import { MemoryModule } from './modules/memory/memory.module';
 import { RoutingModule } from './modules/routing/routing.module';
 import { HeartbeatsModule } from './modules/heartbeats/heartbeats.module';
 import { ObservabilityModule } from './modules/observability/observability.module';
@@ -38,6 +39,7 @@ import { WorkersModule } from './workers/workers.module';
     BudgetsModule,
     EvaluationModule,
     PerformanceModule,
+    MemoryModule,
     RoutingModule,
     HeartbeatsModule,
     ObservabilityModule,

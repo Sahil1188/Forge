@@ -23,9 +23,9 @@ export class HeartbeatWorker implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    // Prod trigger: a started goal wakes the CEO. Tests call onGoalStarted()
-    // directly (the outbox isn't flushed under the runner).
-    if (process.env.VITEST) {
+    // Prod trigger: a started goal wakes the CEO. Tests and the CLI call
+    // onGoalStarted()/plan() directly (the outbox isn't flushed under them).
+    if (process.env.VITEST || process.env.FORGE_MANUAL_DRIVE) {
       return;
     }
     this.bus.subscribe(EventTypes.GoalStarted, (event) => {

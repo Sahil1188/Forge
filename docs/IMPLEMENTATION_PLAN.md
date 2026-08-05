@@ -89,6 +89,13 @@ Stack: NestJS + TypeScript, PostgreSQL + Drizzle, `@anthropic-ai/claude-agent-sd
 - Flip worker employees' `runtime_config_id` to `custom` + an Omni Router policy; keep CEO/leads on `claude_code`.
 **Testable:** a worker employee executes a task through `CustomRuntime`; Omni Router selects the expected model per task_type; governance/budget/approval backstops fire identically to the Claude Code path; CEO still runs on Claude Code. Live provider tests env-guarded on the provider's own credential (distinct from Claude Code auth).
 
+## M12 — Memory, sandbox, and the operator CLI
+**Goal:** close the three gaps that make Forge operable and safer to run: long‑term learning, a real security boundary for worker commands, and one‑command operation.
+- **Agent memory (`modules/memory`)**: an `agent_memories` store + `MemoryService` (`remember`/`recall`/`recallBlock`). The evaluation worker writes an objective lesson after each run (failures high‑salience); the execution worker recalls the top memories into the run's `CLAUDE.md`. Deterministic ranking (salience + task‑type + recency) — a vector store can replace it behind the same interface.
+- **Docker command sandbox (`runtimes/custom/command-sandbox.ts`)**: a `CommandSandbox` seam; `FORGE_SANDBOX=docker` runs a worker's `run_command` in an ephemeral `docker run --rm --network none` container (capped memory/CPU/pids, `--cap-drop ALL`, workspace‑only mount). Host remains the dev default.
+- **CLI (`bin/forge`)**: `up`/`seed`/`serve`/`status`/`goal`. `goal` drives the full loop live in‑process, gated by `FORGE_MANUAL_DRIVE` (the same off‑switch the test runner uses) so it steps deterministically. Boots the compiled `dist/` app (tsc emits the DI metadata tsx/esbuild does not).
+**Testable:** unit — memory ranking + sandbox selection/execution; e2e — an evaluation writes a memory that is recalled into the next run's context. CLI `status` boots the real container and lists the org; `goal` runs the live pipeline (needs Claude Code auth).
+
 ---
 
 ### Cross-cutting throughout
@@ -97,4 +104,4 @@ Stack: NestJS + TypeScript, PostgreSQL + Drizzle, `@anthropic-ai/claude-agent-sd
 - No Kafka, no K8s, no microservices, no custom LLM, no CLI-scraping — per §28.
 
 ### Suggested build order dependency
-M0 → M1 → M2 → M3 → (M4, M5 parallelizable) → M6 → M7 → M8 → M9 → M10 → M11.
+M0 → M1 → M2 → M3 → (M4, M5 parallelizable) → M6 → M7 → M8 → M9 → M10 → M11 → M12.

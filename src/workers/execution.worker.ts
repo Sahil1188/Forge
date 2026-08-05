@@ -27,6 +27,7 @@ import { ApprovalsService } from '../modules/approvals/approvals.service';
 import { BudgetsService } from '../modules/budgets/budgets.service';
 import { redactSecrets } from '../modules/governance/redaction';
 import { OMNI_ROUTER, OmniRouterPort } from '../modules/routing/omni/omni-router.port';
+import { MemoryService } from '../modules/memory/memory.service';
 
 export type ExecutionStatus =
   | 'completed'
@@ -94,11 +95,13 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
     private readonly outbox: OutboxService,
     private readonly bus: EventBus,
     @Inject(OMNI_ROUTER) private readonly omni: OmniRouterPort,
+    private readonly memory: MemoryService,
   ) {}
 
   onModuleInit(): void {
-    // Tests drive runOnce() directly; skip prod auto-triggers under the runner.
-    if (process.env.VITEST) {
+    // Tests drive runOnce() directly; the CLI drives it in-process too. Skip prod
+    // auto-triggers under the runner or when manual drive is requested.
+    if (process.env.VITEST || process.env.FORGE_MANUAL_DRIVE) {
       return;
     }
     // Prod: execute as soon as a work item is assigned (auto-chain).
@@ -199,7 +202,18 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
       await this.agentRuns.attachWorkspace(run.id, handle.id);
       await this.work.changeStatus(item.id, { status: 'in_progress' });
 
-      const ctx = this.buildContext(run.id, item, employee, handle, model, limits, selection.provider);
+      const memoryBlock = await this.memory.recallBlock(employee.id, item.taskType);
+      const ctx = this.buildContext(
+        run.id,
+        item,
+        employee,
+        handle,
+        model,
+        limits,
+        selection.provider,
+        undefined,
+        memoryBlock,
+      );
       const iterable = this.registry.get(runtimeKey).run(ctx);
       return await this.drive(run.id, item.id, employee.id, model, runtimeKey, handle, iterable, limits);
     } catch (err) {
@@ -222,6 +236,7 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
       await this.agentRuns.setStatus(run.id, 'running');
       await this.work.changeStatus(item.id, { status: 'in_progress' });
 
+      const memoryBlock = await this.memory.recallBlock(employee.id, item.taskType);
       const ctx = this.buildContext(
         run.id,
         item,
@@ -231,6 +246,7 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
         limits,
         run.provider ?? undefined,
         run.sessionId,
+        memoryBlock,
       );
       const iterable = this.registry.get(runtimeKey).resume(run.sessionId, ctx);
       this.logger.log(`Resuming run ${run.id} after approval`);
@@ -479,6 +495,7 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
     limits: RunLimits,
     provider?: string,
     resumeSessionId?: string,
+    memoryBlock = '',
   ): RuntimeRunContext {
     return {
       workItemId: item.id,
@@ -487,7 +504,7 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
       task: this.buildTask(item),
       model,
       provider,
-      systemPromptAppend: this.buildClaudeMd(employee.name, employee.role, item),
+      systemPromptAppend: this.buildClaudeMd(employee.name, employee.role, item, memoryBlock),
       allowedTools: this.governance.allowedTools(employee.governance),
       limits: { maxTurns: limits.maxTurns, maxToolCalls: limits.maxToolCalls },
       resumeSessionId,
@@ -608,7 +625,7 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
     ].join('\n');
   }
 
-  private buildClaudeMd(name: string, role: string, item: WorkItem): string {
+  private buildClaudeMd(name: string, role: string, item: WorkItem, memoryBlock = ''): string {
     return [
       `# ${name} — ${role}`,
       '',
@@ -619,6 +636,7 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
       `- ${item.title}`,
       item.description ? `- ${item.description}` : '',
       '',
+      memoryBlock,
     ].join('\n');
   }
 }

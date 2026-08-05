@@ -23,7 +23,7 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
   onModuleInit(): void {
     // Tests drive tick() directly; skip the auto-interval under the test runner
     // to avoid polling a pool that is being torn down at app.close().
-    if (process.env.VITEST) {
+    if (process.env.VITEST || process.env.FORGE_MANUAL_DRIVE) {
       return;
     }
     this.timer = setInterval(() => {
