@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { DRIZZLE, Database } from '../../infrastructure/database/drizzle.provider';
 import { OutboxService } from '../../infrastructure/events/outbox.service';
 import { EventTypes } from '../../infrastructure/events/event-types';
@@ -36,6 +36,7 @@ export class WorkService {
           description: dto.description ?? null,
           taskType: dto.taskType ?? 'generic',
           priority: dto.priority ?? 0,
+          acceptance: dto.acceptance ?? [],
         })
         .returning();
       await this.outbox.record(tx, {
@@ -50,7 +51,12 @@ export class WorkService {
 
   async assign(workItemId: string, dto: AssignWorkDto): Promise<WorkItem> {
     const item = await this.getRaw(workItemId);
-    await this.employees.findOne(dto.employeeId);
+    const employee = await this.employees.findOne(dto.employeeId);
+    if (employee.companyId !== item.companyId) {
+      throw new BadRequestException(
+        `Employee ${employee.id} belongs to a different company than work item ${item.id}`,
+      );
+    }
     this.assertStatus(item.status, 'assigned');
 
     return this.db.transaction(async (tx) => {
@@ -98,8 +104,15 @@ export class WorkService {
     if (workItemId === dto.dependsOnWorkItemId) {
       throw new BadRequestException('A work item cannot depend on itself');
     }
-    await this.getRaw(workItemId);
-    await this.getRaw(dto.dependsOnWorkItemId);
+    const item = await this.getRaw(workItemId);
+    const target = await this.getRaw(dto.dependsOnWorkItemId);
+    if (item.companyId !== target.companyId) {
+      throw new BadRequestException('A work item cannot depend on another company’s work');
+    }
+    // A cycle (A→B→…→A) would leave the whole chain permanently blocked.
+    if (await this.reaches(dto.dependsOnWorkItemId, workItemId)) {
+      throw new BadRequestException('Dependency would create a cycle');
+    }
     await this.db
       .insert(workDependencies)
       .values({ workItemId, dependsOnWorkItemId: dto.dependsOnWorkItemId })
@@ -117,6 +130,27 @@ export class WorkService {
       .from(workDependencies)
       .where(eq(workDependencies.workItemId, id));
     return { ...item, dependencies };
+  }
+
+  /** True when `from` already depends (transitively) on `target`. */
+  private async reaches(from: string, target: string): Promise<boolean> {
+    const seen = new Set<string>([from]);
+    let frontier = [from];
+    while (frontier.length > 0) {
+      const edges = await this.db
+        .select({ next: workDependencies.dependsOnWorkItemId })
+        .from(workDependencies)
+        .where(inArray(workDependencies.workItemId, frontier));
+      frontier = [];
+      for (const { next } of edges) {
+        if (next === target) return true;
+        if (!seen.has(next)) {
+          seen.add(next);
+          frontier.push(next);
+        }
+      }
+    }
+    return false;
   }
 
   private async getRaw(id: string): Promise<WorkItem> {

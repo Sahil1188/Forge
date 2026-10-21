@@ -21,6 +21,10 @@ export class RuntimeRegistry {
     this.runtimes.set(runtime.key, runtime);
   }
 
+  has(key: string): boolean {
+    return this.runtimes.has(key);
+  }
+
   get(key: string): AgentRuntime {
     const runtime = this.runtimes.get(key);
     if (!runtime) {

@@ -93,7 +93,8 @@ describe('Execution pipeline (e2e, mock runtime)', () => {
     // The work item advanced to evaluating with artifacts recorded.
     const refetched = await request(server).get(`/work-items/${work.body.id}`).expect(200);
     expect(refetched.body.status).toBe('evaluating');
-    expect(refetched.body.artifacts.branch).toBe(`forge/${work.body.id}`);
+    // One branch per attempt, off the project's shared repo.
+    expect(refetched.body.artifacts.branch).toMatch(new RegExp(`^forge/${work.body.id}-`));
 
     // The agent run captured usage + cost + session.
     const runs = await app.get(AgentRunsService).findByWorkItem(work.body.id);

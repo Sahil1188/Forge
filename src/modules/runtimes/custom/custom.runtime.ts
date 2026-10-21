@@ -60,6 +60,13 @@ export class CustomRuntime implements AgentRuntime {
         yield { kind: 'assistant_text', text: response.text };
       }
 
+      // A reply cut off by the token limit may carry half-written tool calls: never run those.
+      if (response.stopReason === 'max_tokens' && response.toolCalls.length > 0) {
+        yield { kind: 'usage', inputTokens, outputTokens, costUsd };
+        yield { kind: 'failed', error: 'max_tokens' };
+        return;
+      }
+
       if (response.toolCalls.length === 0 || response.stopReason === 'end_turn') {
         yield { kind: 'usage', inputTokens, outputTokens, costUsd };
         yield { kind: 'completed', result: response.text, sessionId };

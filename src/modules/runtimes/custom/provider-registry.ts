@@ -11,6 +11,10 @@ export class ProviderRegistry {
     this.providers.set(provider.name, provider);
   }
 
+  has(name: string): boolean {
+    return this.providers.has(name);
+  }
+
   get(name: string): ModelProvider {
     const provider = this.providers.get(name);
     if (!provider) {

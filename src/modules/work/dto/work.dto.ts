@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 import type { TaskType } from '../work.schema';
 import type { WorkItemStatus } from '../work-status';
 
@@ -33,6 +33,14 @@ export class CreateWorkItemDto {
   @Min(0)
   @Max(100)
   priority?: number;
+
+  /** Shell commands that must exit 0 for the item to pass evaluation. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(500, { each: true })
+  acceptance?: string[];
 }
 
 export class AssignWorkDto {

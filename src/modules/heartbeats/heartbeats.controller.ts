@@ -8,6 +8,7 @@ export class HeartbeatsController {
   /** Explicitly wake the CEO to plan a goal (also triggered by goal.started). */
   @Post(':id/plan')
   plan(@Param('id', ParseUUIDPipe) id: string) {
-    return this.heartbeats.onGoalStarted(id);
+    // A human asking is not a replayed event: always plan.
+    return this.heartbeats.onGoalStarted(id, { force: true });
   }
 }

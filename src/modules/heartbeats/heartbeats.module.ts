@@ -6,6 +6,7 @@ import { WorkModule } from '../work/work.module';
 import { RuntimesModule } from '../runtimes/runtimes.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { RoutingModule } from '../routing/routing.module';
+import { BudgetsModule } from '../budgets/budgets.module';
 import { CeoPlanner } from './ceo-planner.service';
 import { HeartbeatWorker } from './heartbeat.worker';
 import { HeartbeatsController } from './heartbeats.controller';
@@ -19,6 +20,7 @@ import { HeartbeatsController } from './heartbeats.controller';
     RuntimesModule,
     WorkspacesModule,
     RoutingModule,
+    BudgetsModule,
   ],
   controllers: [HeartbeatsController],
   providers: [CeoPlanner, HeartbeatWorker],

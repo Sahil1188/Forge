@@ -23,7 +23,10 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
   onModuleInit(): void {
     // Tests drive tick() directly; skip the auto-interval under the test runner
     // to avoid polling a pool that is being torn down at app.close().
-    if (process.env.VITEST || process.env.FORGE_MANUAL_DRIVE) {
+    // Not skipped under FORGE_MANUAL_DRIVE: the CLI registers no subscribers, so dispatching
+    // just keeps the outbox drained. Otherwise its events pile up unpublished and a later
+    // `forge serve` replays them all (it once re-planned a finished goal).
+    if (process.env.VITEST) {
       return;
     }
     this.timer = setInterval(() => {

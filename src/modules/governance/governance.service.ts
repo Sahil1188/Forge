@@ -31,7 +31,13 @@ export class GovernanceService {
     return 'allow';
   }
 
-  /** Optional allow-list forwarded to the runtime (SDK `allowedTools`). */
+  /** Tools to remove outright, forwarded to the runtime for hard enforcement. */
+  deniedTools(governance: Record<string, unknown> | null | undefined): string[] | undefined {
+    const denied = ((governance ?? {}) as GovernancePolicy).deniedTools;
+    return denied && denied.length > 0 ? denied : undefined;
+  }
+
+  /** Optional strict whitelist forwarded to the runtime. */
   allowedTools(governance: Record<string, unknown> | null | undefined): string[] | undefined {
     const policy = (governance ?? {}) as GovernancePolicy;
     return policy.allowedTools;

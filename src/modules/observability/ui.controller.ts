@@ -43,27 +43,29 @@ const DASHBOARD_HTML = `<!doctype html>
 </main>
 <script>
   const api = (p) => fetch(p).then(r => r.ok ? r.json() : Promise.reject(r.status));
-  function badge(s){ const c = s==='idle'?'idle':(s==='working'?'working':(s==='error'?'error':'')); return '<span class="badge '+c+'">'+s+'</span>'; }
+  // Everything from the API is data, never markup (names/roles/skills are operator- or agent-controlled).
+  function esc(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+  function badge(s){ const c = s==='idle'?'idle':(s==='working'?'working':(s==='error'?'error':'')); return '<span class="badge '+c+'">'+esc(s)+'</span>'; }
   async function loadOverview(){
     const id = document.getElementById('companyId').value.trim();
     if(!id) return;
     try {
       const data = await api('/companies/'+id+'/overview');
       document.getElementById('employees').innerHTML = data.employees.map(e =>
-        '<tr class="row" onclick="loadProfile(\\''+e.id+'\\')"><td>'+e.name+'</td><td>'+e.role+'</td><td>'+badge(e.status)+
-        '</td><td><code>'+(e.defaultModel||'—')+'</code></td><td class="muted">'+
-        (e.latestRun ? (e.latestRun.status+' · $'+(e.latestRun.estimatedCostUsd||0).toFixed(4)) : '—')+'</td></tr>'
+        '<tr class="row" data-id="'+esc(e.id)+'" onclick="loadProfile(this.dataset.id)"><td>'+esc(e.name)+'</td><td>'+esc(e.role)+'</td><td>'+badge(e.status)+
+        '</td><td><code>'+esc(e.defaultModel||'—')+'</code></td><td class="muted">'+
+        (e.latestRun ? esc(e.latestRun.status+' · $'+(e.latestRun.estimatedCostUsd||0).toFixed(4)) : '—')+'</td></tr>'
       ).join('') || '<tr><td colspan="5" class="muted">No employees.</td></tr>';
     } catch(err){ document.getElementById('employees').innerHTML = '<tr><td colspan="5" class="error">Error: '+err+'</td></tr>'; }
   }
   async function loadProfile(id){
     try {
       const p = await api('/employees/'+id+'/profile');
-      const skills = (p.employee.skills||[]).map(s => s.skillKey+' '+s.level).join(' · ') || '—';
-      const specs = (p.specializations||[]).map(s => s.taskType+' ('+s.reputation+')').join(', ') || '—';
+      const skills = (p.employee.skills||[]).map(s => esc(s.skillKey)+' '+esc(s.level)).join(' · ') || '—';
+      const specs = (p.specializations||[]).map(s => esc(s.taskType)+' ('+esc(s.reputation)+')').join(', ') || '—';
       document.getElementById('profile').innerHTML =
-        '<div style="font-size:16px;font-weight:600">'+p.employee.name+' — '+p.employee.role+'</div>'+
-        '<p>Reputation: <b>'+(p.reputation.overall ?? 'n/a')+'</b> <span class="muted">('+p.reputation.samples+' samples)</span></p>'+
+        '<div style="font-size:16px;font-weight:600">'+esc(p.employee.name)+' — '+esc(p.employee.role)+'</div>'+
+        '<p>Reputation: <b>'+esc(p.reputation.overall ?? 'n/a')+'</b> <span class="muted">('+esc(p.reputation.samples)+' samples)</span></p>'+
         '<p>Specialization: '+specs+'</p>'+
         '<p>Skills: <span class="muted">'+skills+'</span></p>'+
         '<p>Recent work: '+(p.recentPerformance||[]).length+' evaluated item(s)</p>';

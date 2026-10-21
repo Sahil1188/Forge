@@ -11,7 +11,8 @@ import { RuntimeEvent } from '../src/modules/runtimes/runtime.port';
  * is available (CLAUDE_CODE_OAUTH_TOKEN). It must never depend on
  * ANTHROPIC_API_KEY (that would force per-token billing — see docs §7.1).
  */
-const hasSubscriptionAuth = Boolean(process.env.CLAUDE_CODE_OAUTH_TOKEN);
+// Opt in with a CI token, or locally with FORGE_LIVE=1 (uses your Claude Code login).
+const hasSubscriptionAuth = Boolean(process.env.CLAUDE_CODE_OAUTH_TOKEN) || process.env.FORGE_LIVE === '1';
 
 describe.skipIf(!hasSubscriptionAuth)('ClaudeCodeRuntime (live SDK)', () => {
   it('creates a file in an isolated workspace via a real run', async () => {

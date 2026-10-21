@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { ToolDefinition } from './model-provider';
 import { CommandSandbox, createCommandSandbox } from './command-sandbox';
+import { findPathViolation } from '../../governance/path-confinement';
 
 export interface ToolExecution {
   output: string;
@@ -68,11 +69,11 @@ export class ToolExecutor {
     input: { path: string; content: string },
     cwd: string,
   ): Promise<ToolExecution> {
-    const abs = path.resolve(cwd, input.path);
-    // Confine writes to the workspace (no path traversal).
-    if (abs !== cwd && !abs.startsWith(cwd + path.sep)) {
+    // Confine writes to the workspace (no traversal, no symlink/junction escape).
+    if (await findPathViolation(cwd, 'write_file', input)) {
       return { output: `Refused: ${input.path} escapes the workspace`, isError: true };
     }
+    const abs = path.resolve(cwd, input.path);
     await mkdir(path.dirname(abs), { recursive: true });
     await writeFile(abs, input.content ?? '', 'utf8');
     return { output: `wrote ${input.path}`, isError: false };

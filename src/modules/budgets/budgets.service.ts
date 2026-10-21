@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { EmployeesService } from '../employees/employees.service';
 import { and, eq, gte, sql } from 'drizzle-orm';
 import { DRIZZLE, Database } from '../../infrastructure/database/drizzle.provider';
 import { budgets, costEvents, Budget, BudgetPeriod } from './budgets.schema';
@@ -18,9 +19,17 @@ export interface RecordCostInput {
 
 @Injectable()
 export class BudgetsService {
-  constructor(@Inject(DRIZZLE) private readonly db: Database) {}
+  constructor(
+    @Inject(DRIZZLE) private readonly db: Database,
+    private readonly employees: EmployeesService,
+  ) {}
 
   async setBudget(employeeId: string, input: SetBudgetInput): Promise<Budget> {
+    await this.employees.findOne(employeeId); // 404 for an unknown employee
+    const { softLimitUsd: soft, hardLimitUsd: hard } = input;
+    if (soft != null && hard != null && soft > hard) {
+      throw new BadRequestException('softLimitUsd must not exceed hardLimitUsd');
+    }
     const [row] = await this.db
       .insert(budgets)
       .values({

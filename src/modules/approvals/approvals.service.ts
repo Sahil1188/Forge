@@ -1,9 +1,14 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, desc, eq } from 'drizzle-orm';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { DRIZZLE, Database } from '../../infrastructure/database/drizzle.provider';
 import { OutboxService } from '../../infrastructure/events/outbox.service';
 import { EventTypes } from '../../infrastructure/events/event-types';
 import { approvals, Approval, ApprovalStatus } from './approvals.schema';
+
+/** SQL predicate: the stored request equals this exact tool call (jsonb equality, key-order independent). */
+function sameAction(toolName: string, input: unknown) {
+  return sql`${approvals.requestedAction} = ${JSON.stringify({ toolName, input })}::jsonb`;
+}
 
 export interface RequestApprovalInput {
   agentRunId: string;
@@ -20,7 +25,11 @@ export class ApprovalsService {
     private readonly outbox: OutboxService,
   ) {}
 
-  /** Creates a pending approval unless one already exists for this run+tool. */
+  /**
+   * Creates a pending approval unless one already exists for this exact call
+   * (run + tool + input). An approval authorises one specific action — approving
+   * "Deploy staging" must not also green-light "Deploy prod".
+   */
   async requestIfAbsent(input: RequestApprovalInput): Promise<Approval> {
     const [existing] = await this.db
       .select()
@@ -30,6 +39,7 @@ export class ApprovalsService {
           eq(approvals.agentRunId, input.agentRunId),
           eq(approvals.toolName, input.toolName),
           eq(approvals.status, 'pending'),
+          sameAction(input.toolName, input.input),
         ),
       );
     if (existing) {
@@ -57,6 +67,11 @@ export class ApprovalsService {
     });
   }
 
+  /**
+   * Records a human decision. Only a pending approval can be decided: repeating the
+   * same decision is a harmless no-op, but a contradictory one (approved → denied)
+   * is a conflict — otherwise a decision that already released a run could be flipped.
+   */
   async decide(id: string, decision: 'approved' | 'denied', userId?: string): Promise<Approval> {
     const approval = await this.findOne(id);
     return this.db.transaction(async (tx) => {
@@ -67,8 +82,13 @@ export class ApprovalsService {
           decidedByUserId: userId ?? null,
           decidedAt: new Date(),
         })
-        .where(eq(approvals.id, id))
+        .where(and(eq(approvals.id, id), eq(approvals.status, 'pending')))
         .returning();
+      if (!row) {
+        const current = await this.findOne(id);
+        if (current.status === decision) return current;
+        throw new ConflictException(`Approval ${id} was already ${current.status}`);
+      }
       await this.outbox.record(tx, {
         type: decision === 'approved' ? EventTypes.ApprovalApproved : EventTypes.ApprovalDenied,
         aggregateType: 'approval',
@@ -79,8 +99,8 @@ export class ApprovalsService {
     });
   }
 
-  /** Atomically consumes an approved decision for a run+tool; true if granted. */
-  async consumeIfApproved(agentRunId: string, toolName: string): Promise<boolean> {
+  /** Atomically consumes an approved decision for this exact run+tool+input; true if granted. */
+  async consumeIfApproved(agentRunId: string, toolName: string, input: unknown): Promise<boolean> {
     const [row] = await this.db
       .update(approvals)
       .set({ consumed: true })
@@ -90,6 +110,7 @@ export class ApprovalsService {
           eq(approvals.toolName, toolName),
           eq(approvals.status, 'approved'),
           eq(approvals.consumed, false),
+          sameAction(toolName, input),
         ),
       )
       .returning();

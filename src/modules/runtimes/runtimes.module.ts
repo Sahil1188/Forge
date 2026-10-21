@@ -5,8 +5,10 @@ import { CustomRuntime } from './custom/custom.runtime';
 import { ToolExecutor } from './custom/tool-executor';
 import { ProviderRegistry } from './custom/provider-registry';
 import { AnthropicMessagesProvider } from './custom/anthropic-messages.provider';
+import { OllamaProvider } from './custom/ollama.provider';
 import { RuntimeRegistry } from './runtime-registry';
 import { AgentRunsService } from './agent-runs.service';
+import { RuntimeAvailability } from './runtime-availability';
 
 @Module({
   providers: [
@@ -14,20 +16,23 @@ import { AgentRunsService } from './agent-runs.service';
     ClaudeCodeRuntime,
     ToolExecutor,
     AnthropicMessagesProvider,
+    OllamaProvider,
     {
-      // Built-in provider registry, seeded with the real Anthropic provider.
+      // Built-in provider registry, seeded with the real providers.
       provide: ProviderRegistry,
-      useFactory: (anthropic: AnthropicMessagesProvider) => {
+      useFactory: (anthropic: AnthropicMessagesProvider, ollama: OllamaProvider) => {
         const registry = new ProviderRegistry();
         registry.register(anthropic);
+        registry.register(ollama);
         return registry;
       },
-      inject: [AnthropicMessagesProvider],
+      inject: [AnthropicMessagesProvider, OllamaProvider],
     },
     CustomRuntime,
     RuntimeRegistry,
     AgentRunsService,
+    RuntimeAvailability,
   ],
-  exports: [RuntimeRegistry, AgentRunsService, ProviderRegistry],
+  exports: [RuntimeRegistry, AgentRunsService, ProviderRegistry, RuntimeAvailability],
 })
 export class RuntimesModule {}

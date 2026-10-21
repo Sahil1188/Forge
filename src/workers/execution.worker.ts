@@ -2,10 +2,11 @@ import {
   Inject,
   Injectable,
   Logger,
+  OnApplicationBootstrap,
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, not, notInArray, sql } from 'drizzle-orm';
 import { mkdir, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { DRIZZLE, Database } from '../infrastructure/database/drizzle.provider';
@@ -23,6 +24,7 @@ import { WorkService } from '../modules/work/work.service';
 import { workItems, WorkItem } from '../modules/work/work.schema';
 import { PermissionCallback, RuntimeEvent, RuntimeRunContext } from '../modules/runtimes/runtime.port';
 import { GovernanceService } from '../modules/governance/governance.service';
+import { findPathViolation } from '../modules/governance/path-confinement';
 import { ApprovalsService } from '../modules/approvals/approvals.service';
 import { BudgetsService } from '../modules/budgets/budgets.service';
 import { redactSecrets } from '../modules/governance/redaction';
@@ -76,7 +78,7 @@ const DEFAULT_LIMITS: RunLimits = {
  * max duration, and max tool calls — all independent of the model's judgment.
  */
 @Injectable()
-export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
+export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(ExecutionWorker.name);
   private readonly transcriptDir = path.join(process.cwd(), 'workspaces', 'transcripts');
   private timer?: NodeJS.Timeout;
@@ -104,27 +106,84 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
     if (process.env.VITEST || process.env.FORGE_MANUAL_DRIVE) {
       return;
     }
-    // Prod: execute as soon as a work item is assigned (auto-chain).
-    this.bus.subscribe(EventTypes.WorkAssigned, () => {
-      if (!this.busy) void this.runOnce();
-    });
+    this.enableAutoRun();
     if (process.env.FORGE_EXECUTION_WORKER === '1') {
-      this.timer = setInterval(() => {
-        if (!this.busy) void this.runOnce();
-      }, 2000);
+      this.timer = setInterval(() => this.kick(), 2000);
       this.timer.unref?.();
     }
+  }
+
+  private autoRun = false;
+
+  /**
+   * Prod auto-chain (also callable from tests): run work as soon as it becomes runnable.
+   * That is when it is assigned, AND when some item reaches `done` — finishing work can
+   * unblock dependents that were already assigned (observed live: a second item sat
+   * `assigned` forever after the first one finished). Each trigger drains the whole queue.
+   */
+  enableAutoRun(): void {
+    if (this.autoRun) return;
+    this.autoRun = true;
+    this.bus.subscribe(EventTypes.WorkAssigned, () => this.kick());
+    this.bus.subscribe(EventTypes.WorkStatusChanged, (event) => {
+      if ((event.payload as { to?: string }).to === 'done') this.kick();
+    });
+  }
+
+  /** Resume anything left assigned from before this process started. */
+  onApplicationBootstrap(): void {
+    if (process.env.VITEST || process.env.FORGE_MANUAL_DRIVE) return;
+    this.kick();
   }
 
   onModuleDestroy(): void {
     if (this.timer) clearInterval(this.timer);
   }
 
-  async runOnce(): Promise<ExecutionSummary | null> {
+  private kick(): void {
+    void this.drain().catch((err) => this.logger.error(`Auto-run failed: ${(err as Error).message}`));
+  }
+
+  private draining?: Promise<ExecutionSummary[]>;
+  private drainAgain = false;
+
+  /**
+   * Runs assigned work until the queue is empty. Safe to trigger repeatedly: a trigger that
+   * arrives mid-drain is folded into the running drain (which re-checks the queue), so every
+   * item runs exactly once. A blocked (over-budget) item stays queued but is skipped for the
+   * rest of the drain, so it can neither loop forever nor starve other employees' work.
+   */
+  drain(): Promise<ExecutionSummary[]> {
+    if (this.draining) {
+      this.drainAgain = true;
+      return this.draining;
+    }
+    this.draining = this.drainLoop().finally(() => {
+      this.draining = undefined;
+    });
+    return this.draining;
+  }
+
+  private async drainLoop(): Promise<ExecutionSummary[]> {
+    const summaries: ExecutionSummary[] = [];
+    const skipped = new Set<string>();
+    do {
+      this.drainAgain = false;
+      for (;;) {
+        const summary = await this.runOnce(skipped);
+        if (!summary) break;
+        summaries.push(summary);
+        if (summary.status === 'blocked') skipped.add(summary.workItemId);
+      }
+    } while (this.drainAgain);
+    return summaries;
+  }
+
+  async runOnce(skip: ReadonlySet<string> = new Set()): Promise<ExecutionSummary | null> {
     if (this.busy) return null;
     this.busy = true;
     try {
-      const item = await this.nextAssigned();
+      const item = await this.nextAssigned(skip);
       if (!item) return null;
       return await this.startRun(item);
     } finally {
@@ -150,11 +209,24 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
     return this.resumeRun(run);
   }
 
-  private async nextAssigned(): Promise<WorkItem | undefined> {
+  private async nextAssigned(skip: ReadonlySet<string> = new Set()): Promise<WorkItem | undefined> {
+    // An item is runnable only once everything it depends on is `done`; anything
+    // upstream still in flight, failed or cancelled keeps it parked.
+    const blockedByDependency = sql`exists (
+      select 1 from work_dependencies d
+      join work_items dep on dep.id = d.depends_on_work_item_id
+      where d.work_item_id = ${workItems.id} and dep.status <> 'done'
+    )`;
     const [item] = await this.db
       .select()
       .from(workItems)
-      .where(eq(workItems.status, 'assigned'))
+      .where(
+        and(
+          eq(workItems.status, 'assigned'),
+          not(blockedByDependency),
+          skip.size > 0 ? notInArray(workItems.id, [...skip]) : undefined,
+        ),
+      )
       .orderBy(desc(workItems.priority), asc(workItems.createdAt))
       .limit(1);
     return item;
@@ -198,7 +270,15 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
     });
 
     try {
-      const handle = await this.workspace.prepare({ employeeId: employee.id, workItemId: item.id });
+      // Branch off the project's shared repo so earlier items' work is present; a retry
+      // (rework/failed → assigned) continues from its previous, unmerged attempt.
+      const previousBranch = (item.artifacts as { branch?: string } | null)?.branch;
+      const handle = await this.workspace.prepare({
+        employeeId: employee.id,
+        workItemId: item.id,
+        projectId: item.projectId,
+        baseRef: previousBranch,
+      });
       await this.agentRuns.attachWorkspace(run.id, handle.id);
       await this.work.changeStatus(item.id, { status: 'in_progress' });
 
@@ -307,9 +387,11 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
             break;
           }
         } else if (event.kind === 'usage') {
-          inputTokens = event.inputTokens;
-          outputTokens = event.outputTokens;
-          costUsd = event.costUsd;
+          // Usage events are increments: the same numbers are recorded as cost events,
+          // so the run total always equals what the budget circuit breaker sees.
+          inputTokens += event.inputTokens;
+          outputTokens += event.outputTokens;
+          costUsd += event.costUsd;
           await this.budgets.recordCost(runId, employeeId, {
             inputTokens: event.inputTokens,
             outputTokens: event.outputTokens,
@@ -415,6 +497,9 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
         toolCallCount: usage.toolCalls,
       });
       await this.agentRuns.setStatus(runId, 'needs_approval');
+    } else {
+      // No session to resume from — still park the run, so it is never left "running".
+      await this.agentRuns.setStatus(runId, 'needs_approval');
     }
     await this.work.changeStatus(workItemId, { status: 'needs_approval' });
     this.logger.log(`Run ${runId} paused for approval ${approvalId}`);
@@ -506,9 +591,10 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
       provider,
       systemPromptAppend: this.buildClaudeMd(employee.name, employee.role, item, memoryBlock),
       allowedTools: this.governance.allowedTools(employee.governance),
+      disallowedTools: this.governance.deniedTools(employee.governance),
       limits: { maxTurns: limits.maxTurns, maxToolCalls: limits.maxToolCalls },
       resumeSessionId,
-      canUseTool: this.buildGate(runId, item, employee),
+      canUseTool: this.buildGate(runId, item, employee, handle.rootPath),
     };
   }
 
@@ -516,8 +602,14 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
     runId: string,
     item: WorkItem,
     employee: EmployeeWithRelations,
+    cwd: string,
   ): PermissionCallback {
     return async (toolName, input) => {
+      // Workspace confinement is unconditional: no policy can allow an escape.
+      const violation = await findPathViolation(cwd, toolName, input);
+      if (violation) {
+        return { behavior: 'deny', message: violation };
+      }
       const decision = this.governance.evaluate(employee.governance, toolName);
       if (decision === 'deny') {
         return { behavior: 'deny', message: `Tool ${toolName} denied by policy` };
@@ -525,7 +617,7 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
       if (decision === 'allow') {
         return { behavior: 'allow' };
       }
-      if (await this.approvals.consumeIfApproved(runId, toolName)) {
+      if (await this.approvals.consumeIfApproved(runId, toolName, input)) {
         return { behavior: 'allow' };
       }
       const approval = await this.approvals.requestIfAbsent({
@@ -622,6 +714,17 @@ export class ExecutionWorker implements OnModuleInit, OnModuleDestroy {
       item.description ?? '',
       '',
       'Complete this task in the current working directory. Create real, working files.',
+      'The directory is the shared project repository: it may already contain work from earlier',
+      'tasks — read it first and build on it rather than starting over.',
+      'When you finish, the project must build and its tests must pass: if package.json defines',
+      'build/test/lint scripts they will be run, so make sure everything they reference exists.',
+      ...(item.acceptance?.length
+        ? [
+            '',
+            'Your work is accepted only if each of these commands exits 0 (run them yourself before finishing):',
+            ...item.acceptance.map((c) => `  - ${c}`),
+          ]
+        : []),
     ].join('\n');
   }
 

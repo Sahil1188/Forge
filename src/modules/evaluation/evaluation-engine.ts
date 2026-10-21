@@ -34,8 +34,16 @@ export class EvaluationEngine {
     private readonly runner: CommandRunner,
   ) {}
 
-  async evaluateRepo(rootPath: string): Promise<EvaluationResult> {
-    const scripts = await this.discovery.discover(rootPath);
+  /**
+   * `acceptance`: extra commands that must exit 0 — objective checks that the work matches its
+   * brief (e.g. "index.js exists and exports slugify"), not just that its own tests pass.
+   */
+  async evaluateRepo(rootPath: string, acceptance: string[] = []): Promise<EvaluationResult> {
+    const discovered = await this.discovery.discover(rootPath);
+    const scripts = [
+      ...discovered,
+      ...acceptance.map((command, i) => ({ name: `acceptance#${i + 1}`, command })),
+    ];
     if (scripts.length === 0) {
       return {
         status: 'inconclusive',

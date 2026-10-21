@@ -30,6 +30,8 @@ export const workItems = pgTable('work_items', {
   priority: integer('priority_int').notNull().default(0),
   assignedEmployeeId: uuid('assigned_employee_id').references(() => employees.id),
   artifacts: jsonb('artifacts_json').$type<Record<string, unknown>>().notNull().default({}),
+  /** Commands that must exit 0 for this item to pass evaluation (objective brief checks). */
+  acceptance: jsonb('acceptance_json').$type<string[]>().notNull().default([]),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()

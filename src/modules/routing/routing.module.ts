@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { EmployeesModule } from '../employees/employees.module';
 import { WorkModule } from '../work/work.module';
 import { PerformanceModule } from '../performance/performance.module';
+import { RuntimesModule } from '../runtimes/runtimes.module';
 import { WORKFORCE_ROUTER } from './workforce/workforce-router.port';
 import { ScoringWorkforceRouter } from './workforce/scoring-workforce-router.service';
 import { OMNI_ROUTER } from './omni/omni-router.port';
@@ -9,7 +10,7 @@ import { DynamicOmniRouter } from './omni/dynamic-omni-router.service';
 import { RoutingController } from './routing.controller';
 
 @Module({
-  imports: [EmployeesModule, WorkModule, PerformanceModule],
+  imports: [EmployeesModule, WorkModule, PerformanceModule, RuntimesModule],
   controllers: [RoutingController],
   providers: [
     { provide: WORKFORCE_ROUTER, useClass: ScoringWorkforceRouter },

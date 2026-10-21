@@ -1,23 +1,27 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { EmployeesService } from '../../employees/employees.service';
 import { ReputationService } from '../../performance/reputation.service';
+import { RuntimeAvailability } from '../../runtimes/runtime-availability';
 import {
   WorkforceRouterPort,
   WorkforceRoutingDecision,
   WorkforceRoutingTarget,
 } from './workforce-router.port';
-import { CandidateInput, selectBest } from './candidate-scoring';
+import { CandidateInput, executionPool, selectBest } from './candidate-scoring';
 
 /**
  * V1 Workforce Router: scores same-company employees on skill+role+availability
- * (reputation wired but weight 0). Fetches per-candidate skills and reputation,
- * then delegates to the pure scorer.
+ * (reputation wired but weight 0). Only employees whose runtime can actually run are
+ * considered, and executives are used for execution only when nobody else is available.
  */
 @Injectable()
 export class ScoringWorkforceRouter implements WorkforceRouterPort {
+  private readonly logger = new Logger(ScoringWorkforceRouter.name);
+
   constructor(
     private readonly employees: EmployeesService,
     private readonly reputation: ReputationService,
+    private readonly runtimes: RuntimeAvailability,
   ) {}
 
   async route(target: WorkforceRoutingTarget): Promise<WorkforceRoutingDecision | null> {
@@ -26,6 +30,12 @@ export class ScoringWorkforceRouter implements WorkforceRouterPort {
 
     for (const base of roster) {
       const full = await this.employees.findOne(base.id);
+      const rc = full.runtimeConfig;
+      const availability = await this.runtimes.check(rc?.runtimeKey ?? 'claude_code', rc?.provider);
+      if (!availability.available) {
+        this.logger.debug(`Skipping ${base.name}: ${availability.reason}`);
+        continue;
+      }
       const reputation = await this.reputation.compute(base.id);
       candidates.push({
         id: base.id,
@@ -37,6 +47,6 @@ export class ScoringWorkforceRouter implements WorkforceRouterPort {
       });
     }
 
-    return selectBest(target.taskType, candidates);
+    return selectBest(target.taskType, executionPool(candidates));
   }
 }

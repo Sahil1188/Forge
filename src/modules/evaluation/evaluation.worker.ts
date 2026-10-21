@@ -1,5 +1,9 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
+import { OutboxService } from '../../infrastructure/events/outbox.service';
+import { WORKSPACE_PORT, WorkspacePort } from '../workspaces/workspace.port';
+import { projects } from '../projects/projects.schema';
+import { goals } from '../goals/goals.schema';
 import { DRIZZLE, Database } from '../../infrastructure/database/drizzle.provider';
 import { EventBus } from '../../infrastructure/events/event-bus';
 import { EventTypes } from '../../infrastructure/events/event-types';
@@ -15,13 +19,28 @@ import { SkillProgressionService } from '../performance/skill-progression.servic
 import { complexityOf } from '../performance/skill-math';
 import { MemoryService } from '../memory/memory.service';
 
+/** Raised when an item is not (or no longer) in `evaluating` — e.g. a replayed event. */
+export class NotAwaitingEvaluationError extends Error {
+  constructor(
+    readonly workItemId: string,
+    readonly status: string,
+  ) {
+    super(`Work item ${workItemId} is ${status}, not awaiting evaluation`);
+    this.name = 'NotAwaitingEvaluationError';
+  }
+}
+
 export interface EvaluationSummary {
   evaluationId: string;
   workItemId: string;
   status: Evaluation['status'];
   overallScore: number | null;
   routedTo: 'done' | 'rework';
+  /** Set when the item passed but its branch could not be merged into the project. */
+  integrationConflict?: string;
 }
+
+const DEFAULT_MAX_ATTEMPTS = 3;
 
 /**
  * Evaluates work items that have reached `evaluating`: discovers and runs the
@@ -42,6 +61,8 @@ export class EvaluationWorker implements OnModuleInit {
     private readonly performance: PerformanceService,
     private readonly skills: SkillProgressionService,
     private readonly memory: MemoryService,
+    @Inject(WORKSPACE_PORT) private readonly workspace: WorkspacePort,
+    private readonly outbox: OutboxService,
   ) {}
 
   onModuleInit(): void {
@@ -51,11 +72,24 @@ export class EvaluationWorker implements OnModuleInit {
     if (process.env.VITEST || process.env.FORGE_MANUAL_DRIVE) {
       return;
     }
+    this.enableAutoRun();
+  }
+
+  private autoRun = false;
+
+  /** Prod auto-chain (also callable from tests): evaluate on `evaluating`, retry on rework. */
+  enableAutoRun(): void {
+    if (this.autoRun) return;
+    this.autoRun = true;
     this.bus.subscribe(EventTypes.WorkStatusChanged, (event) => {
       if ((event.payload as { to?: string }).to === 'evaluating') {
-        void this.evaluate(event.aggregateId).catch((err) =>
-          this.logger.error(`Auto-evaluation failed: ${(err as Error).message}`),
-        );
+        void this.evaluate(event.aggregateId)
+          .then((r) => (r.routedTo === 'rework' ? this.retryOrFail(r.workItemId) : undefined))
+          .catch((err) => {
+            // A replayed/stale event for an item that already moved on is expected, not an error.
+            if (err instanceof NotAwaitingEvaluationError) return;
+            this.logger.error(`Auto-evaluation failed: ${(err as Error).message}`);
+          });
       }
     });
   }
@@ -74,9 +108,14 @@ export class EvaluationWorker implements OnModuleInit {
 
   async evaluate(workItemId: string): Promise<EvaluationSummary> {
     const item = await this.getWorkItem(workItemId);
+    // Only work that is actually awaiting evaluation may be scored. Anything else would
+    // run the toolchain, store a stray evaluation row, and then fail the transition.
+    if (item.status !== 'evaluating') {
+      throw new NotAwaitingEvaluationError(item.id, item.status);
+    }
     const rootPath = await this.resolveWorkspacePath(item);
 
-    const result = await this.engine.evaluateRepo(rootPath);
+    const result = await this.engine.evaluateRepo(rootPath, item.acceptance ?? []);
     const runs = await this.agentRuns.findByWorkItem(item.id);
     const evaluation = await this.evaluations.create({
       workItemId: item.id,
@@ -84,8 +123,25 @@ export class EvaluationWorker implements OnModuleInit {
       result,
     });
 
-    const routedTo: 'done' | 'rework' = result.status === 'failed' ? 'rework' : 'done';
+    let routedTo: 'done' | 'rework' = result.status === 'failed' ? 'rework' : 'done';
+    let integrationConflict: string | undefined;
+    if (routedTo === 'done') {
+      // Passing work becomes part of the project's deliverable (`main`), so the next item
+      // starts from it. A merge that doesn't apply cleanly sends the item back for rework.
+      const branch = (item.artifacts as { branch?: string } | null)?.branch;
+      if (branch) {
+        const merged = await this.workspace.integrate(item.projectId, branch);
+        if (!merged.merged) {
+          routedTo = 'rework';
+          integrationConflict = merged.conflict;
+          this.logger.warn(`Work item ${item.id} passed but could not be merged: ${merged.conflict}`);
+        }
+      }
+    }
     await this.work.changeStatus(item.id, { status: routedTo });
+    if (routedTo === 'done') {
+      await this.completeGoalIfFinished(item.projectId);
+    }
 
     // Performance + skill growth are driven strictly by the objective evaluation
     // (spec §13/§14) — never self-awarded. Skipped when inconclusive (no score).
@@ -128,7 +184,54 @@ export class EvaluationWorker implements OnModuleInit {
       status: result.status,
       overallScore: result.overallScore,
       routedTo,
+      integrationConflict,
     };
+  }
+
+  /**
+   * After a failed evaluation: hand the item back to the same employee for another attempt
+   * (their memory now carries the failure), up to FORGE_MAX_ATTEMPTS runs; then give up.
+   * Driven by the auto-chain and the CLI, so the whole goal can finish unattended.
+   */
+  async retryOrFail(workItemId: string): Promise<'retried' | 'failed' | 'skipped'> {
+    const item = await this.getWorkItem(workItemId);
+    if (item.status !== 'rework' || !item.assignedEmployeeId) return 'skipped';
+    const attempts = (await this.agentRuns.findByWorkItem(item.id)).length;
+    const max = Number(process.env.FORGE_MAX_ATTEMPTS ?? DEFAULT_MAX_ATTEMPTS);
+    if (attempts < max) {
+      await this.work.assign(item.id, { employeeId: item.assignedEmployeeId, assignedBy: 'auto_rework' });
+      this.logger.log(`Work item ${item.id} failed evaluation; retry ${attempts + 1}/${max}`);
+      return 'retried';
+    }
+    await this.work.changeStatus(item.id, { status: 'failed' });
+    this.logger.warn(`Work item ${item.id} failed after ${attempts} attempt(s); giving up`);
+    return 'failed';
+  }
+
+  /** Marks the goal completed once every (non-cancelled) item of its projects is done. */
+  private async completeGoalIfFinished(projectId: string): Promise<void> {
+    const [project] = await this.db.select().from(projects).where(eq(projects.id, projectId));
+    if (!project) return;
+    const goalProjects = await this.db.select({ id: projects.id }).from(projects).where(eq(projects.goalId, project.goalId));
+    const items = await this.db
+      .select({ status: workItems.status })
+      .from(workItems)
+      .where(inArray(workItems.projectId, goalProjects.map((p) => p.id)));
+    const live = items.filter((i) => i.status !== 'cancelled');
+    if (live.length === 0 || live.some((i) => i.status !== 'done')) return;
+
+    const [goal] = await this.db.select().from(goals).where(eq(goals.id, project.goalId));
+    if (!goal || goal.status === 'completed' || goal.status === 'cancelled') return;
+    await this.db.transaction(async (tx) => {
+      await tx.update(goals).set({ status: 'completed' }).where(eq(goals.id, goal.id));
+      await this.outbox.record(tx, {
+        type: EventTypes.GoalCompleted,
+        aggregateType: 'goal',
+        aggregateId: goal.id,
+        payload: { companyId: goal.companyId, items: live.length },
+      });
+    });
+    this.logger.log(`Goal ${goal.id} completed (${live.length} work item(s) done)`);
   }
 
   private async resolveWorkspacePath(item: WorkItem): Promise<string> {

@@ -48,7 +48,10 @@ export interface RuntimeRunContext {
   provider?: string;
   /** Employee-specific context written as CLAUDE.md for Claude Code (spec §9.5). */
   systemPromptAppend?: string;
+  /** Strict whitelist: only these tools exist for the agent. */
   allowedTools?: string[];
+  /** Tools removed outright (enforced by the runtime, not just by the permission callback). */
+  disallowedTools?: string[];
   permissionMode?: string;
   limits?: RuntimeLimits;
   resumeSessionId?: string;

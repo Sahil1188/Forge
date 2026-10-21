@@ -97,3 +97,17 @@ export function selectBest(
   }
   return best;
 }
+
+/** Executives (CEO / Chief …) plan and delegate; they are not the default doers of work. */
+export function isExecutive(role: string): boolean {
+  return /\bceo\b|\bchief\b/i.test(role);
+}
+
+/**
+ * The candidates eligible to execute work: executives are only considered when nobody else
+ * is available (observed live: a CEO routed execution work ran out of its planning turn budget).
+ */
+export function executionPool<T extends { role: string }>(candidates: T[]): T[] {
+  const doers = candidates.filter((c) => !isExecutive(c.role));
+  return doers.length > 0 ? doers : candidates;
+}

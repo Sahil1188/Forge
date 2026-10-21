@@ -5,7 +5,7 @@
  *   forge up                 docker + migrate + seed (everything, one command)
  *   forge seed               (re)seed the demo company
  *   forge serve              start the HTTP server + /ui dashboard
- *   forge status             show companies, employees, and work items
+ *   forge status             show companies and their employees
  *   forge goal "<text>"      create a goal and drive it end-to-end, live
  *
  * `goal` runs the real pipeline in-process (CEO plans → routes → workers execute
@@ -16,6 +16,8 @@
  */
 import 'dotenv/config';
 import { spawnSync } from 'node:child_process';
+import { flag, flagAll, goalFields, goalText, hasFlag } from '../src/cli/args';
+import { summarizeGoal, GoalItemOutcome } from '../src/cli/summary';
 
 type Cmd = (args: string[]) => Promise<number> | number;
 
@@ -101,8 +103,13 @@ const commands: Record<string, Cmd> = {
     }
   },
 
+  /** Short task: one work item straight to the best-fit employee (no CEO planning run). */
+  task(args: string[]) {
+    return commands.goal([...args, '--direct']);
+  },
+
   async goal(args: string[]) {
-    const text = args.filter((a) => !a.startsWith('--')).join(' ').trim();
+    const text = goalText(args);
     if (!text) {
       console.error('Usage: forge goal "Build a Node/Express hello API with a test"');
       return 1;
@@ -129,44 +136,66 @@ const commands: Record<string, Cmd> = {
       console.log(`\n🏢 Company: ${company.name}`);
       console.log(`🎯 Goal:    ${text}\n`);
 
-      const goal = await app.get(GoalsService).create(company.id, { title: text });
+      const direct = hasFlag(args, '--direct');
+      const checks = flagAll(args, '--check');
+      const goal = await app.get(GoalsService).create(company.id, {
+        ...goalFields(text),
+        mode: direct ? 'direct' : 'plan',
+        acceptance: checks,
+      });
+      if (checks.length) console.log(`✔︎ Acceptance checks: ${checks.length}`);
       await app.get(GoalsService).start(goal.id);
 
-      console.log('🧠 CEO planning the goal…');
+      console.log(direct ? '⚡ Direct task — skipping CEO planning…' : '🧠 CEO planning the goal…');
       const plan = await app.get(CeoPlanner).plan(goal.id);
       console.log(`   → project ${plan.projectId} with ${plan.workItems.length} work item(s):`);
       for (const wi of plan.workItems) {
-        console.log(`     - ${wi.workItemId}  →  ${wi.assignedTo ? `assigned ${wi.assignedTo}` : 'unassigned'}`);
+        console.log(`     - ${wi.title}  →  ${wi.assignedTo ? `assigned ${wi.assignedTo}` : 'UNASSIGNED (nobody can run it)'}  [${wi.workItemId}]`);
       }
 
       const exec = app.get(ExecutionWorker);
       const evaluate = app.get(EvaluationWorker);
 
+      const outcomes = new Map<string, GoalItemOutcome>(
+        plan.workItems.map((w) => [w.workItemId, { workItemId: w.workItemId, finalStatus: 'created' }]),
+      );
+
       console.log('\n⚙️  Executing work items…');
       for (let i = 0; i < 50; i += 1) {
         const summary = await exec.runOnce();
         if (!summary) break;
+        const outcome = outcomes.get(summary.workItemId) ?? { workItemId: summary.workItemId, finalStatus: 'created' };
+        outcomes.set(summary.workItemId, outcome);
+        outcome.execution = summary.status;
         console.log(
           `   • ${summary.workItemId} → ${summary.status} ` +
             `(${summary.runtimeKey}/${summary.model}, ${summary.filesChanged.length} files, $${summary.estimatedCostUsd.toFixed(4)})`,
         );
         if (summary.status === 'paused') {
           console.log(`     ⏸  needs approval ${summary.approvalId}. Approve via /ui or the API, then re-run.`);
-          break;
+          continue; // other independent items can still run
         }
         if (summary.status === 'completed') {
-          const ev = await evaluate.runOnce();
-          if (ev) {
-            console.log(
-              `     ✓ evaluated: ${ev.status} (score ${ev.overallScore ?? 'n/a'}) → ${ev.routedTo}`,
-            );
+          const ev = await evaluate.evaluate(summary.workItemId);
+          outcome.evaluation = ev.status;
+          console.log(`     ✓ evaluated: ${ev.status} (score ${ev.overallScore ?? 'n/a'}) → ${ev.routedTo}`);
+          if (ev.routedTo === 'rework') {
+            // Same as the server's auto-chain: retry with the lesson learned, up to the limit.
+            const next = await evaluate.retryOrFail(summary.workItemId);
+            console.log(`     ↻ ${next === 'retried' ? 'retrying with the failure in memory' : 'giving up after max attempts'}`);
           }
         }
       }
 
-      console.log('\n✅ Done. Inspect results at http://localhost:3000/ui (run `forge serve`).');
-      console.log('   Workspaces with the produced files are under ./workspaces/runs/.');
-      return 0;
+      const { WorkService } = await import('../dist/modules/work/work.service.js');
+      for (const o of outcomes.values()) {
+        o.finalStatus = (await app.get(WorkService).findOne(o.workItemId)).status;
+      }
+      const result = summarizeGoal([...outcomes.values()]);
+      console.log(`\n${result.ok ? '✅' : '⚠️ '} ${result.lines.join('\n')}`);
+      const { LocalWorktreeWorkspace } = await import('../dist/modules/workspaces/local-worktree.workspace.js');
+      console.log(`   Deliverable (project main): ${app.get(LocalWorktreeWorkspace).projectPath(plan.projectId)}`);
+      return result.exitCode;
     } catch (err) {
       console.error(`\n✗ ${(err as Error).message}`);
       if (/oauth|auth|credential|401|forbidden/i.test((err as Error).message)) {
@@ -179,11 +208,6 @@ const commands: Record<string, Cmd> = {
   },
 };
 
-function flag(args: string[], name: string): string | undefined {
-  const i = args.indexOf(name);
-  return i >= 0 ? args[i + 1] : undefined;
-}
-
 function usage(): void {
   console.log(
     [
@@ -194,8 +218,10 @@ function usage(): void {
       '  up               Postgres + migrate + seed (one command)',
       '  seed             (re)seed the demo company',
       '  serve            start the HTTP server + /ui dashboard',
-      '  status           show companies, employees, work items',
-      '  goal "<text>"    create a goal and drive it end-to-end, live',
+      '  status           show companies and their employees',
+      '  goal "<text>"    the CEO plans it, employees build it, end-to-end, live',
+      '  task "<text>"    a short task: one employee, no planning step (fast, cheap)',
+      '                   options: --check "<cmd>" (repeatable, must exit 0)  --company <id>',
       '',
       'Live runs need Claude Code auth: `claude setup-token` then export CLAUDE_CODE_OAUTH_TOKEN.',
     ].join('\n'),

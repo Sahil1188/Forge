@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ChatRequest, ChatResponse, ModelProvider, ToolCall } from './model-provider';
+import { estimateAnthropicCostUsd } from './anthropic-pricing';
 
 interface AnthropicBlock {
   type: string;
@@ -39,24 +40,7 @@ export class AnthropicMessagesProvider implements ModelProvider {
         description: t.description,
         input_schema: t.inputSchema,
       })),
-      messages: request.messages.map((m) => {
-        if (m.role === 'tool') {
-          return {
-            role: 'user',
-            content: [{ type: 'tool_result', tool_use_id: m.toolCallId, content: m.content }],
-          };
-        }
-        if (m.role === 'assistant' && m.toolCalls?.length) {
-          return {
-            role: 'assistant',
-            content: [
-              ...(m.content ? [{ type: 'text', text: m.content }] : []),
-              ...m.toolCalls.map((c) => ({ type: 'tool_use', id: c.id, name: c.name, input: c.input })),
-            ],
-          };
-        }
-        return { role: m.role, content: m.content };
-      }),
+      messages: toWireMessages(request),
     };
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -88,11 +72,53 @@ export class AnthropicMessagesProvider implements ModelProvider {
     return {
       text,
       toolCalls,
-      stopReason: data.stop_reason === 'tool_use' ? 'tool_use' : 'end_turn',
+      stopReason:
+        data.stop_reason === 'tool_use'
+          ? 'tool_use'
+          : data.stop_reason === 'max_tokens'
+            ? 'max_tokens'
+            : 'end_turn',
       usage: {
         inputTokens: data.usage.input_tokens,
         outputTokens: data.usage.output_tokens,
+        // Per-token API billing: report an estimate so budgets can see this spend.
+        costUsd: estimateAnthropicCostUsd(request.model, data.usage.input_tokens, data.usage.output_tokens),
       },
     };
   }
+}
+
+/**
+ * Maps provider-neutral messages to the Messages API wire format. All tool results for
+ * one assistant turn must travel together in a single user message, so consecutive
+ * `tool` messages are merged rather than sent as separate user turns.
+ */
+function toWireMessages(request: ChatRequest): Array<{ role: string; content: unknown }> {
+  const out: Array<{ role: string; content: unknown }> = [];
+  for (const m of request.messages) {
+    if (m.role === 'tool') {
+      const block = { type: 'tool_result', tool_use_id: m.toolCallId, content: m.content };
+      const prev = out[out.length - 1];
+      if (prev && prev.role === 'user' && Array.isArray(prev.content) && isToolResultTurn(prev.content)) {
+        prev.content.push(block);
+      } else {
+        out.push({ role: 'user', content: [block] });
+      }
+    } else if (m.role === 'assistant' && m.toolCalls?.length) {
+      out.push({
+        role: 'assistant',
+        content: [
+          ...(m.content ? [{ type: 'text', text: m.content }] : []),
+          ...m.toolCalls.map((c) => ({ type: 'tool_use', id: c.id, name: c.name, input: c.input })),
+        ],
+      });
+    } else {
+      out.push({ role: m.role, content: m.content });
+    }
+  }
+  return out;
+}
+
+function isToolResultTurn(content: unknown[]): boolean {
+  return content.every((b) => (b as { type?: string }).type === 'tool_result');
 }

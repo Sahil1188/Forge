@@ -2,6 +2,7 @@
 export const EventTypes = {
   GoalCreated: 'goal.created',
   GoalStarted: 'goal.started',
+  GoalCompleted: 'goal.completed',
   ProjectCreated: 'project.created',
   WorkCreated: 'work.created',
   WorkAssigned: 'work.assigned',

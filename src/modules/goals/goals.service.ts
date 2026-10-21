@@ -25,6 +25,8 @@ export class GoalsService {
           title: dto.title,
           description: dto.description ?? null,
           createdByUserId: dto.createdByUserId ?? null,
+          mode: dto.mode ?? 'plan',
+          acceptance: dto.acceptance ?? [],
         })
         .returning();
       await this.outbox.record(tx, {
