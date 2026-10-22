@@ -80,13 +80,13 @@
     "semantic_hash": "b6c9c4b64b7092bea720263a47b574cf"
   },
   "package.json": {
-    "mtime": 1785934081.3275855,
-    "ast_hash": "3b8d47f8eda7823887e62e6e5a2f31aa",
+    "mtime": 1792576520.5383613,
+    "ast_hash": "3af41709cb9efebd391501990e17bfb4",
     "semantic_hash": ""
   },
   "src/app.module.ts": {
-    "mtime": 1785933796.9282475,
-    "ast_hash": "738e02229dcdbfbc357abe7dd8eb698e",
+    "mtime": 1792576004.040959,
+    "ast_hash": "174fecff8bb14dfbd1a75e8cca0c8029",
     "semantic_hash": ""
   },
   "src/infrastructure/database/connection.ts": {
@@ -185,9 +185,9 @@
     "semantic_hash": "982ea50073e55fbd1d6cb2bd6e7127a0"
   },
   "src/modules/budgets/budget-evaluation.ts": {
-    "mtime": 1785752950.1706955,
-    "ast_hash": "e51c3dda67f86e5e9a3020dff67ed667",
-    "semantic_hash": "e51c3dda67f86e5e9a3020dff67ed667"
+    "mtime": 1792576812.7557504,
+    "ast_hash": "2c7dc875e65e5ff594b9f6e07213eb47",
+    "semantic_hash": ""
   },
   "src/modules/budgets/budgets.controller.ts": {
     "mtime": 1785752977.2456727,
@@ -205,8 +205,8 @@
     "semantic_hash": "94e47da6a504af238789f8c598230cc7"
   },
   "src/modules/budgets/budgets.service.ts": {
-    "mtime": 1792047612.9002712,
-    "ast_hash": "82ebfdc92a05ff952cd978d800c380fc",
+    "mtime": 1792576811.6811264,
+    "ast_hash": "14dd71883d5ab72eb27089fec82e2815",
     "semantic_hash": ""
   },
   "src/modules/budgets/dto/set-budget.dto.ts": {
@@ -215,9 +215,9 @@
     "semantic_hash": "27dc6f31299ff6dda6777c6344196791"
   },
   "src/modules/companies/companies.controller.ts": {
-    "mtime": 1785750988.8148336,
-    "ast_hash": "7fdc4acbba5f1a4354b9db8f36411930",
-    "semantic_hash": "7fdc4acbba5f1a4354b9db8f36411930"
+    "mtime": 1792584399.59483,
+    "ast_hash": "2d111d96a787400d54cc8f3b8edfbfe9",
+    "semantic_hash": ""
   },
   "src/modules/companies/companies.module.ts": {
     "mtime": 1785750990.1618476,
@@ -230,14 +230,14 @@
     "semantic_hash": "90d3eb8fa0c8b98c5b8a4cd878a00f40"
   },
   "src/modules/companies/companies.service.ts": {
-    "mtime": 1785750986.3621254,
-    "ast_hash": "4194778e7ab983309a281a73b30f1188",
-    "semantic_hash": "4194778e7ab983309a281a73b30f1188"
+    "mtime": 1792584397.8107674,
+    "ast_hash": "a30d5b44c47ca849633721665667da59",
+    "semantic_hash": ""
   },
   "src/modules/companies/dto/create-company.dto.ts": {
-    "mtime": 1785750981.8131473,
-    "ast_hash": "afda9da576d614743f0a6123849aba55",
-    "semantic_hash": "afda9da576d614743f0a6123849aba55"
+    "mtime": 1792584399.59483,
+    "ast_hash": "369671e0d6897fe64993309cdf5b1fd6",
+    "semantic_hash": ""
   },
   "src/modules/employees/dto/create-employee.dto.ts": {
     "mtime": 1792567319.669999,
@@ -265,14 +265,14 @@
     "semantic_hash": ""
   },
   "src/modules/goals/dto/create-goal.dto.ts": {
-    "mtime": 1792571363.7766094,
-    "ast_hash": "2b2e17ae8992d638677b832fcd5cbad4",
+    "mtime": 1792576004.040959,
+    "ast_hash": "b73cfe8f4fd15cc7b3d89e5419013836",
     "semantic_hash": ""
   },
   "src/modules/goals/goals.controller.ts": {
-    "mtime": 1785751368.397991,
-    "ast_hash": "4f03520fbf7a9df51bbeba82836490f1",
-    "semantic_hash": "4f03520fbf7a9df51bbeba82836490f1"
+    "mtime": 1792576013.3304183,
+    "ast_hash": "a227641884050f7e4221d1b9b131b5ab",
+    "semantic_hash": ""
   },
   "src/modules/goals/goals.module.ts": {
     "mtime": 1785751369.650803,
@@ -710,13 +710,13 @@
     "semantic_hash": ""
   },
   "src/modules/observability/ui.controller.spec.ts": {
-    "mtime": 1792047422.6015017,
-    "ast_hash": "8bfc91ad581b65d23bc146815b5902fc",
+    "mtime": 1792576516.2317958,
+    "ast_hash": "9eb1f1652b5b71dd1add68c1f0b1afb6",
     "semantic_hash": ""
   },
   "src/modules/observability/ui.controller.ts": {
-    "mtime": 1792047447.5748837,
-    "ast_hash": "2ababbfbd173d01ad02ec6d585970103",
+    "mtime": 1792578279.4831388,
+    "ast_hash": "cded82c20464eb3b1522ff43b7ef8c33",
     "semantic_hash": ""
   },
   "src/modules/performance/performance-math.edge.spec.ts": {
@@ -965,8 +965,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1785758651.0639534,
-    "ast_hash": "8a6643a420fdad6bfb583523bc6cef16",
+    "mtime": 1792602352.0303247,
+    "ast_hash": "ae84cce51449f8dd59853741cbccbc57",
     "semantic_hash": ""
   },
   "README.md": {
@@ -975,8 +975,8 @@
     "semantic_hash": ""
   },
   "bin/README.md": {
-    "mtime": 1792572668.3624966,
-    "ast_hash": "17087f1a864613b7b708c54613db3844",
+    "mtime": 1792577146.4378846,
+    "ast_hash": "ff2e3db51bc410581abadcd591aa13e9",
     "semantic_hash": ""
   },
   "docker-compose.yml": {
@@ -1242,6 +1242,121 @@
   "test/short-tasks-acceptance.e2e-spec.ts": {
     "mtime": 1792571696.0964234,
     "ast_hash": "5bf47f055ba53dbfcea1793c2187aa28",
+    "semantic_hash": ""
+  },
+  "public/assets/app.js": {
+    "mtime": 1792602199.0024188,
+    "ast_hash": "c226ec4de31fccc2d78cda111ea09bff",
+    "semantic_hash": ""
+  },
+  "public/assets/approvals.js": {
+    "mtime": 1792602212.181881,
+    "ast_hash": "30473447144a31ed7b8c298f15e11abf",
+    "semantic_hash": ""
+  },
+  "public/assets/employee.js": {
+    "mtime": 1792602212.4896717,
+    "ast_hash": "0508a670526a43fb781e9258e91a1f33",
+    "semantic_hash": ""
+  },
+  "public/assets/goal.js": {
+    "mtime": 1792602212.2648861,
+    "ast_hash": "7d2cdec8022c97ccd53d482a87d117de",
+    "semantic_hash": ""
+  },
+  "public/assets/home.js": {
+    "mtime": 1792599318.0203443,
+    "ast_hash": "e46a81e4fb5a27203d53989846d8603d",
+    "semantic_hash": ""
+  },
+  "public/assets/lib.d.ts": {
+    "mtime": 1792585206.4743438,
+    "ast_hash": "2c6498275e42a03d96d1c16c1dd675b6",
+    "semantic_hash": ""
+  },
+  "public/assets/lib.js": {
+    "mtime": 1792602212.430956,
+    "ast_hash": "5836fd98f24414d8e3ac46c24fe06145",
+    "semantic_hash": ""
+  },
+  "public/assets/setup.js": {
+    "mtime": 1792602315.0121953,
+    "ast_hash": "a37d199c703c7f6b6686d41182932281",
+    "semantic_hash": ""
+  },
+  "public/assets/team.js": {
+    "mtime": 1792602212.5396535,
+    "ast_hash": "5e36ac2f0e7e63ad06dfcef34a4da868",
+    "semantic_hash": ""
+  },
+  "src/modules/console/console.controller.ts": {
+    "mtime": 1792584442.9579449,
+    "ast_hash": "57f8d6f4024b8e02296797f07999f302",
+    "semantic_hash": ""
+  },
+  "src/modules/console/console.module.ts": {
+    "mtime": 1792584442.9589465,
+    "ast_hash": "56cd3f68e6ace10462407d23e4891e72",
+    "semantic_hash": ""
+  },
+  "src/modules/console/console.service.ts": {
+    "mtime": 1792584442.9569447,
+    "ast_hash": "c0f9176c5273c5c452aed107d4ebb113",
+    "semantic_hash": ""
+  },
+  "src/modules/observability/console-lib.spec.ts": {
+    "mtime": 1792585206.411971,
+    "ast_hash": "22afffcb922f1ebe54aef5cdb6b4627a",
+    "semantic_hash": ""
+  },
+  "test/console-api.e2e-spec.ts": {
+    "mtime": 1792584476.6690392,
+    "ast_hash": "39df1538b71b8e45fe84eb90a6035694",
+    "semantic_hash": ""
+  },
+  "public/README.md": {
+    "mtime": 1792577144.6145575,
+    "ast_hash": "e26d1dc9fc13e23e0b017d5a0d8a4414",
+    "semantic_hash": ""
+  },
+  "public/index.html": {
+    "mtime": 1792602307.9525952,
+    "ast_hash": "3ca44626737592eec2647e6993b55409",
+    "semantic_hash": ""
+  },
+  "public/DESIGN.md": {
+    "mtime": 1792602346.568038,
+    "ast_hash": "5436c44a2fb8264ccb8b66a129887077",
+    "semantic_hash": ""
+  },
+  "public/assets/compose.js": {
+    "mtime": 1792602212.329321,
+    "ast_hash": "64c7b11de522bf9833df5f052572ec93",
+    "semantic_hash": ""
+  },
+  "public/assets/deliverables.js": {
+    "mtime": 1792599333.402233,
+    "ast_hash": "53ec43f975ab6ad7e64e237ae0505397",
+    "semantic_hash": ""
+  },
+  "public/assets/runs.js": {
+    "mtime": 1792585067.318758,
+    "ast_hash": "d4403a14539c23951a06db3e38415b35",
+    "semantic_hash": ""
+  },
+  "public/assets/settings.js": {
+    "mtime": 1792602212.3809562,
+    "ast_hash": "0a6bfd46162278d5590007b94f80e211",
+    "semantic_hash": ""
+  },
+  "public/assets/work.js": {
+    "mtime": 1792584989.3878174,
+    "ast_hash": "a649a92f1d2f83787eb1c16ffadf72b4",
+    "semantic_hash": ""
+  },
+  "public/assets/FONTS-LICENSE.txt": {
+    "mtime": 1792602323.673554,
+    "ast_hash": "f8cb5ec0e4683f7f628b9ecadf168a48",
     "semantic_hash": ""
   }
 }

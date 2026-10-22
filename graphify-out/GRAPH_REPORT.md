@@ -1,16 +1,16 @@
 # Graph Report - Forge  (2026-10-21)
 
 ## Corpus Check
-- 248 files · ~107,034 words
+- 269 files · ~122,039 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1341 nodes · 3258 edges · 85 communities (66 shown, 19 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 21 edges (avg confidence: 0.77)
+- 1555 nodes · 4023 edges · 81 communities (63 shown, 18 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 41 edges (avg confidence: 0.66)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `c3e74dc9`
+- Built from commit: `9464f4b7`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -67,18 +67,14 @@
 - EvaluationWorker
 - files
 - package.json
-- .run
+- 🚀 Getting started
 - infrastructure/README.md
-- @nestjs/core
+- .setBudget
 - FLOW.md
 - cli.e2e-spec.ts
 - .route
 - `test/` — end-to-end tests
 - CLAUDE.md
-- RuntimeAvailability
-- @nestjs/config
-- dotenv
-- rxjs
 - tsx
 - approvals/dto/README.md
 - drizzle.provider.ts
@@ -95,97 +91,97 @@
 - work/dto/README.md
 
 ## God Nodes (most connected - your core abstractions)
-1. `Database` - 104 edges
-2. `RuntimeEvent` - 63 edges
-3. `ExecutionWorker` - 52 edges
-4. `RuntimeRunContext` - 49 edges
-5. `RuntimeRegistry` - 36 edges
-6. `AgentRuntime` - 32 edges
-7. `AgentRunsService` - 30 edges
-8. `EmployeesService` - 28 edges
-9. `WorkService` - 23 edges
-10. `EvaluationWorker` - 21 edges
+1. `Database` - 118 edges
+2. `RuntimeEvent` - 64 edges
+3. `html()` - 62 edges
+4. `ExecutionWorker` - 54 edges
+5. `RuntimeRunContext` - 50 edges
+6. `RuntimeRegistry` - 38 edges
+7. `icon()` - 36 edges
+8. `AgentRunsService` - 32 edges
+9. `AgentRuntime` - 32 edges
+10. `EmployeesService` - 30 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `bootApp()` --references--> `test`  [EXTRACTED]
   test/helpers.ts → package.json
 - `bootApp()` --indirect_call--> `AppModule`  [INFERRED]
   test/helpers.ts → src/app.module.ts
-- `planWith()` --indirect_call--> `CeoPlanner`  [INFERRED]
-  test/project-workspace.e2e-spec.ts → src/modules/heartbeats/ceo-planner.service.ts
-- `workspaceOf()` --indirect_call--> `AgentRunsService`  [INFERRED]
-  test/live-pipeline.e2e-spec.ts → src/modules/runtimes/agent-runs.service.ts
-- `twoEmployeeCompany()` --indirect_call--> `RuntimeRegistry`  [INFERRED]
-  test/execution-lifecycle.e2e-spec.ts → src/modules/runtimes/runtime-registry.ts
+- `pumpUntil()` --indirect_call--> `OutboxDispatcher`  [INFERRED]
+  test/server-autochain.e2e-spec.ts → src/infrastructure/events/outbox.dispatcher.ts
+- `builtGoal()` --indirect_call--> `EvaluationWorker`  [INFERRED]
+  test/console-api.e2e-spec.ts → src/modules/evaluation/evaluation.worker.ts
+- `builtGoal()` --indirect_call--> `CeoPlanner`  [INFERRED]
+  test/console-api.e2e-spec.ts → src/modules/heartbeats/ceo-planner.service.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (85 total, 19 thin omitted)
+## Communities (81 total, 18 thin omitted)
 
 ### Community 0 - "RuntimeEvent"
 Cohesion: 0.10
-Nodes (16): AppModule, Module, bootstrap(), CustomRuntime, Injectable, AgentRuntime, RuntimeEvent, RuntimeRunContext (+8 more)
+Nodes (17): AppModule, Module, bootstrap(), EvaluationWorker, Injectable, AgentRuntime, RuntimeEvent, RuntimeRunContext (+9 more)
 
 ### Community 1 - "execution.worker.ts"
-Cohesion: 0.12
-Nodes (17): 🧠 Agent memory — `modules/memory`, ✋ Approvals (human‑in‑the‑loop) — `modules/approvals`, 💰 Budgets & circuit breakers — `modules/budgets`, 🖥️ CLI — `bin/forge`, ✅ Evaluation Engine — `modules/evaluation`, 🤖 Execution worker — `workers`, 🛡️ Governance & Tool Gateway — `modules/governance`, 🫀 Heartbeat & CEO planning — `modules/heartbeats` (+9 more)
+Cohesion: 0.22
+Nodes (8): 1. Principles, 2. Colour, 3. Typography — Forge "large" scale, 4. Layout and spacing, 5. Shape and depth, 6. Components, 7. Writing, Design guideline — Field Notebook (Sahil Shaikh brand, Platform UI)
 
 ### Community 2 - "Database"
-Cohesion: 0.05
-Nodes (21): Database, Executor, Approval, ApprovalsService, sameAction(), Inject, Injectable, EvaluationWorker (+13 more)
+Cohesion: 0.08
+Nodes (9): BudgetEvaluation, BudgetState, evaluateBudget(), AgentRun, ApprovalDecisionListener, Injectable, ExecutionWorker, Injectable (+1 more)
 
 ### Community 3 - "WorkService"
-Cohesion: 0.09
-Nodes (29): AddDependencyDto, AssignWorkDto, ChangeStatusDto, CreateWorkItemDto, TASK_TYPES, ArrayMaxSize, IsArray, IsIn (+21 more)
+Cohesion: 0.06
+Nodes (36): Param, Post, AddDependencyDto, AssignWorkDto, ChangeStatusDto, CreateWorkItemDto, TASK_TYPES, ArrayMaxSize (+28 more)
 
 ### Community 4 - "app.module.ts"
-Cohesion: 0.06
-Nodes (44): Header, DatabaseModule, Global, Inject, Module, ApprovalsModule, Module, BudgetsModule (+36 more)
+Cohesion: 0.05
+Nodes (52): DatabaseModule, Global, Inject, Module, EventsModule, Global, Module, ApprovalsModule (+44 more)
 
 ### Community 5 - "scripts"
-Cohesion: 0.12
-Nodes (17): @anthropic-ai/claude-agent-sdk, class-validator, dotenv, drizzle-orm, @nestjs/common, @nestjs/platform-express, dependencies, @anthropic-ai/claude-agent-sdk (+9 more)
+Cohesion: 0.07
+Nodes (27): @anthropic-ai/claude-agent-sdk, class-transformer, class-validator, dotenv, drizzle-orm, @nestjs/common, @nestjs/config, @nestjs/core (+19 more)
 
 ### Community 6 - "work.schema.ts"
-Cohesion: 0.15
-Nodes (16): createDb(), main(), Employee, EmployeeRuntimeConfig, employeeRuntimeConfigs, employees, EmployeeSkill, employeeSkills (+8 more)
+Cohesion: 0.18
+Nodes (11): createDb(), main(), EmployeeRuntimeConfig, employeeRuntimeConfigs, EmployeeSkill, employeeSkills, EmployeeStatus, ModelPolicy (+3 more)
 
 ### Community 7 - "budgets.service.ts"
-Cohesion: 0.16
-Nodes (13): BudgetEvaluation, BudgetState, evaluateBudget(), Budget, BudgetPeriod, budgets, CostEvent, costEvents (+5 more)
+Cohesion: 0.12
+Nodes (17): agentEnv(), ClaudeCodeRuntime, Hook, success, Inject, Injectable, workspaceNotice(), normalizeSdkMessage() (+9 more)
 
 ### Community 8 - "devDependencies"
 Cohesion: 0.06
 Nodes (31): drizzle-kit, eslint, eslint-config-prettier, @nestjs/cli, @nestjs/schematics, @nestjs/testing, devDependencies, drizzle-kit (+23 more)
 
 ### Community 9 - "EmployeesService"
-Cohesion: 0.09
-Nodes (30): Delete, HttpCode, IsObject, Patch, CreateEmployeeDto, EmployeeSkillDto, GovernanceDto, RuntimeConfigDto (+22 more)
+Cohesion: 0.10
+Nodes (29): Delete, HttpCode, IsObject, CreateEmployeeDto, EmployeeSkillDto, GovernanceDto, RuntimeConfigDto, SetSkillsDto (+21 more)
 
 ### Community 10 - "GoalsService"
-Cohesion: 0.24
-Nodes (6): GoalsController, Body, Controller, Get, Param, Post
+Cohesion: 0.18
+Nodes (6): Inject, GoalsService, Inject, Injectable, Inject, Inject
 
 ### Community 11 - "compilerOptions"
 Cohesion: 0.07
 Nodes (26): compilerOptions, allowSyntheticDefaultImports, baseUrl, declaration, emitDecoratorMetadata, esModuleInterop, experimentalDecorators, forceConsistentCasingInFileNames (+18 more)
 
 ### Community 12 - "companies.service.ts"
-Cohesion: 0.20
-Nodes (7): ObservabilityController, Controller, Get, Param, ObservabilityService, summarizeRun(), Injectable
+Cohesion: 0.13
+Nodes (13): DomainEvent, DomainEventInput, EventBus, EventHandler, Injectable, OutboxDispatcher, Inject, Injectable (+5 more)
 
 ### Community 13 - "ProjectsService"
-Cohesion: 0.18
-Nodes (9): CreateProjectDto, IsString, MaxLength, ProjectsController, Body, Controller, Get, Param (+1 more)
+Cohesion: 0.16
+Nodes (12): CreateProjectDto, IsString, MaxLength, ProjectsController, Body, Controller, Get, Param (+4 more)
 
 ### Community 14 - "health.service.ts"
 Cohesion: 0.18
 Nodes (9): HealthController, Controller, Get, HealthModule, Module, HealthService, HealthStatus, Inject (+1 more)
 
 ### Community 15 - "approvals.controller.ts"
-Cohesion: 0.16
-Nodes (10): ApprovalsController, Body, Controller, Get, Param, Post, DecideApprovalDto, IsIn (+2 more)
+Cohesion: 0.11
+Nodes (15): ApprovalsController, Body, Controller, Get, Param, Post, Approval, ApprovalsService (+7 more)
 
 ### Community 16 - "exclude"
 Cohesion: 0.22
@@ -196,56 +192,56 @@ Cohesion: 0.33
 Nodes (5): collection, compilerOptions, deleteOutDir, $schema, sourceRoot
 
 ### Community 23 - "evaluation.worker.ts"
-Cohesion: 0.10
-Nodes (15): CommandResult, CommandRunner, execAsync, ExecError, Injectable, FakeDiscovery, FakeRunner, EvaluationEngine (+7 more)
+Cohesion: 0.09
+Nodes (20): CommandResult, CommandRunner, execAsync, ExecError, Injectable, DimensionResult, FakeDiscovery, FakeRunner (+12 more)
 
 ### Community 24 - "performance.service.ts"
-Cohesion: 0.13
-Nodes (18): PerformanceRecord, PerformanceService, Inject, Injectable, ProfileController, Controller, Get, Param (+10 more)
+Cohesion: 0.05
+Nodes (40): IsBoolean, CreateGoalDto, ArrayMaxSize, IsArray, IsIn, IsOptional, IsString, IsUUID (+32 more)
 
 ### Community 25 - "custom-runtime.e2e-spec.ts"
-Cohesion: 0.07
-Nodes (50): DomainEvent, DomainEventInput, EventBus, EventHandler, Injectable, EventsModule, Global, Module (+42 more)
+Cohesion: 0.14
+Nodes (37): EventRow, events, AgentRunsService, Injectable, RuntimeRegistry, Injectable, twoItems(), builtGoal() (+29 more)
 
 ### Community 26 - "README.md"
 Cohesion: 0.10
 Nodes (19): 📚 API reference, 🏗️ Architecture at a glance, ⚙️ Configuration & billing, 🗄️ Data model, 🎓 Design principles, 🔨 Forge — the Autonomous AI Workforce Operating System, 🔁 How it works — the loop, 📄 License (+11 more)
 
 ### Community 27 - "runtime.port.ts"
-Cohesion: 0.16
-Nodes (12): Inject, EmployeesService, Injectable, Inject, AgentRun, agentRuns, AgentRunStatus, AgentRunsService (+4 more)
+Cohesion: 0.09
+Nodes (19): BudgetsService, RecordCostInput, Injectable, Inject, AgentRunStatus, CreateAgentRunInput, FinishAgentRunInput, DEFAULT_LIMITS (+11 more)
 
 ### Community 28 - "RuntimeEvent"
-Cohesion: 0.23
-Nodes (4): ToolDefinition, ToolExecution, ToolExecutor, Injectable
+Cohesion: 0.17
+Nodes (5): CustomRuntime, Injectable, ToolDefinition, ToolExecutor, Injectable
 
 ### Community 29 - "memory.service.ts"
 Cohesion: 0.11
-Nodes (15): Query, MemoryController, Controller, Get, Param, agentMemories, AgentMemory, MemoryKind (+7 more)
+Nodes (15): MemoryController, Controller, Get, Param, Query, agentMemories, AgentMemory, MemoryKind (+7 more)
 
 ### Community 30 - "execution-lifecycle.e2e-spec.ts"
-Cohesion: 0.12
-Nodes (16): agentEnv(), ClaudeCodeRuntime, Hook, success, Inject, Injectable, workspaceNotice(), normalizeSdkMessage() (+8 more)
+Cohesion: 0.22
+Nodes (6): Database, ConsoleService, emptyProgress(), Injectable, Inject, Inject
 
 ### Community 31 - "tool-executor.ts"
-Cohesion: 0.38
-Nodes (3): Goal, CeoPlanner, Injectable
+Cohesion: 0.26
+Nodes (12): approvals, budgets, CostEvent, costEvents, employees, evaluations, projects, agentRuns (+4 more)
 
 ### Community 32 - "runtimes.module.ts"
-Cohesion: 0.14
-Nodes (12): setup(), makeRuntime(), ProviderRegistry, Availability, RuntimeAvailability, make(), provider(), runtime() (+4 more)
+Cohesion: 0.21
+Nodes (7): ProviderRegistry, Availability, RuntimeAvailability, make(), provider(), runtime(), Injectable
 
 ### Community 33 - "scoring-workforce-router.service.ts"
-Cohesion: 0.35
-Nodes (5): EmployeeWithRelations, DynamicOmniRouter, Injectable, ModelSelection, OmniRouterPort
+Cohesion: 0.06
+Nodes (106): applyFilter(), boot(), closeOverlay(), ctx, GLOBAL_ACTIONS, NAV, onChange(), onClick() (+98 more)
 
 ### Community 34 - "Forge — V1 Architecture Proposal"
 Cohesion: 0.11
 Nodes (17): 10. Tool Gateway & approval flow via native hooks (§31.10), 11. Concurrency & workspace isolation (§31.11), 12. Budget & circuit breakers (§31.12), 13. Security concerns specific to autonomous code execution (§31.13), 14. Key decisions locked for V1, 1. Repository state (§31.1), 2. High-level shape of the V1 slice (§31.2), 3. Domain entities (§31.3) (+9 more)
 
 ### Community 35 - "outbox.service.ts"
-Cohesion: 0.17
-Nodes (15): DRIZZLE, EventType, EventTypes, OutboxService, Injectable, GoalsService, Inject, Injectable (+7 more)
+Cohesion: 0.23
+Nodes (8): DRIZZLE, drizzleProvider, PG_CLIENT, pgClientProvider, EventType, EventTypes, ApprovalStatus, RequestApprovalInput
 
 ### Community 36 - "Forge — V1 Implementation Plan"
 Cohesion: 0.12
@@ -253,47 +249,47 @@ Nodes (16): Cross-cutting throughout, Forge — V1 Implementation Plan, M0 — P
 
 ### Community 37 - "SetBudgetDto"
 Cohesion: 0.11
-Nodes (16): CompaniesController, Body, Controller, Get, Param, Post, Company, CompaniesService (+8 more)
+Nodes (17): CompaniesController, Body, Controller, Get, Param, Patch, Post, Company (+9 more)
 
 ### Community 38 - ".plan"
-Cohesion: 0.18
-Nodes (12): approvals, ApprovalStatus, RequestApprovalInput, companies, User, users, goals, GoalStatus (+4 more)
+Cohesion: 0.12
+Nodes (14): IsNumber, BudgetsController, Body, Controller, Get, Param, Put, BudgetPeriod (+6 more)
 
 ### Community 39 - "ObservabilityService"
-Cohesion: 0.18
-Nodes (7): HeartbeatWorker, Inject, Injectable, HeartbeatsController, Controller, Param, Post
+Cohesion: 0.12
+Nodes (17): 🧠 Agent memory — `modules/memory`, ✋ Approvals (human‑in‑the‑loop) — `modules/approvals`, 💰 Budgets & circuit breakers — `modules/budgets`, 🖥️ CLI — `bin/forge`, ✅ Evaluation Engine — `modules/evaluation`, 🤖 Execution worker — `workers`, 🛡️ Governance & Tool Gateway — `modules/governance`, 🫀 Heartbeat & CEO planning — `modules/heartbeats` (+9 more)
 
 ### Community 40 - "approvals.service.ts"
-Cohesion: 0.08
-Nodes (27): AnthropicBlock, AnthropicMessagesProvider, isToolResultTurn(), toWireMessages(), Injectable, DEFAULTS, estimateAnthropicCostUsd(), family() (+19 more)
+Cohesion: 0.15
+Nodes (13): Script, ScriptedProvider, ChatRequest, ChatResponse, ModelProvider, ToolCall, OllamaProvider, OllamaResponse (+5 more)
 
 ### Community 41 - "ceo-planner.service.ts"
-Cohesion: 0.23
-Nodes (6): CommandSandbox, createCommandSandbox(), DockerCommandSandbox, execFileAsync, HostCommandSandbox, SandboxResult
+Cohesion: 0.21
+Nodes (7): CommandSandbox, createCommandSandbox(), DockerCommandSandbox, execFileAsync, HostCommandSandbox, SandboxResult, ToolExecution
 
 ### Community 42 - "scripts"
 Cohesion: 0.13
 Nodes (15): scripts, build, db:down, db:generate, db:migrate, db:seed, db:up, forge (+7 more)
 
 ### Community 43 - "Database"
-Cohesion: 0.14
-Nodes (12): IsNumber, BudgetsController, Body, Controller, Get, Param, Put, SetBudgetDto (+4 more)
+Cohesion: 0.17
+Nodes (12): AnthropicBlock, AnthropicMessagesProvider, isToolResultTurn(), toWireMessages(), Injectable, DEFAULTS, estimateAnthropicCostUsd(), family() (+4 more)
 
 ### Community 44 - "employees.service.ts"
-Cohesion: 0.28
-Nodes (10): DimensionResult, EvaluationResult, Evaluation, evaluations, EvaluationStatus, EvaluationSummary, CreateEvaluationInput, performanceRecords (+2 more)
+Cohesion: 0.19
+Nodes (5): setup(), tool(), makeRuntime(), ChatMessage, ChatUsage
 
 ### Community 45 - "candidate-scoring.ts"
-Cohesion: 0.67
-Nodes (3): 🚀 Getting started, Install & run, Prerequisites
+Cohesion: 0.23
+Nodes (9): companies, User, users, goals, GoalStatus, Heartbeat, heartbeats, HeartbeatStatus (+1 more)
 
 ### Community 46 - "planner.e2e-spec.ts"
-Cohesion: 0.18
-Nodes (14): AVAILABILITY, CandidateInput, CandidateSkill, executionPool(), isExecutive(), relevantSkillScore(), roleAffinity(), scoreCandidate() (+6 more)
+Cohesion: 0.15
+Nodes (8): ConsoleController, Body, Controller, Get, Param, Post, Query, git
 
 ### Community 47 - "EventBus"
-Cohesion: 0.20
-Nodes (7): EvaluationController, Controller, Get, Param, EvaluationsService, Inject, Injectable
+Cohesion: 0.15
+Nodes (10): EvaluationController, Controller, Get, Param, Evaluation, EvaluationSummary, NotAwaitingEvaluationError, EvaluationsService (+2 more)
 
 ### Community 48 - "forge.ts"
 Cohesion: 0.16
@@ -308,76 +304,64 @@ Cohesion: 0.06
 Nodes (18): `modules/approvals/` — human-in-the-loop approvals, `modules/budgets/` — cost tracking + budget circuit breaker, `modules/companies/` — companies & users, `modules/employees/` — the workforce, `modules/evaluation/` — objective verification (never self-report), `modules/goals/` — goals, `modules/governance/` — the tool gate + secret redaction, `modules/health/` — liveness/readiness (+10 more)
 
 ### Community 51 - "event-bus.ts"
-Cohesion: 0.50
-Nodes (3): `bin/` — the Forge CLI, Giving Forge work, Notes
+Cohesion: 0.40
+Nodes (4): `bin/` — the Forge CLI, Giving Forge work, Notes, The web console
+
+### Community 52 - "WorkItem"
+Cohesion: 0.40
+Nodes (4): StarterTeamDto, IsOptional, IsString, MaxLength
 
 ### Community 53 - "EmployeesController"
-Cohesion: 0.32
-Nodes (7): VALID_TASK_TYPES, attachGoalAcceptance(), capPlan(), PlannedItem, resolveDependencies(), sanitizeChecks(), sanitizeItem()
-
-### Community 54 - "EvaluationWorker"
 Cohesion: 0.22
-Nodes (9): CreateGoalDto, ArrayMaxSize, IsArray, IsIn, IsOptional, IsString, IsUUID, MaxLength (+1 more)
+Nodes (8): Res, PUBLIC_DIR, Response, Controller, Get, Param, TYPES, UiController
 
 ### Community 55 - "files"
-Cohesion: 0.25
-Nodes (8): files, drizzle.config.ts, src, tsconfig.json, bin, docker-compose.yml, drizzle, .env.example
+Cohesion: 0.22
+Nodes (9): files, drizzle.config.ts, src, tsconfig.json, bin, docker-compose.yml, drizzle, .env.example (+1 more)
 
 ### Community 56 - "package.json"
 Cohesion: 0.29
 Nodes (6): bin, forge, description, name, private, version
 
-### Community 57 - ".run"
-Cohesion: 0.33
-Nodes (7): confinementGate(), findPathViolation(), isInside(), norm(), PATH_KEYS, realAncestor(), PermissionCallback
+### Community 57 - "🚀 Getting started"
+Cohesion: 0.67
+Nodes (3): 🚀 Getting started, Install & run, Prerequisites
 
 ### Community 58 - "infrastructure/README.md"
 Cohesion: 0.33
 Nodes (3): `infrastructure/database/` — PostgreSQL + Drizzle plumbing, `infrastructure/events/` — transactional outbox + in-process event bus, `infrastructure/` — cross-cutting plumbing
-
-### Community 59 - "@nestjs/core"
-Cohesion: 0.18
-Nodes (10): OMNI_ROUTER, DEFAULT_LIMITS, ExecutionStatus, ExecutionSummary, KILL_STATUS, KillReason, KillStatus, RunLimits (+2 more)
 
 ### Community 61 - "FLOW.md"
 Cohesion: 0.40
 Nodes (3): Conventions, Layout, `src/` — application root
 
 ### Community 63 - ".route"
-Cohesion: 0.17
-Nodes (9): RoutingController, Controller, Inject, Param, Post, ScoringWorkforceRouter, Injectable, WORKFORCE_ROUTER (+1 more)
+Cohesion: 0.13
+Nodes (9): Inject, runSummary(), Employee, assertUniqueSkills(), EmployeesService, Inject, Injectable, Inject (+1 more)
 
-### Community 66 - "RuntimeAvailability"
-Cohesion: 0.31
-Nodes (3): BudgetMockRuntime, sleep(), TimeoutMockRuntime
-
-### Community 68 - "dotenv"
-Cohesion: 0.50
-Nodes (5): clamp(), complexityOf(), computeSkillDelta(), round1(), TASK_WEIGHTS
-
-### Community 72 - "drizzle.provider.ts"
-Cohesion: 0.70
-Nodes (3): drizzleProvider, PG_CLIENT, pgClientProvider
+### Community 70 - "tsx"
+Cohesion: 0.05
+Nodes (51): EmployeeWithRelations, PerformanceRecord, performanceRecords, PerformanceService, Inject, Injectable, ProfileController, Controller (+43 more)
 
 ## Knowledge Gaps
-- **273 isolated node(s):** `Cmd`, `commands`, `$schema`, `collection`, `sourceRoot` (+268 more)
+- **306 isolated node(s):** `Cmd`, `commands`, `$schema`, `collection`, `sourceRoot` (+301 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **19 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **18 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Database` connect `Database` to `work.schema.ts`, `budgets.service.ts`, `EmployeesService`, `GoalsService`, `companies.service.ts`, `health.service.ts`, `performance.service.ts`, `custom-runtime.e2e-spec.ts`, `runtime.port.ts`, `memory.service.ts`, `tool-executor.ts`, `outbox.service.ts`, `SetBudgetDto`, `.plan`, `ObservabilityService`, `approvals.service.ts`, `employees.service.ts`, `EventBus`, `@nestjs/core`, `drizzle.provider.ts`?**
-  _High betweenness centrality (0.143) - this node is a cross-community bridge._
-- **Why does `bootApp()` connect `custom-runtime.e2e-spec.ts` to `RuntimeEvent`, `scripts`, `runtime.port.ts`?**
-  _High betweenness centrality (0.094) - this node is a cross-community bridge._
+- **Why does `Database` connect `execution-lifecycle.e2e-spec.ts` to `Database`, `WorkService`, `work.schema.ts`, `GoalsService`, `companies.service.ts`, `ProjectsService`, `health.service.ts`, `approvals.controller.ts`, `performance.service.ts`, `custom-runtime.e2e-spec.ts`, `runtime.port.ts`, `memory.service.ts`, `tool-executor.ts`, `outbox.service.ts`, `SetBudgetDto`, `.plan`, `approvals.service.ts`, `EventBus`, `.setBudget`, `.route`, `tsx`?**
+  _High betweenness centrality (0.132) - this node is a cross-community bridge._
+- **Why does `bootApp()` connect `custom-runtime.e2e-spec.ts` to `RuntimeEvent`, `scripts`, `EvaluationWorker`?**
+  _High betweenness centrality (0.079) - this node is a cross-community bridge._
 - **Why does `scripts` connect `scripts` to `package.json`?**
-  _High betweenness centrality (0.094) - this node is a cross-community bridge._
-- **Are the 6 inferred relationships involving `RuntimeRegistry` (e.g. with `twoEmployeeCompany()` and `world()`) actually correct?**
-  _`RuntimeRegistry` has 6 INFERRED edges - model-reasoned connections that need verification._
+  _High betweenness centrality (0.078) - this node is a cross-community bridge._
+- **Are the 2 inferred relationships involving `ExecutionWorker` (e.g. with `builtGoal()` and `runWorkItem()`) actually correct?**
+  _`ExecutionWorker` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `Cmd`, `commands`, `$schema` to the rest of the system?**
-  _273 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _306 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `RuntimeEvent` be split into smaller, more focused modules?**
-  _Cohesion score 0.09562289562289562 - nodes in this community are weakly interconnected._
-- **Should `execution.worker.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.11764705882352941 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09740259740259741 - nodes in this community are weakly interconnected._
+- **Should `Database` be split into smaller, more focused modules?**
+  _Cohesion score 0.08333333333333333 - nodes in this community are weakly interconnected._
