@@ -4,17 +4,14 @@ import * as path from 'node:path';
 import { AgentRuntime, PermissionDecision, RuntimeEvent, RuntimeRunContext } from '../runtime.port';
 import { SDK_QUERY, SdkQueryFn } from './sdk.provider';
 import { normalizeSdkMessage } from './message-normalizer';
+import { agentEnv } from '../../../infrastructure/security/safe-env';
 
 /**
- * The environment handed to the agent process. ANTHROPIC_API_KEY is removed so a
- * stray key can never silently switch billing from the Claude Code subscription to
- * per-token API charges (docs §7.1); subscription auth (OAuth) passes through.
+ * The environment handed to the agent process is an allowlist (see safe-env): toolchain,
+ * proxy and subscription auth only. ANTHROPIC_API_KEY never passes, so a stray key cannot
+ * switch billing to per-token charges (docs §7.1), and server secrets such as DATABASE_URL
+ * never reach the agent or the shell commands it runs.
  */
-function agentEnv(): Record<string, string | undefined> {
-  const env: Record<string, string | undefined> = { ...process.env };
-  delete env.ANTHROPIC_API_KEY;
-  return env;
-}
 
 /**
  * The employee's identity/memory plus an explicit statement of the workspace. The
@@ -22,6 +19,30 @@ function agentEnv(): Record<string, string | undefined> {
  * user's home directory, or a POSIX `/tmp/...` path the native Write tool resolves
  * to a different place on Windows).
  */
+/**
+ * Claude Code's own command sandbox for everything the agent runs in its shell: OS-level isolation
+ * (a separate rights-less user on Windows, bubblewrap/seatbelt elsewhere), writes confined to the
+ * workspace, common credential stores unreadable, and the subscription token hidden from commands.
+ * FORGE_AGENT_SANDBOX: `on` (default; warns and degrades if the platform can't sandbox),
+ * `required` (refuse to run unsandboxed), `off`.
+ */
+export function agentSandbox(cwd: string, mode = (process.env.FORGE_AGENT_SANDBOX ?? 'on').toLowerCase()): Record<string, unknown> | undefined {
+  if (mode === 'off' || mode === 'false' || mode === '0') return undefined;
+  return {
+    enabled: true,
+    failIfUnavailable: mode === 'required',
+    autoAllowBashIfSandboxed: true, // Forge's PreToolUse gate still judges every call
+    allowUnsandboxedCommands: false, // the agent cannot opt a command out
+    filesystem: { allowWrite: [cwd] },
+    credentials: {
+      envVars: [{ name: 'CLAUDE_CODE_OAUTH_TOKEN', mode: 'deny' }],
+      files: ['~/.ssh', '~/.aws', '~/.azure', '~/.config/gcloud', '~/.config/gh', '~/.docker/config.json', '~/.npmrc', '~/.git-credentials', '~/.claude/.credentials.json'].map(
+        (p) => ({ path: p, mode: 'deny' }),
+      ),
+    },
+  };
+}
+
 function workspaceNotice(ctx: RuntimeRunContext): string {
   return [
     ctx.systemPromptAppend ?? '',
@@ -62,6 +83,9 @@ export class ClaudeCodeRuntime implements AgentRuntime {
     }
 
     const abortController = new AbortController();
+    // Forge stopping the work (cancel, limit) ends the agent process, not just our listening.
+    if (ctx.abortSignal?.aborted) abortController.abort();
+    ctx.abortSignal?.addEventListener('abort', () => abortController.abort(), { once: true });
     let pendingApproval: { toolName: string; input: unknown; approvalRef: string } | undefined;
 
     const options: Record<string, unknown> = {
@@ -90,6 +114,8 @@ export class ClaudeCodeRuntime implements AgentRuntime {
     if (ctx.allowedTools) options.tools = ctx.allowedTools;
     if (ctx.disallowedTools?.length) options.disallowedTools = ctx.disallowedTools;
     if (ctx.limits?.maxTurns) options.maxTurns = ctx.limits.maxTurns;
+    const sandbox = agentSandbox(ctx.cwd);
+    if (sandbox) options.sandbox = sandbox;
     if (resume) options.resume = resume;
 
     if (ctx.canUseTool) {

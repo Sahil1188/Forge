@@ -1,4 +1,4 @@
-import { ArrayMaxSize, IsArray, IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import type { GoalMode } from '../goals.schema';
 
 export class CreateGoalDto {
@@ -26,4 +26,15 @@ export class CreateGoalDto {
   @IsString({ each: true })
   @MaxLength(500, { each: true })
   acceptance?: string[];
+
+  /** Exact folder for this goal's project (absolute, new or empty). Default: the company's projects folder. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  location?: string;
+
+  /** Start the goal right away (create + start in one call). */
+  @IsOptional()
+  @IsBoolean()
+  start?: boolean;
 }

@@ -17,6 +17,8 @@ export const goals = pgTable('goals', {
   mode: text('mode').$type<GoalMode>().notNull().default('plan'),
   /** Commands that must exit 0 once the goal is delivered (checked on its final work item). */
   acceptance: jsonb('acceptance_json').$type<string[]>().notNull().default([]),
+  /** Exact folder for this goal's project, when the operator chose one. */
+  location: text('location'),
   createdByUserId: uuid('created_by_user_id').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true })

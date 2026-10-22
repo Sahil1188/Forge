@@ -29,6 +29,7 @@ export class ScoringWorkforceRouter implements WorkforceRouterPort {
     const candidates: CandidateInput[] = [];
 
     for (const base of roster) {
+      if (target.excludeEmployeeIds?.includes(base.id)) continue;
       const full = await this.employees.findOne(base.id);
       const rc = full.runtimeConfig;
       const availability = await this.runtimes.check(rc?.runtimeKey ?? 'claude_code', rc?.provider);

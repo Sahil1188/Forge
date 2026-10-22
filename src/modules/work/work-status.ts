@@ -13,7 +13,8 @@ export type WorkItemStatus =
 const TRANSITIONS: Record<WorkItemStatus, WorkItemStatus[]> = {
   created: ['assigned', 'cancelled', 'failed'],
   assigned: ['in_progress', 'created', 'cancelled', 'failed'],
-  in_progress: ['needs_approval', 'evaluating', 'failed', 'cancelled'],
+  // in_progress → assigned: a run stopped by a usage limit goes back in the queue.
+  in_progress: ['needs_approval', 'evaluating', 'failed', 'cancelled', 'assigned'],
   needs_approval: ['in_progress', 'failed', 'cancelled'],
   evaluating: ['done', 'rework', 'failed'],
   rework: ['assigned', 'in_progress', 'cancelled', 'failed'],

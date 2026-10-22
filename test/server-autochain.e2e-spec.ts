@@ -119,7 +119,7 @@ describe('Server auto-chain: goal → completed with no manual driving (e2e)', (
     expect(items.every((i) => i.assignedEmployeeId === dev)).toBe(true); // never the CEO
 
     // The deliverable on main contains everyone's work.
-    const main = app.get<WorkspacePort>(WORKSPACE_PORT).projectPath(project.id);
+    const main = await app.get<WorkspacePort>(WORKSPACE_PORT).projectPath(project.id);
     for (const f of ['a.js', 'b.js', 'c.js', 'package.json']) expect(existsSync(path.join(main, f)), f).toBe(true);
     expect(existsSync(path.join(main, 'CLAUDE.md'))).toBe(false);
 

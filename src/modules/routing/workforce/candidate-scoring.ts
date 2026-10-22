@@ -1,4 +1,5 @@
 import { WorkforceRoutingDecision } from './workforce-router.port';
+import { domainOf } from '../../work/domains';
 
 export interface CandidateSkill {
   skillKey: string;
@@ -17,24 +18,6 @@ export interface CandidateInput {
 // V1 weights. Reputation is wired but weighted 0 (spec §7) until there's data.
 const WEIGHTS = { skill: 0.5, role: 0.3, availability: 0.2, reputation: 0.0 };
 
-const TASK_SKILL_HINTS: Record<string, string[]> = {
-  architecture: ['architecture', 'design', 'system'],
-  coding: ['node', 'java', 'python', 'typescript', 'go', 'coding', 'backend', 'frontend', 'sql', 'spring'],
-  review: ['review', 'quality', 'architecture'],
-  devops: ['devops', 'kubernetes', 'docker', 'ci', 'cloud', 'sre'],
-  qa: ['qa', 'test', 'testing'],
-  generic: [],
-};
-
-const TASK_ROLE_HINTS: Record<string, string[]> = {
-  architecture: ['architect', 'cto', 'lead', 'principal'],
-  coding: ['engineer', 'developer', 'backend', 'frontend', 'software'],
-  review: ['reviewer', 'senior', 'lead', 'principal'],
-  devops: ['devops', 'sre', 'ops', 'platform'],
-  qa: ['qa', 'test', 'quality'],
-  generic: [],
-};
-
 const AVAILABILITY: Record<string, number> = {
   idle: 1,
   working: 0.3,
@@ -44,17 +27,22 @@ const AVAILABILITY: Record<string, number> = {
 
 function relevantSkillScore(taskType: string, skills: CandidateSkill[]): number {
   if (skills.length === 0) return 0;
-  const hints = TASK_SKILL_HINTS[taskType] ?? [];
+  const hints = domainOf(taskType).skills;
   const matched = skills.filter((s) => hints.some((h) => s.skillKey.toLowerCase().includes(h)));
+  // No relevant skill: general seniority still counts, but at half weight (a finance expert is not a coder).
   const pool = matched.length > 0 ? matched : skills;
   const avg = pool.reduce((a, s) => a + s.level, 0) / pool.length;
-  return avg / 100;
+  return (matched.length > 0 || hints.length === 0 ? avg : avg / 2) / 100;
 }
 
+/** 1 when the candidate's role fits the work or they sit in the department that owns its domain. */
 function roleAffinity(taskType: string, role: string, department?: string | null): number {
-  const hints = TASK_ROLE_HINTS[taskType] ?? [];
+  const domain = domainOf(taskType);
+  const inDepartment = Boolean(domain.department) && (department ?? '').toLowerCase() === domain.department.toLowerCase();
   const hay = `${role} ${department ?? ''}`.toLowerCase();
-  return hints.some((k) => hay.includes(k)) ? 1 : 0.3;
+  const roleFits = domain.roles.some((k) => hay.includes(k));
+  if (roleFits) return 1;
+  return inDepartment ? 0.8 : 0.3;
 }
 
 export function scoreCandidate(

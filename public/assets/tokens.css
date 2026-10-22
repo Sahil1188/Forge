@@ -1,0 +1,101 @@
+/* Field Notebook tokens · Sahil Shaikh. Light only: there is no dark theme.
+   Palette, radii, shadows and spacing are verbatim from FIELD-NOTEBOOK.md Part 4.
+   Type and control sizes are the Forge "large" scale (public/DESIGN.md §3): about 15% larger than the
+   guideline's default so the console reads comfortably. Fonts are self-hosted (the console's CSP allows
+   only 'self'); all three are SIL OFL, see FONTS-LICENSE.txt. */
+@font-face { font-family: 'Instrument Serif'; src: url('/assets/instrument-serif.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Instrument Serif'; src: url('/assets/instrument-serif-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Onest'; src: url('/assets/onest.woff2') format('woff2'); font-weight: 400 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Martian Mono'; src: url('/assets/martian-mono.woff2') format('woff2'); font-weight: 400 500; font-style: normal; font-display: swap; }
+
+:root {
+  color-scheme: light;
+  --paper: #fafaf7;
+  --white: #ffffff;
+  --linen: #f3f3ef;
+  --rule: #e6e5e0;
+  --rule-strong: #8d8c86;
+  --ink: #1c1c1a;
+  --ink-secondary: #3d3c38;
+  --graphite: #64635e;
+  --placeholder: #72716b;
+  --fern: #1e6b5c;
+  --fern-hover: #185a4d;
+  --fern-soft: #e4f1ed;
+  --fern-text: #17574b;
+  --on-fern: #ffffff;
+  --signal: #ff5a1f;
+  --signal-soft: #fff0e8;
+  --signal-text: #a8390c;
+  --success: var(--fern-text);
+  --success-soft: var(--fern-soft);
+  --warning: #8a5a00;
+  --warning-soft: #fff4dc;
+  --danger: #b42318;
+  --danger-soft: #fdeceb;
+  --chart-1: #1e6b5c;
+  --chart-2: #7fa99b;
+  --chart-3: #b9b7ae;
+  --chart-highlight: #ff5a1f;
+  --backdrop: #1c1c1a33;
+  --shadow-pop: 0 4px 12px -2px #1c1c1a14, 0 2px 4px -2px #1c1c1a0f;
+  --shadow-modal: 0 20px 48px -12px #1c1c1a2e, 0 4px 8px -4px #1c1c1a14;
+  --focus-ring: 0 0 0 2px #ffffff, 0 0 0 4px #1e6b5c;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+  --space-32: 128px;
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
+  --control-sm: 32px;
+  --control-md: 40px;
+  --control-lg: 46px;
+  --row-height: 52px;
+  --topbar-height: 64px;
+  --sidebar-width: 264px;
+  --content-max: 1280px;
+  --mark-size: 8px;
+  --icon-md: 18px;
+  --icon-lg: 22px;
+  --opacity-disabled: 0.45;
+  --font-serif: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --font-sans: Onest, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Martian Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+  /* Type scale (size / line height). Serif is always 400; Onest never above 600. */
+  --text-page-title: 40px;   --leading-page-title: 44px;
+  --text-numeric: 44px;      --leading-numeric: 48px;
+  --text-modal-title: 30px;  --leading-modal-title: 36px;
+  --text-heading: 19px;      --leading-heading: 28px;
+  --text-subheading: 17px;   --leading-subheading: 24px;
+  --text-body: 16px;         --leading-body: 24px;
+  --text-body-lg: 18px;      --leading-body-lg: 28px;
+  --text-label: 15px;        --leading-label: 22px;
+  --text-small: 14px;        --leading-small: 20px;
+  --text-meta: 13px;         --leading-meta: 20px;
+  --text-avatar: 12px;
+}
+
+.ui-page-title { font-family: var(--font-serif); font-size: var(--text-page-title); line-height: var(--leading-page-title); font-weight: 400; letter-spacing: -0.01em; }
+.ui-numeric { font-family: var(--font-serif); font-size: var(--text-numeric); line-height: var(--leading-numeric); font-weight: 400; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.ui-heading { font-family: var(--font-sans); font-size: var(--text-heading); line-height: var(--leading-heading); font-weight: 600; letter-spacing: -0.01em; }
+.ui-subheading { font-family: var(--font-sans); font-size: var(--text-subheading); line-height: var(--leading-subheading); font-weight: 600; }
+.ui-body { font-family: var(--font-sans); font-size: var(--text-body); line-height: var(--leading-body); font-weight: 400; }
+.ui-body-lg { font-family: var(--font-sans); font-size: var(--text-body-lg); line-height: var(--leading-body-lg); font-weight: 400; }
+.ui-label { font-family: var(--font-sans); font-size: var(--text-label); line-height: var(--leading-label); font-weight: 500; }
+.ui-small { font-family: var(--font-sans); font-size: var(--text-small); line-height: var(--leading-small); font-weight: 400; }
+.ui-meta { font-family: var(--font-mono); font-size: var(--text-meta); line-height: var(--leading-meta); font-weight: 400; }
+
+/* Platform UI never animates: the app root carries .fn-app */
+.fn-app, .fn-app * { transition: none !important; animation: none !important; }

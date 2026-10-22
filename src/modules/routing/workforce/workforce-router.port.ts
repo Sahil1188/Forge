@@ -2,6 +2,8 @@ export interface WorkforceRoutingTarget {
   id: string;
   companyId: string;
   taskType: string;
+  /** People who must not get this work (e.g. the builder, for an independent review). */
+  excludeEmployeeIds?: string[];
 }
 
 export interface WorkforceRoutingDecision {

@@ -13,6 +13,8 @@ export const projects = pgTable('projects', {
     .notNull()
     .references(() => companies.id),
   name: text('name').notNull(),
+  /** Absolute path of the project's git repository (main = the deliverable). Null = legacy location. */
+  repoPath: text('repo_path'),
   status: text('status').$type<ProjectStatus>().notNull().default('active'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true })

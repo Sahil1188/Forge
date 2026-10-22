@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as path from 'node:path';
+import { commandEnv } from '../../../infrastructure/security/safe-env';
 
 const execFileAsync = promisify(execFile);
 
@@ -35,6 +36,7 @@ export class HostCommandSandbox implements CommandSandbox {
         maxBuffer: MAX_BUFFER,
         windowsHide: true,
         shell: true,
+        env: commandEnv(),
       });
       return { output: `${stdout ?? ''}${stderr ?? ''}` || 'ok', isError: false };
     } catch (err) {
@@ -61,9 +63,9 @@ export class DockerCommandSandbox implements CommandSandbox {
     private readonly cpus = process.env.FORGE_SANDBOX_CPUS ?? '2',
   ) {}
 
-  async run(command: string, cwd: string): Promise<SandboxResult> {
-    const mount = path.resolve(cwd);
-    const args = [
+  /** `docker run` arguments for one command; shared with acceptance checks (CommandRunner). */
+  args(command: string, cwd: string): string[] {
+    return [
       'run',
       '--rm',
       '--network',
@@ -76,8 +78,10 @@ export class DockerCommandSandbox implements CommandSandbox {
       '256',
       '--cap-drop',
       'ALL',
+      '--security-opt',
+      'no-new-privileges',
       '-v',
-      `${mount}:/work`,
+      `${path.resolve(cwd)}:/work`,
       '-w',
       '/work',
       this.image,
@@ -85,6 +89,10 @@ export class DockerCommandSandbox implements CommandSandbox {
       '-lc',
       command, // passed as a single argv element — no host-side shell interpolation
     ];
+  }
+
+  async run(command: string, cwd: string): Promise<SandboxResult> {
+    const args = this.args(command, cwd);
     try {
       const { stdout, stderr } = await execFileAsync('docker', args, {
         timeout: TIMEOUT_MS,

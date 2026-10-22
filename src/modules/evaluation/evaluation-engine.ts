@@ -18,6 +18,8 @@ export interface EvaluationResult {
   overallScore: number | null;
   dimensions: Record<string, DimensionResult>;
   note?: string;
+  /** Acceptance checks that could not run at all (invalid check, not failing work). */
+  brokenChecks?: string[];
 }
 
 const OUTPUT_LIMIT = 4000;
@@ -72,10 +74,29 @@ export class EvaluationEngine {
 
     const overallScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
     const allPassed = Object.values(dimensions).every((d) => d.exitCode === 0);
+    // An acceptance check that cannot even run is the check's fault, not the work's: say so, so
+    // nobody burns retries trying to satisfy it (observed live: a quoting slip broke a check).
+    const broken = Object.entries(dimensions)
+      .filter(([name, d]) => name.startsWith('acceptance') && d.exitCode !== 0 && brokenCheck(d.output))
+      .map(([name]) => name);
     return {
       status: allPassed ? 'passed' : 'failed',
       overallScore,
       dimensions,
+      ...(broken.length
+        ? { note: `The acceptance check${broken.length > 1 ? 's' : ''} ${broken.join(', ')} could not run (the check itself is invalid). Fix the check; the work was not retried for it.`, brokenChecks: broken }
+        : {}),
     };
   }
+}
+
+/**
+ * True when a check failed before testing anything: its own script does not parse (`node -e` with a
+ * syntax error), or its program does not exist. Failures of the work itself never look like this.
+ */
+export function brokenCheck(output: string): boolean {
+  return (
+    /^\[eval\]:\d+[\s\S]*SyntaxError/m.test(output) ||
+    /is not recognized as an internal or external command|command not found|No such file or directory.*\bnode\b/i.test(output)
+  );
 }

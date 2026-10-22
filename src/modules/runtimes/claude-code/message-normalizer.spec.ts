@@ -74,4 +74,10 @@ describe('normalizeSdkMessage', () => {
       'completed',
     ]);
   });
+  it('translates subscription rate-limit events (resetsAt seconds → ms)', () => {
+    expect(
+      normalizeSdkMessage({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected', resetsAt: 1761140000, rateLimitType: 'five_hour', utilization: 1 } }),
+    ).toEqual([{ kind: 'rate_limit', status: 'rejected', resetsAt: 1761140000000, limitType: 'five_hour', utilization: 1 }]);
+    expect(normalizeSdkMessage({ type: 'rate_limit_event', rate_limit_info: { status: 'bogus' } })).toEqual([]);
+  });
 });

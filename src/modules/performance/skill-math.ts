@@ -1,3 +1,4 @@
+import { DOMAINS, domainOf } from '../work/domains';
 const NEUTRAL_SCORE = 60;
 const MAX_GAIN = 8;
 const DROP_FACTOR = 4;
@@ -25,18 +26,10 @@ export function computeSkillDelta(
   return round1(performance * DROP_FACTOR);
 }
 
-const TASK_WEIGHTS: Record<string, number> = {
-  architecture: 0.9,
-  coding: 0.6,
-  review: 0.5,
-  devops: 0.6,
-  qa: 0.5,
-  generic: 0.4,
-};
 
 /** Maps a work item's task type + priority to a 0..1 complexity factor. */
 export function complexityOf(taskType: string, priority = 0): number {
-  const base = TASK_WEIGHTS[taskType] ?? 0.5;
+  const base = taskType in DOMAINS ? domainOf(taskType).weight : 0.5;
   const nudge = (clamp(priority, 0, 100) / 100) * 0.2;
   return clamp(base + nudge, 0, 1);
 }

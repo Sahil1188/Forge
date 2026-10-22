@@ -1,8 +1,7 @@
 import { ArrayMaxSize, IsArray, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
-import type { TaskType } from '../work.schema';
+import { TASK_TYPES, TaskType } from '../domains';
 import type { WorkItemStatus } from '../work-status';
 
-const TASK_TYPES: TaskType[] = ['architecture', 'coding', 'review', 'devops', 'qa', 'generic'];
 const WORK_STATUSES: WorkItemStatus[] = [
   'created',
   'assigned',

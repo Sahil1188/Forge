@@ -3,6 +3,7 @@ export type BudgetState = 'ok' | 'soft_exceeded' | 'hard_exceeded';
 export interface BudgetEvaluation {
   state: BudgetState;
   spend: number;
+  period?: 'day' | 'total';
   softLimit?: number | null;
   hardLimit?: number | null;
 }

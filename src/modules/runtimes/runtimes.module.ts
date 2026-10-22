@@ -9,6 +9,7 @@ import { OllamaProvider } from './custom/ollama.provider';
 import { RuntimeRegistry } from './runtime-registry';
 import { AgentRunsService } from './agent-runs.service';
 import { RuntimeAvailability } from './runtime-availability';
+import { UsageLimits } from './usage-limits';
 
 @Module({
   providers: [
@@ -32,7 +33,8 @@ import { RuntimeAvailability } from './runtime-availability';
     RuntimeRegistry,
     AgentRunsService,
     RuntimeAvailability,
+    UsageLimits,
   ],
-  exports: [RuntimeRegistry, AgentRunsService, ProviderRegistry, RuntimeAvailability],
+  exports: [RuntimeRegistry, AgentRunsService, ProviderRegistry, RuntimeAvailability, UsageLimits],
 })
 export class RuntimesModule {}

@@ -31,6 +31,7 @@ const LEGAL: Array<[WorkItemStatus, WorkItemStatus]> = [
   ['in_progress', 'evaluating'],
   ['in_progress', 'failed'],
   ['in_progress', 'cancelled'],
+  ['in_progress', 'assigned'], // requeued after a usage limit
   ['needs_approval', 'in_progress'],
   ['needs_approval', 'failed'],
   ['needs_approval', 'cancelled'],

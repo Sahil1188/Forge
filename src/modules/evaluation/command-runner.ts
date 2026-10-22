@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { exec } from 'node:child_process';
+import { exec, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { commandEnv } from '../../infrastructure/security/safe-env';
+import { DockerCommandSandbox } from '../runtimes/custom/command-sandbox';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export interface CommandResult {
   exitCode: number;
@@ -17,17 +20,20 @@ interface ExecError {
   stderr?: string;
 }
 
-/** Runs a shell command in a workspace, capturing exit code + output. */
+/**
+ * Runs a check command (tests, acceptance checks) in a workspace, capturing exit code + output.
+ * The command runs code the agent wrote, so it never sees server secrets (allowlisted env), and
+ * with FORGE_SANDBOX=docker it runs in the same network-less container as worker commands.
+ */
 @Injectable()
 export class CommandRunner {
   async run(command: string, cwd: string, timeoutMs = 120_000): Promise<CommandResult> {
+    const opts = { timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024, windowsHide: true };
     try {
-      const { stdout, stderr } = await execAsync(command, {
-        cwd,
-        timeout: timeoutMs,
-        maxBuffer: 10 * 1024 * 1024,
-        windowsHide: true,
-      });
+      const { stdout, stderr } =
+        (process.env.FORGE_SANDBOX ?? '').toLowerCase() === 'docker'
+          ? await execFileAsync('docker', new DockerCommandSandbox().args(command, cwd), opts)
+          : await execAsync(command, { ...opts, cwd, env: commandEnv() });
       return { exitCode: 0, output: `${stdout ?? ''}${stderr ?? ''}`, timedOut: false };
     } catch (err) {
       const e = err as ExecError;

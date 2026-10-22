@@ -67,7 +67,8 @@ export class HeartbeatWorker implements OnModuleInit {
       this.logger.log(`Goal ${goalId} already planned (or planning); skipping duplicate trigger`);
       return null;
     }
-    const ceo = await this.planner.findCeo(goal.companyId);
+    // The executive who owns the goal's domain plans it (finance → CFO), else the CEO.
+    const ceo = await this.planner.findPlanner(goal);
     if (!ceo) {
       this.logger.warn(`No CEO for company ${goal.companyId}; cannot plan goal ${goalId}`);
       return null;

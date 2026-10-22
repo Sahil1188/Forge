@@ -12,7 +12,9 @@ export type RuntimeEvent =
   | { kind: 'needs_approval'; toolName: string; input: unknown; approvalRef?: string }
   | { kind: 'usage'; inputTokens: number; outputTokens: number; costUsd: number }
   | { kind: 'completed'; result: string; sessionId?: string }
-  | { kind: 'failed'; error: string };
+  | { kind: 'failed'; error: string }
+  /** Subscription usage limit state (Claude Code reports it on every run). resetsAt is epoch ms. */
+  | { kind: 'rate_limit'; status: 'allowed' | 'allowed_warning' | 'rejected'; resetsAt?: number; limitType?: string; utilization?: number };
 
 export interface RuntimeLimits {
   maxTurns?: number;
@@ -55,6 +57,8 @@ export interface RuntimeRunContext {
   permissionMode?: string;
   limits?: RuntimeLimits;
   resumeSessionId?: string;
+  /** Aborted when the work is cancelled or stopped: the runtime must end the agent promptly. */
+  abortSignal?: AbortSignal;
   /** Governance gate consulted before each tool call (maps to SDK canUseTool). */
   canUseTool?: PermissionCallback;
 }

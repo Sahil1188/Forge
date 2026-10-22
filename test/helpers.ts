@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { securityMiddleware, securityOptionsFromEnv } from '../src/infrastructure/security/http-security';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { eq, inArray } from 'drizzle-orm';
@@ -12,6 +13,9 @@ import { AgentRuntime, RuntimeEvent, RuntimeRunContext } from '../src/modules/ru
 export async function bootApp(): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication();
+  // Same request hardening as production (main.ts), so every e2e test runs through it.
+  // (write limit lifted: suites legitimately make hundreds of changes a minute)
+  app.use(securityMiddleware(securityOptionsFromEnv({ FORGE_WRITE_LIMIT_PER_MINUTE: '1000000' } as NodeJS.ProcessEnv)));
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   await app.init();
   // The execution queue is global and shared across specs: start from a clean slate so

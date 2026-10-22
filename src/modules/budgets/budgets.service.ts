@@ -82,12 +82,14 @@ export class BudgetsService {
   async check(employeeId: string): Promise<BudgetEvaluation> {
     const budget = await this.getBudget(employeeId);
     if (!budget) {
-      return { state: 'ok', spend: 0 };
+      // No limits, but the spend is still real (today's, by default).
+      return { state: 'ok', spend: await this.spend(employeeId, 'day'), period: 'day' };
     }
     const spend = await this.spend(employeeId, budget.period);
     return {
       state: evaluateBudget(spend, budget.softLimitUsd, budget.hardLimitUsd),
       spend,
+      period: budget.period,
       softLimit: budget.softLimitUsd,
       hardLimit: budget.hardLimitUsd,
     };

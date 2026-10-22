@@ -47,9 +47,9 @@ describe('WorkforceRouter — scoring edge cases', () => {
     expect(r.reasons.skill).toBe(100);
   });
 
-  it('falls back to all skills when none match the task hints', () => {
+  it('falls back to all skills at half weight when none match the task hints', () => {
     const r = scoreCandidate('devops', cand({ id: 'a', skills: [{ skillKey: 'watercolour', level: 40 }] }));
-    expect(r.reasons.skill).toBe(40);
+    expect(r.reasons.skill).toBe(20);
   });
 
   it('skill matching is case-insensitive and substring-based', () => {
@@ -61,6 +61,13 @@ describe('WorkforceRouter — scoring edge cases', () => {
     const withDept = scoreCandidate('devops', cand({ id: 'a', role: 'Wizard', department: 'Platform' })).reasons.role;
     expect(noDept).toBe(30);
     expect(withDept).toBe(100);
+  });
+
+  it('a domain expert wins work in their domain and loses work outside it', () => {
+    const analyst = cand({ id: 'fin', role: 'Senior financial analyst', department: 'Finance', skills: [{ skillKey: 'financial modeling', level: 95 }] });
+    const coder = cand({ id: 'dev', role: 'Senior backend engineer', department: 'Engineering', skills: [{ skillKey: 'typescript', level: 95 }] });
+    expect(selectBest('finance', [coder, analyst])?.employeeId).toBe('fin');
+    expect(selectBest('coding', [coder, analyst])?.employeeId).toBe('dev');
   });
 
   it('the generic task type has no role/skill hints but still routes', () => {
@@ -138,6 +145,6 @@ describe('DynamicOmniRouter — edge cases', () => {
 
   it('an employee without any runtime config still resolves safely', () => {
     const s = router.selectModel({ taskType: 'coding' }, { runtimeConfig: null } as unknown as EmployeeWithRelations);
-    expect(s).toEqual({ runtimeKey: 'claude_code', provider: 'anthropic', model: 'claude-sonnet-4-6' });
+    expect(s).toEqual({ runtimeKey: 'claude_code', provider: 'anthropic', model: 'sonnet' });
   });
 });

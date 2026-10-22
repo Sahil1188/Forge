@@ -90,7 +90,7 @@ describe('DynamicOmniRouter', () => {
   it('falls back to a safe default when no policy is set', () => {
     const emp = { runtimeConfig: null } as unknown as EmployeeWithRelations;
     const selection = router.selectModel({ taskType: 'coding' }, emp);
-    expect(selection.model).toBe('claude-sonnet-4-6');
+    expect(selection.model).toBe('sonnet');
     expect(selection.runtimeKey).toBe('claude_code');
   });
 });

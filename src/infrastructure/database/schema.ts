@@ -18,3 +18,4 @@ export * from '../../modules/performance/performance.schema';
 export * from '../../modules/memory/memory.schema';
 export * from '../../modules/heartbeats/heartbeats.schema';
 export * from '../events/events.schema';
+export * from '../../modules/auth/auth.schema';

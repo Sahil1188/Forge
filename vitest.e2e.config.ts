@@ -9,6 +9,8 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['test/**/*.e2e-spec.ts'],
+    // Never the live database: a running `forge serve` would pick up the suites' queued work.
+    env: { DATABASE_URL: process.env.FORGE_TEST_DATABASE_URL ?? 'postgres://forge:forge@127.0.0.1:5433/forge_test' },
     setupFiles: ['test/setup-clean-queue.ts'],
     hookTimeout: 30_000,
     testTimeout: 30_000,

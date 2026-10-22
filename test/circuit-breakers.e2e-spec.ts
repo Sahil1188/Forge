@@ -113,6 +113,10 @@ describe('Circuit breakers (e2e)', () => {
 
     const runs = await app.get(AgentRunsService).findByWorkItem(workId);
     expect(runs[0].status).toBe('killed_timeout');
+    // A time-limit stop is retried automatically (continuing from its branch), within the attempt budget.
+    const wi = await request(app.getHttpServer()).get(`/work-items/${workId}`).expect(200);
+    expect(wi.body.status).toBe('assigned');
+    await request(app.getHttpServer()).post(`/work-items/${workId}/status`).send({ status: 'cancelled' }).expect(201);
   });
 
   it('blocks a new run when the budget is already exceeded', async () => {

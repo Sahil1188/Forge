@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from './infrastructure/database/database.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { EventsModule } from './infrastructure/events/events.module';
 import { HealthModule } from './modules/health/health.module';
 import { CompaniesModule } from './modules/companies/companies.module';
@@ -20,11 +21,13 @@ import { RoutingModule } from './modules/routing/routing.module';
 import { HeartbeatsModule } from './modules/heartbeats/heartbeats.module';
 import { ObservabilityModule } from './modules/observability/observability.module';
 import { WorkersModule } from './workers/workers.module';
+import { ConsoleModule } from './modules/console/console.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
+    AuthModule,
     EventsModule,
     HealthModule,
     CompaniesModule,
@@ -44,6 +47,7 @@ import { WorkersModule } from './workers/workers.module';
     HeartbeatsModule,
     ObservabilityModule,
     WorkersModule,
+    ConsoleModule,
   ],
 })
 export class AppModule {}

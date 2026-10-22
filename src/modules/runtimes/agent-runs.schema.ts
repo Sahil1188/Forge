@@ -19,7 +19,9 @@ export type AgentRunStatus =
   | 'needs_approval'
   | 'killed_budget'
   | 'killed_timeout'
-  | 'killed_tools';
+  | 'killed_tools'
+  /** Stopped by the subscription usage limit; the work item went back in the queue. */
+  | 'rate_limited';
 
 /** One execution of a runtime for a work item (spec §9.4/§23). */
 export const agentRuns = pgTable('agent_runs', {

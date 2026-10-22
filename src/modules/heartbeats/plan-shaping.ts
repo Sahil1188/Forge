@@ -99,3 +99,42 @@ export function attachGoalAcceptance(
   );
   return { items: nextItems, deps: nextDeps };
 }
+
+/** A specialist the planning executive asks to add to the team for this goal. */
+export interface PlannedHire {
+  name: string;
+  role: string;
+  department?: string;
+  description?: string;
+  skills: Array<{ skillKey: string; level: number }>;
+}
+
+/** Keeps a hire request only if it names a person and a role; bounds every field. */
+export function sanitizeHire(raw: unknown): PlannedHire[] {
+  if (typeof raw !== 'object' || raw === null) return [];
+  const r = raw as Record<string, unknown>;
+  const name = typeof r.name === 'string' ? r.name.trim().slice(0, 60) : '';
+  const role = typeof r.role === 'string' ? r.role.trim().slice(0, 100) : '';
+  if (!name || !role) return [];
+  // Planners hire doers, not more executives.
+  if (/\bceo\b|\bchief\b/i.test(role)) return [];
+  const skills = Array.isArray(r.skills)
+    ? r.skills
+        .flatMap((s) => {
+          if (typeof s !== 'object' || s === null) return [];
+          const k = (s as Record<string, unknown>).skillKey;
+          const l = Number((s as Record<string, unknown>).level);
+          return typeof k === 'string' && k.trim() ? [{ skillKey: k.trim().slice(0, 60).toLowerCase(), level: Number.isFinite(l) ? Math.min(98, Math.max(50, Math.round(l))) : 85 }] : [];
+        })
+        .slice(0, 8)
+    : [];
+  return [
+    {
+      name,
+      role,
+      department: typeof r.department === 'string' ? r.department.trim().slice(0, 60) : undefined,
+      description: typeof r.description === 'string' ? r.description.trim().slice(0, 1000) : undefined,
+      skills,
+    },
+  ];
+}

@@ -12,8 +12,9 @@ import { employees } from '../employees/employees.schema';
 import { projects } from '../projects/projects.schema';
 import type { WorkItemStatus } from './work-status';
 
-/** Task type drives the Omni Router's model selection (spec §8). */
-export type TaskType = 'architecture' | 'coding' | 'review' | 'devops' | 'qa' | 'generic';
+/** Task type = the work's domain (see domains.ts); drives routing and model selection (spec §8). */
+import type { TaskType } from './domains';
+export type { TaskType };
 
 export const workItems = pgTable('work_items', {
   id: uuid('id').primaryKey().defaultRandom(),

@@ -71,6 +71,20 @@
       "when": 1792571372146,
       "tag": "0009_futuristic_mentallo",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792659577218,
+      "tag": "0010_fine_wild_pack",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792667099119,
+      "tag": "0011_cynical_silver_surfer",
+      "breakpoints": true
     }
   ]
 }

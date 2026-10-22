@@ -196,7 +196,18 @@ export class EvaluationWorker implements OnModuleInit {
   async retryOrFail(workItemId: string): Promise<'retried' | 'failed' | 'skipped'> {
     const item = await this.getWorkItem(workItemId);
     if (item.status !== 'rework' || !item.assignedEmployeeId) return 'skipped';
-    const attempts = (await this.agentRuns.findByWorkItem(item.id)).length;
+    // If the only failures are acceptance checks that cannot even run, retrying can't help:
+    // stop and surface it, so a person fixes the check instead of the team burning attempts.
+    const [latest] = await this.evaluations.findByWorkItem(item.id);
+    const detail = (latest?.detail ?? {}) as { dimensions?: Record<string, { exitCode?: number }>; brokenChecks?: string[] };
+    const failing = Object.entries(detail.dimensions ?? {}).filter(([, d]) => d.exitCode !== 0).map(([n]) => n);
+    if (detail.brokenChecks?.length && failing.every((n) => detail.brokenChecks!.includes(n))) {
+      await this.work.changeStatus(item.id, { status: 'failed' });
+      this.logger.warn(`Work item ${item.id}: acceptance check(s) ${detail.brokenChecks.join(', ')} are invalid; not retrying`);
+      return 'failed';
+    }
+    // Runs stopped by a usage limit are not attempts: the employee never got to finish.
+    const attempts = (await this.agentRuns.findByWorkItem(item.id)).filter((r) => r.status !== 'rate_limited').length;
     const max = Number(process.env.FORGE_MAX_ATTEMPTS ?? DEFAULT_MAX_ATTEMPTS);
     if (attempts < max) {
       await this.work.assign(item.id, { employeeId: item.assignedEmployeeId, assignedBy: 'auto_rework' });

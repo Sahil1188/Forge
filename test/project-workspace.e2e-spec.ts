@@ -94,7 +94,7 @@ describe('Shared project workspace — work items build on each other (e2e)', ()
     expect(seen[0]).toEqual([]); // A starts from an empty project
     expect(seen[1]).toEqual(expect.arrayContaining(['a.js', 'package.json'])); // B sees A's work
 
-    const main = workspace().projectPath(s.projectId);
+    const main = await workspace().projectPath(s.projectId);
     expect(existsSync(path.join(main, 'a.js'))).toBe(true);
     expect(existsSync(path.join(main, 'b.js'))).toBe(true);
     const log = (await git('git', ['log', '--format=%s', 'main'], { cwd: main })).stdout;
@@ -107,7 +107,7 @@ describe('Shared project workspace — work items build on each other (e2e)', ()
     await assign(app, id, s.emp);
     await worker().runOnce();
     expect((await evaluator().evaluate(id)).routedTo).toBe('rework');
-    expect(existsSync(path.join(workspace().projectPath(s.projectId), 'bad.js'))).toBe(false);
+    expect(existsSync(path.join(await workspace().projectPath(s.projectId), 'bad.js'))).toBe(false);
   });
 
   it('a retry continues from its previous attempt instead of starting over', async () => {
@@ -132,7 +132,7 @@ describe('Shared project workspace — work items build on each other (e2e)', ()
     expect((await getWorkItem(app, id)).status).toBe('assigned');
     expect((await worker().runOnce())?.status).toBe('completed');
     expect((await evaluator().evaluate(id)).routedTo).toBe('done');
-    expect(await readFile(path.join(workspace().projectPath(s.projectId), 'draft.js'), 'utf8')).toBe('first attempt + fixed');
+    expect(await readFile(path.join(await workspace().projectPath(s.projectId), 'draft.js'), 'utf8')).toBe('first attempt + fixed');
   });
 
   it('retries up to FORGE_MAX_ATTEMPTS, then gives up and fails the item', async () => {
@@ -169,7 +169,7 @@ describe('Shared project workspace — work items build on each other (e2e)', ()
     const r = await evaluator().evaluate(right);
     expect(r.routedTo).toBe('rework');
     expect(r.integrationConflict).toBeTruthy();
-    const main = workspace().projectPath(s.projectId);
+    const main = await workspace().projectPath(s.projectId);
     expect(await readFile(path.join(main, 'shared.txt'), 'utf8')).toBe('left\n');
     expect((await git('git', ['status', '--porcelain'], { cwd: main })).stdout.trim()).toBe(''); // merge aborted cleanly
   });

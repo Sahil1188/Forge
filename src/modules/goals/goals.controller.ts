@@ -7,8 +7,10 @@ export class GoalsController {
   constructor(private readonly goals: GoalsService) {}
 
   @Post('companies/:companyId/goals')
-  create(@Param('companyId', ParseUUIDPipe) companyId: string, @Body() dto: CreateGoalDto) {
-    return this.goals.create(companyId, dto);
+  async create(@Param('companyId', ParseUUIDPipe) companyId: string, @Body() dto: CreateGoalDto) {
+    const goal = await this.goals.create(companyId, dto);
+    // `start: true` = create and kick off in one call (the console's "Run" button).
+    return dto.start ? this.goals.start(goal.id) : goal;
   }
 
   @Get('companies/:companyId/goals')

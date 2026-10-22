@@ -3,7 +3,8 @@ import { EmployeeWithRelations } from '../../employees/employees.schema';
 import { complexityOf } from '../../performance/skill-math';
 import { ModelSelection, OmniRouterPort } from './omni-router.port';
 
-const DEFAULT_MODEL = 'claude-sonnet-4-6';
+// An alias: always the newest Sonnet the subscription offers.
+const DEFAULT_MODEL = 'sonnet';
 
 /**
  * V1+ Omni Router (spec §8): selects provider + model per task. Resolution order

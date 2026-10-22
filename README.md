@@ -352,7 +352,7 @@ Environment variables (`.env`, see `.env.example`):
 
 | Variable | Purpose |
 | --- | --- |
-| `DATABASE_URL` | PostgreSQL connection (defaults to `...localhost:5433/forge`) |
+| `DATABASE_URL` | PostgreSQL connection (defaults to `...127.0.0.1:5433/forge`) |
 | `PORT` | HTTP port (default 3000) |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Claude Code **subscription** auth for CI (from `claude setup-token`) |
 | `FORGE_ANTHROPIC_API_KEY` | Per‑token key for the **CustomRuntime** Anthropic provider only |

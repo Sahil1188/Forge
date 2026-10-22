@@ -110,6 +110,17 @@ describe('CEO planning, org hierarchy and routing (e2e)', () => {
       expect((await planner().findCeo(companyId))?.name).toBe('Top');
     });
 
+    it('the executive who owns the goal’s domain plans it; everything else goes to the CEO', async () => {
+      const companyId = await createCompany(app);
+      const ceo = await createEmployee(app, companyId, { name: 'Ceo', role: 'CEO', department: 'Leadership' });
+      await createEmployee(app, companyId, { name: 'Cfo', role: 'Chief Financial Officer', department: 'Finance', managerEmployeeId: ceo });
+      await createEmployee(app, companyId, { name: 'Analyst', role: 'Senior Financial Analyst', department: 'Finance' });
+      const goal = (title: string) => ({ id: randomUUID(), companyId, title, description: null }) as never;
+      expect((await planner().findPlanner(goal('Build a revenue forecast and cash flow model')))?.name).toBe('Cfo');
+      expect((await planner().findPlanner(goal('Add a REST API endpoint')))?.name).toBe('Ceo');
+      expect((await planner().findPlanner(goal('Threat model the login flow')))?.name).toBe('Ceo'); // no CISO here
+    });
+
     it('returns null for a company with no employees', async () => {
       expect(await planner().findCeo(await createCompany(app))).toBeNull();
     });
@@ -151,6 +162,57 @@ describe('CEO planning, org hierarchy and routing (e2e)', () => {
       const project = (await request(server).get(`/projects/${plan.projectId}`).expect(200)).body;
       expect(project.name).toBe('Launch');
       expect(project.goalId).toBe(goalId);
+    });
+
+    it('the planner can hire specialists it needs: bounded, no executives, no duplicate roles, reporting to the planner', async () => {
+      const rt = ceoRuntime({
+        project: 'Network rollout',
+        workItems: [{ title: 'Design the office network', taskType: 'network' }],
+        hires: [
+          { name: 'Ravi', role: 'Senior Network Engineer', department: 'Cloud & Infrastructure', description: 'BGP, VPN, firewalls', skills: [{ skillKey: 'networking', level: 96 }, { skillKey: 'vpn', level: 999 }] },
+          { name: 'Boss2', role: 'Chief Network Officer', skills: [] },
+          { name: 'Dup', role: 'Senior Network Engineer', skills: [] },
+          { name: 'Iris', role: 'Senior Security Engineer', skills: [{ skillKey: 'firewalls', level: 90 }] },
+          { name: 'Extra', role: 'Senior Cabling Specialist', skills: [] },
+        ],
+      });
+      const { companyId, ceo } = await company(rt.key);
+      const goalId = await newGoal(companyId);
+      await app.get(CeoPlanner).plan(goalId);
+
+      const team = (await request(server).get(`/companies/${companyId}/employees`).expect(200)).body as Array<{ id: string; name: string; role: string; managerEmployeeId: string | null }>;
+      const hired = team.filter((e) => ['Ravi', 'Boss2', 'Dup', 'Iris', 'Extra'].includes(e.name));
+      expect(hired.map((e) => e.name).sort()).toEqual(['Iris', 'Ravi']); // cap 2, executive and duplicate skipped
+      for (const e of hired) expect(e.managerEmployeeId).toBe(ceo);
+      const ravi = (await request(server).get(`/employees/${hired.find((e) => e.name === 'Ravi')!.id}`).expect(200)).body;
+      expect(ravi.skills).toEqual(expect.arrayContaining([expect.objectContaining({ skillKey: 'vpn', level: 98 })]));
+    });
+
+    it('every goal ends with an independent production review: last, after all build steps, all checks kept, never the builder', async () => {
+      process.env.FORGE_PRODUCTION_REVIEW = '1';
+      try {
+        const rt = ceoRuntime({
+          project: 'API',
+          workItems: [{ title: 'Build the API', taskType: 'coding', acceptance: ['node -e "process.exit(0)"'] }],
+        });
+        const { companyId } = await company(rt.key);
+        const goalId = await newGoal(companyId);
+        const plan = await app.get(CeoPlanner).plan(goalId);
+        expect(plan.workItems).toHaveLength(2);
+        const [build, review] = plan.workItems;
+        expect(review.title).toBe('Production review and hardening');
+        expect(review.assignedTo).toBeTruthy();
+        expect(review.assignedTo).not.toBe(build.assignedTo);
+        const items = await itemsOf(plan.projectId);
+        const r = items.find((i) => i.id === review.workItemId)! as unknown as { taskType: string; acceptance: string[]; description: string };
+        expect(r.taskType).toBe('review');
+        expect(r.acceptance).toEqual(['node -e "process.exit(0)"']);
+        expect(r.description).toMatch(/fix each gap yourself/);
+        const deps = (await request(server).get(`/work-items/${review.workItemId}`).expect(200)).body;
+        expect(JSON.stringify(deps)).toContain(build.workItemId);
+      } finally {
+        process.env.FORGE_PRODUCTION_REVIEW = '0';
+      }
     });
 
     it('the planning run is recorded at goal level on the CEO’s model, with usage', async () => {

@@ -32,6 +32,11 @@ employee's memory (up to `FORGE_MAX_ATTEMPTS`, default 3). The command ends with
 the path of the deliverable (`workspaces/projects/<projectId>`), and a non-zero exit code if
 anything did not pass.
 
+## The web console
+
+`forge serve` also serves the console at http://localhost:3000: set up a company, describe work, watch it
+run live, approve gated actions, browse the delivered files and manage the team. See `public/README.md`.
+
 ## Notes
 
 **Why it boots `dist/`, not `src/`:** the `goal`/`task`/`status` commands load the **compiled** app

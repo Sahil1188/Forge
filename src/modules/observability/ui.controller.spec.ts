@@ -1,126 +1,65 @@
-import { describe, it, expect } from 'vitest';
-import * as vm from 'node:vm';
-import { UiController } from './ui.controller';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { Test } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
+import request from 'supertest';
+import { existsSync, readdirSync } from 'node:fs';
+import * as path from 'node:path';
+import { PUBLIC_DIR, UiController } from './ui.controller';
 
-/**
- * Executes the dashboard's real inline script in a stubbed DOM and inspects what it
- * would render. Employee names/roles/models are operator- (or agent-) controlled data
- * that arrives over the API, so they must never be interpreted as HTML.
- */
-function harness(responses: Record<string, unknown>) {
-  const html = new UiController().dashboard();
-  const script = /<script>([\s\S]*?)<\/script>/.exec(html)![1];
-  const els: Record<string, { value: string; innerHTML: string }> = {
-    companyId: { value: 'c1', innerHTML: '' },
-    employees: { value: '', innerHTML: '' },
-    profile: { value: '', innerHTML: '' },
-  };
-  const sandbox: Record<string, unknown> = {
-    document: { getElementById: (id: string) => els[id] },
-    fetch: async (url: string) => ({
-      ok: url in responses,
-      status: url in responses ? 200 : 404,
-      json: async () => responses[url],
-    }),
-  };
-  vm.createContext(sandbox);
-  vm.runInContext(`${script}\nthis.__api = { loadOverview, loadProfile };`, sandbox);
-  return { els, api: sandbox.__api as { loadOverview(): Promise<void>; loadProfile(id: string): Promise<void> } };
-}
+describe('web console serving', () => {
+  let app: INestApplication;
 
-const PAYLOAD = '<img src=x onerror=alert(1)>';
-
-describe('dashboard /ui', () => {
-  it('serves an HTML document', () => {
-    const html = new UiController().dashboard();
-    expect(html).toMatch(/^<!doctype html>/i);
-    expect(html).toContain('Forge');
+  beforeAll(async () => {
+    const mod = await Test.createTestingModule({ controllers: [UiController] }).compile();
+    app = mod.createNestApplication();
+    await app.init();
+  });
+  afterAll(async () => {
+    await app.close();
   });
 
-  it('renders employees from the API', async () => {
-    const { els, api } = harness({
-      '/companies/c1/overview': {
-        employees: [
-          { id: 'e1', name: 'Ada', role: 'CEO', status: 'idle', defaultModel: 'claude-opus-4-8', latestRun: { status: 'completed', estimatedCostUsd: 0.1234 } },
-        ],
-      },
-    });
-    await api.loadOverview();
-    expect(els.employees.innerHTML).toContain('Ada');
-    expect(els.employees.innerHTML).toContain('claude-opus-4-8');
-    expect(els.employees.innerHTML).toContain('completed · $0.1234');
+  it('resolves the public folder that ships with the package', () => {
+    expect(existsSync(path.join(PUBLIC_DIR, 'index.html'))).toBe(true);
   });
 
-  it('shows an empty-state row when there are no employees', async () => {
-    const { els, api } = harness({ '/companies/c1/overview': { employees: [] } });
-    await api.loadOverview();
-    expect(els.employees.innerHTML).toContain('No employees');
+  it('serves the console at / with a strict Content-Security-Policy', async () => {
+    const res = await request(app.getHttpServer()).get('/').expect(200);
+    expect(res.headers['content-type']).toMatch(/text\/html/);
+    expect(res.text).toContain('<title>Forge</title>');
+    expect(res.headers['content-security-policy']).toContain("script-src 'self'");
+    expect(res.headers['content-security-policy']).toContain("frame-ancestors 'none'");
   });
 
-  it('shows an error row (not an exception) when the API fails', async () => {
-    const { els, api } = harness({});
-    await api.loadOverview();
-    expect(els.employees.innerHTML).toContain('Error');
+  it('keeps the old /ui address working', async () => {
+    const res = await request(app.getHttpServer()).get('/ui').expect(200);
+    expect(res.text).toContain('/assets/app.js');
   });
 
-  it('does not inject HTML from an employee name or role (stored XSS)', async () => {
-    const { els, api } = harness({
-      '/companies/c1/overview': {
-        employees: [{ id: 'e1', name: PAYLOAD, role: PAYLOAD, status: 'idle', defaultModel: PAYLOAD, latestRun: null }],
-      },
-    });
-    await api.loadOverview();
-    expect(els.employees.innerHTML).not.toContain('<img');
-    expect(els.employees.innerHTML).toContain('&lt;img');
+  it('serves every shipped asset with the right content type', async () => {
+    const files = readdirSync(path.join(PUBLIC_DIR, 'assets')).filter((f) => /\.(js|css|svg)$/.test(f) && !f.endsWith('.d.ts'));
+    expect(files).toEqual(expect.arrayContaining(['app.js', 'app.css', 'lib.js']));
+    await request(app.getHttpServer()).get('/assets/lib.d.ts').expect(404); // typings are not served
+    for (const f of files) {
+      const res = await request(app.getHttpServer()).get(`/assets/${f}`).expect(200);
+      expect(res.headers['content-type']).toMatch(f.endsWith('.css') ? /text\/css/ : /javascript/);
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+    }
   });
 
-  it('does not inject HTML via an unexpected status value', async () => {
-    const { els, api } = harness({
-      '/companies/c1/overview': {
-        employees: [{ id: 'e1', name: 'x', role: 'y', status: '"><script>alert(1)</script>', latestRun: null }],
-      },
-    });
-    await api.loadOverview();
-    expect(els.employees.innerHTML).not.toContain('<script>');
+  it('refuses traversal, dotfiles, odd extensions and missing files', async () => {
+    for (const bad of ['..%2Fpackage.json', '..%5C..%5Cpackage.json', '.env', 'app.js.map', 'APP.JS', 'nope.js', '%2E%2E%2Findex.html']) {
+      await request(app.getHttpServer()).get(`/assets/${bad}`).expect(404);
+    }
   });
 
-  it('does not break out of the onclick handler via a hostile id', async () => {
-    const { els, api } = harness({
-      '/companies/c1/overview': {
-        employees: [{ id: "');alert(1);('", name: 'x', role: 'y', status: 'idle', latestRun: null }],
-      },
-    });
-    await api.loadOverview();
-    expect(els.employees.innerHTML).not.toContain("');alert(1)");
-  });
-
-  it('does not inject HTML from profile fields (name, role, skills, specializations)', async () => {
-    const { els, api } = harness({
-      '/employees/e1/profile': {
-        employee: { name: PAYLOAD, role: PAYLOAD, skills: [{ skillKey: PAYLOAD, level: 5 }] },
-        reputation: { overall: 90, samples: 3 },
-        specializations: [{ taskType: PAYLOAD, reputation: 80 }],
-        recentPerformance: [],
-      },
-    });
-    await api.loadProfile('e1');
-    expect(els.profile.innerHTML).not.toContain('<img');
-    expect(els.profile.innerHTML).toContain('&lt;img');
-  });
-
-  it('renders a profile with reputation and skills', async () => {
-    const { els, api } = harness({
-      '/employees/e1/profile': {
-        employee: { name: 'Grace', role: 'Engineer', skills: [{ skillKey: 'node', level: 92 }] },
-        reputation: { overall: 88, samples: 4 },
-        specializations: [{ taskType: 'coding', reputation: 90 }],
-        recentPerformance: [{}, {}],
-      },
-    });
-    await api.loadProfile('e1');
-    expect(els.profile.innerHTML).toContain('Grace');
-    expect(els.profile.innerHTML).toContain('node 92');
-    expect(els.profile.innerHTML).toContain('coding (90)');
-    expect(els.profile.innerHTML).toContain('2 evaluated');
+  it('every module imported by the app exists (no broken imports in the shipped console)', async () => {
+    const fs = await import('node:fs/promises');
+    const dir = path.join(PUBLIC_DIR, 'assets');
+    for (const f of readdirSync(dir).filter((x) => x.endsWith('.js'))) {
+      const src = await fs.readFile(path.join(dir, f), 'utf8');
+      for (const m of src.matchAll(/from '\.\/([\w-]+\.js)'/g)) {
+        expect(existsSync(path.join(dir, m[1])), `${f} imports ${m[1]}`).toBe(true);
+      }
+    }
   });
 });

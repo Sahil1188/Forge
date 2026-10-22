@@ -30,12 +30,16 @@ import { BudgetsService } from '../modules/budgets/budgets.service';
 import { redactSecrets } from '../modules/governance/redaction';
 import { OMNI_ROUTER, OmniRouterPort } from '../modules/routing/omni/omni-router.port';
 import { MemoryService } from '../modules/memory/memory.service';
+import { UsageLimits, looksLikeUsageLimit } from '../modules/runtimes/usage-limits';
+import { stopProcessesIn } from './process-cleanup';
+import { standardsFor } from '../modules/work/standards';
 
 export type ExecutionStatus =
   | 'completed'
   | 'failed'
   | 'paused'
   | 'blocked'
+  | 'rate_limited'
   | 'killed_budget'
   | 'killed_timeout'
   | 'killed_tools';
@@ -65,12 +69,17 @@ const KILL_STATUS: Record<KillReason, KillStatus> = {
   tools: 'killed_tools',
 };
 const TIMEOUT = Symbol('timeout');
+const CANCELLED = Symbol('cancelled');
+const CANCEL_POLL_MS = Number(process.env.FORGE_CANCEL_POLL_MS ?? 3000);
 
+// Real deliverables (installs, large generated files on Opus) need room; observed live: a workbook
+// task was cut off at 10 minutes mid-write. FORGE_MAX_RUN_MINUTES overrides the default per run.
 const DEFAULT_LIMITS: RunLimits = {
-  maxTurns: 40,
-  maxToolCalls: 50,
-  maxDurationMs: 10 * 60 * 1000,
+  maxTurns: 60,
+  maxToolCalls: 120,
+  maxDurationMs: Number(process.env.FORGE_MAX_RUN_MINUTES ?? 30) * 60 * 1000,
 };
+const DEFAULT_MAX_ATTEMPTS = 3;
 
 /**
  * Executes assigned work items through the selected runtime with governance
@@ -98,9 +107,14 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     private readonly bus: EventBus,
     @Inject(OMNI_ROUTER) private readonly omni: OmniRouterPort,
     private readonly memory: MemoryService,
+    private readonly usageLimits: UsageLimits,
   ) {}
 
   onModuleInit(): void {
+    // Cancelling a work item stops its running agent at once (always on, also under tests/CLI).
+    this.bus.subscribe(EventTypes.WorkStatusChanged, (event) => {
+      if ((event.payload as { to?: string }).to === 'cancelled') this.aborts.get(event.aggregateId)?.abort();
+    });
     // Tests drive runOnce() directly; the CLI drives it in-process too. Skip prod
     // auto-triggers under the runner or when manual drive is requested.
     if (process.env.VITEST || process.env.FORGE_MANUAL_DRIVE) {
@@ -142,6 +156,20 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
 
   private kick(): void {
     void this.drain().catch((err) => this.logger.error(`Auto-run failed: ${(err as Error).message}`));
+  }
+
+  private wakeTimer?: NodeJS.Timeout;
+
+  /** Re-drain the queue once a usage limit resets (one pending wake-up at a time). */
+  private wakeAt(epochMs: number): void {
+    if (this.wakeTimer || !this.autoRun) return;
+    const delay = Math.max(1_000, Math.min(epochMs - Date.now() + 5_000, 6 * 3_600_000));
+    this.logger.log(`Usage limit: holding work until ${new Date(epochMs).toISOString()}`);
+    this.wakeTimer = setTimeout(() => {
+      this.wakeTimer = undefined;
+      this.kick();
+    }, delay);
+    this.wakeTimer.unref?.();
   }
 
   private draining?: Promise<ExecutionSummary[]>;
@@ -242,6 +270,13 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     const runtimeKey = selection.runtimeKey;
     const model = selection.model;
 
+    // Subscription usage limit: hold the item (it stays assigned) and wake up at the reset.
+    const heldUntil = this.usageLimits.blockedUntil(runtimeKey);
+    if (heldUntil !== null) {
+      this.wakeAt(heldUntil);
+      return { agentRunId: '', workItemId: item.id, status: 'blocked', model, runtimeKey, filesChanged: [], estimatedCostUsd: 0 };
+    }
+
     // Circuit breaker: block a new run when the budget is already exceeded (§21).
     const budget = await this.budgets.check(employee.id);
     if (budget.state !== 'ok') {
@@ -280,6 +315,11 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
         baseRef: previousBranch,
       });
       await this.agentRuns.attachWorkspace(run.id, handle.id);
+      // Cancelled while the workspace was being prepared: stop before an agent ever starts.
+      if ((await this.getWorkItem(item.id)).status === 'cancelled') {
+        await this.agentRuns.finish(run.id, { status: 'failed', error: 'Cancelled' });
+        return { agentRunId: run.id, workItemId: item.id, status: 'failed', model, runtimeKey, filesChanged: [], estimatedCostUsd: 0 };
+      }
       await this.work.changeStatus(item.id, { status: 'in_progress' });
 
       const memoryBlock = await this.memory.recallBlock(employee.id, item.taskType);
@@ -302,7 +342,7 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
   }
 
   private async resumeRun(run: AgentRun): Promise<ExecutionSummary> {
-    const model = run.model ?? 'claude-sonnet-4-6';
+    const model = run.model ?? 'sonnet';
     const runtimeKey = run.runtimeKey;
     try {
       const employee = await this.employees.findOne(run.employeeId);
@@ -357,9 +397,28 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     let failedError: string | undefined;
     let pausedApprovalId: string | undefined;
     let killed: KillReason | undefined;
+    let limited = false;
 
     const iterator = iterable[Symbol.asyncIterator]();
     const deadline = Date.now() + limits.maxDurationMs;
+    let cancelled = false;
+    const abort = this.aborts.get(workItemId);
+    const cancelP = new Promise<typeof CANCELLED>((resolve) => {
+      if (abort?.signal.aborted) resolve(CANCELLED);
+      abort?.signal.addEventListener('abort', () => resolve(CANCELLED), { once: true });
+    });
+    // Belt and braces: notice a cancel even if its event is delayed or the dispatcher is off.
+    const watch = setInterval(() => {
+      void this.db
+        .select({ status: workItems.status })
+        .from(workItems)
+        .where(eq(workItems.id, workItemId))
+        .then(([row]) => {
+          if (row?.status === 'cancelled') abort?.abort();
+        })
+        .catch(() => undefined);
+    }, CANCEL_POLL_MS);
+    watch.unref?.();
 
     try {
       while (true) {
@@ -368,7 +427,11 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
           killed = 'timeout';
           break;
         }
-        const next = await this.raceNext(iterator, remaining);
+        const next = await this.raceNext(iterator, remaining, cancelP);
+        if (next === CANCELLED) {
+          cancelled = true;
+          break;
+        }
         if (next === TIMEOUT) {
           killed = 'timeout';
           break;
@@ -411,16 +474,37 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
           break;
         } else if (event.kind === 'failed') {
           failedError = event.error;
+        } else if (event.kind === 'rate_limit') {
+          this.usageLimits.record(runtimeKey, event);
+          if (event.status === 'rejected') {
+            limited = true;
+            break;
+          }
         }
       }
     } finally {
-      await iterator.return?.();
+      // Stopping early (limit, kill, cancel): abort the runtime so the agent process ends now, and
+      // don't wait forever for a generator that is blocked on its next message.
+      clearInterval(watch);
+      if (cancelled || killed || limited || pausedApprovalId) abort?.abort();
+      await Promise.race([iterator.return?.(), new Promise((r) => setTimeout(r, 15_000).unref?.())]);
+      this.aborts.delete(workItemId);
+      // Nothing started inside this run's folder may outlive it (e.g. a LibreOffice a script opened).
+      if (!pausedApprovalId) await stopProcessesIn(handle.rootPath);
     }
 
     await this.persistTranscript(runId, transcript);
 
     const usage = { sessionId, inputTokens, outputTokens, costUsd, toolCalls };
 
+    if (cancelled) {
+      return this.finalizeCancelled(runId, workItemId, model, runtimeKey, handle, usage);
+    }
+
+    if (!completed && !killed && (limited || looksLikeUsageLimit(failedError))) {
+      if (!limited) this.usageLimits.record(runtimeKey, { status: 'rejected' });
+      return this.finalizeLimited(runId, workItemId, model, runtimeKey, handle, failedError, usage);
+    }
     if (killed) {
       return this.finalizeKilled(runId, workItemId, model, runtimeKey, handle, killed, usage);
     }
@@ -430,16 +514,41 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     return this.finalizeDone(runId, workItemId, model, runtimeKey, handle, completed, failedError, usage);
   }
 
+  /** The work item was cancelled while its agent was running: keep what was written, stop, record it. */
+  private async finalizeCancelled(
+    runId: string,
+    workItemId: string,
+    model: string,
+    runtimeKey: string,
+    handle: WorkspaceHandle,
+    usage: RunUsage,
+  ): Promise<ExecutionSummary> {
+    const collected = await this.workspace.collect(handle);
+    await this.agentRuns.finish(runId, {
+      status: 'failed',
+      sessionId: usage.sessionId,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      estimatedCostUsd: usage.costUsd,
+      toolCallCount: usage.toolCalls,
+      filesChangedCount: collected.filesChanged.length,
+      error: 'Cancelled',
+    });
+    this.logger.log(`Run ${runId} stopped: work item ${workItemId} was cancelled`);
+    return { agentRunId: runId, workItemId, status: 'failed', model, runtimeKey, filesChanged: collected.filesChanged, estimatedCostUsd: usage.costUsd };
+  }
+
   private async raceNext(
     iterator: AsyncIterator<RuntimeEvent>,
     remainingMs: number,
-  ): Promise<IteratorResult<RuntimeEvent> | typeof TIMEOUT> {
+    cancelP: Promise<typeof CANCELLED>,
+  ): Promise<IteratorResult<RuntimeEvent> | typeof TIMEOUT | typeof CANCELLED> {
     let timer: NodeJS.Timeout | undefined;
     const timeoutP = new Promise<typeof TIMEOUT>((resolve) => {
       timer = setTimeout(() => resolve(TIMEOUT), remainingMs);
     });
     try {
-      return await Promise.race([iterator.next(), timeoutP]);
+      return await Promise.race([iterator.next(), timeoutP, cancelP]);
     } finally {
       if (timer) clearTimeout(timer);
     }
@@ -466,8 +575,14 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       filesChangedCount: collected.filesChanged.length,
       error: `killed:${reason}`,
     });
+    // Remember the branch so a retry continues from what was written, rather than starting over.
+    await this.db
+      .update(workItems)
+      .set({ artifacts: { branch: collected.branch, filesChanged: collected.filesChanged, agentRunId: runId } })
+      .where(eq(workItems.id, workItemId));
     await this.safeFail(workItemId);
     this.logger.warn(`Run ${runId} killed (${reason})`);
+    await this.retryAfterLimit(workItemId, reason);
     return {
       agentRunId: runId,
       workItemId,
@@ -513,6 +628,57 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       estimatedCostUsd: usage.costUsd,
       approvalId,
     };
+  }
+
+  /**
+   * A run stopped by its time or tool limit was usually making progress (its work so far is
+   * committed on its branch), so give it another go from there, within the usual attempt budget.
+   * A budget kill is a spending decision and is never retried automatically.
+   */
+  private async retryAfterLimit(workItemId: string, reason: KillReason): Promise<void> {
+    if (reason === 'budget') return;
+    const item = await this.getWorkItem(workItemId);
+    if (item.status !== 'failed' || !item.assignedEmployeeId) return;
+    const attempts = (await this.agentRuns.findByWorkItem(workItemId)).filter((r) => r.status !== 'rate_limited').length;
+    const max = Number(process.env.FORGE_MAX_ATTEMPTS ?? DEFAULT_MAX_ATTEMPTS);
+    if (attempts >= max) return;
+    await this.work.assign(workItemId, { employeeId: item.assignedEmployeeId, assignedBy: `auto_retry_${reason}` });
+    this.logger.log(`Work item ${workItemId} hit its ${reason} limit; retry ${attempts + 1}/${max} continues from its branch`);
+  }
+
+  /**
+   * The subscription usage limit stopped the run. That is nobody's fault: keep what was written
+   * (the retry continues from this branch), put the item back in the queue without spending one of
+   * its attempts, and resume when the limit resets.
+   */
+  private async finalizeLimited(
+    runId: string,
+    workItemId: string,
+    model: string,
+    runtimeKey: string,
+    handle: WorkspaceHandle,
+    error: string | undefined,
+    usage: RunUsage,
+  ): Promise<ExecutionSummary> {
+    const collected = await this.workspace.collect(handle);
+    await this.agentRuns.finish(runId, {
+      status: 'rate_limited',
+      sessionId: usage.sessionId,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      estimatedCostUsd: usage.costUsd,
+      toolCallCount: usage.toolCalls,
+      filesChangedCount: collected.filesChanged.length,
+      error: error ?? 'Usage limit reached',
+    });
+    await this.db
+      .update(workItems)
+      .set({ artifacts: { branch: collected.branch, filesChanged: collected.filesChanged, agentRunId: runId } })
+      .where(eq(workItems.id, workItemId));
+    await this.work.changeStatus(workItemId, { status: 'assigned' });
+    const until = this.usageLimits.blockedUntil(runtimeKey);
+    if (until !== null) this.wakeAt(until);
+    return { agentRunId: runId, workItemId, status: 'rate_limited', model, runtimeKey, filesChanged: collected.filesChanged, estimatedCostUsd: usage.costUsd };
   }
 
   private async finalizeDone(
@@ -589,13 +755,23 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       task: this.buildTask(item),
       model,
       provider,
-      systemPromptAppend: this.buildClaudeMd(employee.name, employee.role, item, memoryBlock),
+      systemPromptAppend: this.buildClaudeMd(employee, item, memoryBlock),
       allowedTools: this.governance.allowedTools(employee.governance),
       disallowedTools: this.governance.deniedTools(employee.governance),
       limits: { maxTurns: limits.maxTurns, maxToolCalls: limits.maxToolCalls },
       resumeSessionId,
       canUseTool: this.buildGate(runId, item, employee, handle.rootPath),
+      abortSignal: this.abortFor(item.id).signal,
     };
+  }
+
+  /** One abort switch per running work item: cancelling the item flips it and the agent stops. */
+  private readonly aborts = new Map<string, AbortController>();
+
+  private abortFor(workItemId: string): AbortController {
+    const ac = new AbortController();
+    this.aborts.set(workItemId, ac);
+    return ac;
   }
 
   private buildGate(
@@ -609,6 +785,12 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       const violation = await findPathViolation(cwd, toolName, input);
       if (violation) {
         return { behavior: 'deny', message: violation };
+      }
+      // Agents run unattended: desktop apps would pop up on the operator's screen and can hang the
+      // run (observed live: LibreOffice's export showed a "waiting for printer" dialog).
+      const desktop = desktopAppLaunch(toolName, input);
+      if (desktop) {
+        return { behavior: 'deny', message: `${desktop} is not available here: generate and check documents with a library instead.` };
       }
       const decision = this.governance.evaluate(employee.governance, toolName);
       if (decision === 'deny') {
@@ -728,12 +910,32 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     ].join('\n');
   }
 
-  private buildClaudeMd(name: string, role: string, item: WorkItem, memoryBlock = ''): string {
+  private buildClaudeMd(employee: EmployeeWithRelations, item: WorkItem, memoryBlock = ''): string {
+    const skills = employee.skills.map((s) => `${s.skillKey} (${s.level})`).join(', ');
     return [
-      `# ${name} — ${role}`,
+      `# ${employee.name} — ${employee.role}${employee.department ? `, ${employee.department}` : ''}`,
       '',
-      'You are an autonomous employee in an AI company (Forge). Do high-quality,',
-      'production-grade work. Only touch the current working directory.',
+      employee.description ?? '',
+      skills ? `Expertise: ${skills}.` : '',
+      '',
+      'You are a senior, autonomous employee in an AI company (Forge). Do production-grade work',
+      'and own the outcome. Only touch the current working directory.',
+      '',
+      '## Production standard (what a senior reviewer will check)',
+      ...standardsFor(item.taskType).map((s) => `- ${s}`),
+      '',
+      '## Definition of done',
+      '- Run the project\'s tests (and any acceptance checks you are given) before you finish.',
+      '- If anything fails, read the error, fix the cause and run them again. Do not stop on a failure.',
+      '- Leave the repository working: no broken scripts, no placeholder code.',
+      '- Make it runnable by someone who has never seen it: README.md with the exact commands to install,',
+      '  run and test it, and a working start command (e.g. "npm start", "python main.py", or the generator',
+      '  script for a document). Run it yourself once before you finish; stop anything you started.',
+      '- Documents are files you generate with code inside this folder: Excel with openpyxl/exceljs,',
+      '  Word with python-docx/docx, PDF with reportlab/pdfkit, slides with python-pptx. Check them by',
+      '  reading them back with the same library. Never open, render, preview or print them with',
+      '  LibreOffice, Microsoft Office, a browser or any desktop app (those are blocked), and never touch',
+      '  files outside this folder.',
       '',
       '## Current task',
       `- ${item.title}`,
@@ -750,4 +952,14 @@ interface RunUsage {
   outputTokens: number;
   costUsd: number;
   toolCalls: number;
+}
+
+const DESKTOP_APPS = /\b(soffice|libreoffice|scalc|swriter|simpress|excel(\.exe)?|winword|powerpnt|mspaint|notepad|explorer\.exe|invoke-item|start-process)\b|(^|[;&|]\s*)start\s+["'\w]|os\.startfile|xdg-open|\bopen\s+-a\b/i;
+
+/** Names the desktop app a shell command would launch, or null. */
+export function desktopAppLaunch(toolName: string, input: unknown): string | null {
+  if (toolName !== 'Bash' && toolName !== 'PowerShell') return null;
+  const command = String((input as { command?: unknown } | null)?.command ?? '');
+  const m = command.match(DESKTOP_APPS);
+  return m ? `Launching a desktop app (${m[0].trim()})` : null;
 }

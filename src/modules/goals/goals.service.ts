@@ -5,6 +5,7 @@ import { OutboxService } from '../../infrastructure/events/outbox.service';
 import { EventTypes } from '../../infrastructure/events/event-types';
 import { CompaniesService } from '../companies/companies.service';
 import { goals, Goal } from './goals.schema';
+import { folderProblem } from '../projects/project-location';
 import { CreateGoalDto } from './dto/create-goal.dto';
 
 @Injectable()
@@ -17,6 +18,9 @@ export class GoalsService {
 
   async create(companyId: string, dto: CreateGoalDto): Promise<Goal> {
     await this.companies.findOne(companyId);
+    const location = dto.location?.trim() || null;
+    const problem = location ? folderProblem(location, { mustBeEmpty: true }) : null;
+    if (problem) throw new BadRequestException(`Project folder: ${problem}`);
     return this.db.transaction(async (tx) => {
       const [goal] = await tx
         .insert(goals)
@@ -27,6 +31,7 @@ export class GoalsService {
           createdByUserId: dto.createdByUserId ?? null,
           mode: dto.mode ?? 'plan',
           acceptance: dto.acceptance ?? [],
+          location,
         })
         .returning();
       await this.outbox.record(tx, {

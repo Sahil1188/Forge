@@ -13,6 +13,7 @@ import { BudgetsService } from '../src/modules/budgets/budgets.service';
 import { ApprovalsService } from '../src/modules/approvals/approvals.service';
 import { MemoryService } from '../src/modules/memory/memory.service';
 import { ExecutionWorker } from '../src/workers/execution.worker';
+import { UsageLimits } from '../src/modules/runtimes/usage-limits';
 import { EvaluationWorker, NotAwaitingEvaluationError } from '../src/modules/evaluation/evaluation.worker';
 import { workspaces } from '../src/modules/workspaces/workspaces.schema';
 import { RuntimeEvent, RuntimeRunContext } from '../src/modules/runtimes/runtime.port';
@@ -77,6 +78,66 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
   }
 
   const cancel = (id: string) => request(server).post(`/work-items/${id}/status`).send({ status: 'cancelled' });
+
+  it('cancelling a work item stops its running agent at once and keeps the item cancelled', async () => {
+    let aborted = false;
+    const w = await world((ctx) =>
+      (async function* () {
+        yield { kind: 'session', sessionId: 'long' } as RuntimeEvent;
+        // A long-running agent: only the abort signal ends it.
+        await new Promise<void>((resolve) => {
+          if (ctx.abortSignal?.aborted) return resolve();
+          ctx.abortSignal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+        aborted = Boolean(ctx.abortSignal?.aborted);
+      })(),
+    );
+    const running = worker().runOnce();
+    // Cancel once the agent is actually running.
+    for (let i = 0; i < 100 && (await getWorkItem(app, w.workItemId)).status !== 'in_progress'; i += 1) await new Promise((r) => setTimeout(r, 100));
+    await cancel(w.workItemId).expect(201);
+    const summary = await running;
+    expect(aborted).toBe(true);
+    expect(summary?.status).toBe('failed');
+    expect((await runs().findByWorkItem(w.workItemId))[0]).toMatchObject({ status: 'failed', errorJson: { message: 'Cancelled' } });
+    expect((await getWorkItem(app, w.workItemId)).status).toBe('cancelled');
+  });
+
+  describe('subscription usage limits', () => {
+    it('a run stopped by the usage limit is requeued, held until the reset, then runs — without spending an attempt', async () => {
+      const resetsAt = Date.now() + 3_600_000;
+      const w = await world((_ctx, n) =>
+        n === 1
+          ? events([{ kind: 'session', sessionId: 's1' }, { kind: 'rate_limit', status: 'rejected', resetsAt, limitType: 'five_hour', utilization: 1 }])
+          : events([{ kind: 'completed', result: 'ok' }]),
+      );
+      const first = await worker().runOnce();
+      expect(first?.status).toBe('rate_limited');
+      expect((await runs().findOne(first!.agentRunId)).status).toBe('rate_limited');
+      expect((await getWorkItem(app, w.workItemId)).status).toBe('assigned');
+
+      // Held: the item stays queued and no new run starts while the limit is in force.
+      const held = await worker().runOnce();
+      expect(held).toMatchObject({ status: 'blocked', agentRunId: '' });
+      const sys = await request(server).get('/system').expect(200);
+      expect(sys.body.usage).toEqual(expect.arrayContaining([expect.objectContaining({ runtimeKey: w.key, status: 'rejected', resetsAt, limitType: 'five_hour' })]));
+
+      // The limit resets → the work runs and completes.
+      app.get(UsageLimits).record(w.key, { status: 'allowed' });
+      const second = await worker().runOnce();
+      expect(second?.status).toBe('completed');
+      await cancel(w.workItemId);
+    });
+
+    it('a usage-limit error without a structured event is recognised too', async () => {
+      const w = await world(() => events([{ kind: 'failed', error: 'Claude AI usage limit reached|1761140000' }]));
+      const r = await worker().runOnce();
+      expect(r?.status).toBe('rate_limited');
+      expect((await getWorkItem(app, w.workItemId)).status).toBe('assigned');
+      app.get(UsageLimits).record(w.key, { status: 'allowed' });
+      await cancel(w.workItemId);
+    });
+  });
 
   describe('failure handling', () => {
     it('a runtime that throws mid-stream fails the run and the item, records the error, and frees the worker', async () => {
@@ -151,6 +212,11 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       const summary = await worker().runOnce();
       expect(summary?.status).toBe('killed_tools');
       expect((await runs().findByWorkItem(w.workItemId))[0].status).toBe('killed_tools');
+      // Retried automatically from its branch until the attempt budget (3) is spent, then failed.
+      expect((await getWorkItem(app, w.workItemId)).status).toBe('assigned');
+      await worker().runOnce();
+      await worker().runOnce();
+      expect((await runs().findByWorkItem(w.workItemId)).map((r) => r.status)).toEqual(['killed_tools', 'killed_tools', 'killed_tools']);
       expect((await getWorkItem(app, w.workItemId)).status).toBe('failed');
     });
 
