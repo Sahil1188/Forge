@@ -1,3 +1,5 @@
+import { IntakeController } from './intake.controller';
+import { KeepAwakeService } from './keep-awake.service';
 import { Module } from '@nestjs/common';
 import { RuntimesModule } from '../modules/runtimes/runtimes.module';
 import { WorkspacesModule } from '../modules/workspaces/workspaces.module';
@@ -23,7 +25,8 @@ import { ApprovalDecisionListener } from './approval-decision.listener';
     RoutingModule,
     MemoryModule,
   ],
-  providers: [ExecutionWorker, ApprovalDecisionListener],
+  controllers: [IntakeController],
+  providers: [ExecutionWorker, ApprovalDecisionListener, KeepAwakeService],
   exports: [ExecutionWorker],
 })
 export class WorkersModule {}

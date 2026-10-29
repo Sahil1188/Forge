@@ -1,3 +1,4 @@
+import { getBrand } from '../brands/brand-library';
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { DRIZZLE, Database } from '../../infrastructure/database/drizzle.provider';
@@ -21,6 +22,7 @@ export class GoalsService {
     const location = dto.location?.trim() || null;
     const problem = location ? folderProblem(location, { mustBeEmpty: true }) : null;
     if (problem) throw new BadRequestException(`Project folder: ${problem}`);
+    if (dto.brand?.trim() && !(await getBrand(dto.brand.trim()))) throw new BadRequestException(`Unknown brand "${dto.brand}". Pick one from the brand list.`);
     return this.db.transaction(async (tx) => {
       const [goal] = await tx
         .insert(goals)
@@ -32,6 +34,7 @@ export class GoalsService {
           mode: dto.mode ?? 'plan',
           acceptance: dto.acceptance ?? [],
           location,
+          brand: dto.brand?.trim() || null,
         })
         .returning();
       await this.outbox.record(tx, {
@@ -67,6 +70,11 @@ export class GoalsService {
 
   async findByCompany(companyId: string): Promise<Goal[]> {
     return this.db.select().from(goals).where(eq(goals.companyId, companyId));
+  }
+
+  /** Records which brand this goal's UI follows. */
+  async setBrand(id: string, brand: string | null): Promise<void> {
+    await this.db.update(goals).set({ brand }).where(eq(goals.id, id));
   }
 
   async findOne(id: string): Promise<Goal> {

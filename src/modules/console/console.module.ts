@@ -9,10 +9,11 @@ import { RoutingModule } from '../routing/routing.module';
 import { PerformanceModule } from '../performance/performance.module';
 import { ConsoleController } from './console.controller';
 import { ConsoleService } from './console.service';
+import { AskService } from './ask.service';
 
 @Module({
   imports: [CompaniesModule, EmployeesModule, GoalsModule, WorkModule, RuntimesModule, WorkspacesModule, RoutingModule, PerformanceModule],
   controllers: [ConsoleController],
-  providers: [ConsoleService],
+  providers: [ConsoleService, AskService],
 })
 export class ConsoleModule {}

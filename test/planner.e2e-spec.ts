@@ -215,6 +215,27 @@ describe('CEO planning, org hierarchy and routing (e2e)', () => {
       }
     });
 
+    it('a design-led product is reviewed by the review specialist, and a plan ending in its own review gets no duplicate', async () => {
+      process.env.FORGE_PRODUCTION_REVIEW = '1';
+      try {
+        const designFirst = ceoRuntime({ workItems: [{ title: 'Design it', taskType: 'design' }, { title: 'Build UI', taskType: 'frontend' }] });
+        const a = await company(designFirst.key);
+        const reviewer = await createEmployee(app, a.companyId, { name: 'Ines', role: 'Principal Reviewer', department: 'Engineering', runtimeKey: designFirst.key, skills: [{ skillKey: 'code review', level: 97 }] });
+        await createEmployee(app, a.companyId, { name: 'Sofia', role: 'Senior Legal Counsel', department: 'Operations', runtimeKey: designFirst.key, skills: [{ skillKey: 'contracts', level: 95 }] });
+        const planA = await app.get(CeoPlanner).plan(await newGoal(a.companyId));
+        const review = planA.workItems.at(-1)!;
+        expect(review.title).toBe('Production review and hardening');
+        expect(review.assignedTo).toBe(reviewer);
+
+        const ownReview = ceoRuntime({ workItems: [{ title: 'Build', taskType: 'coding' }, { title: 'Release review', taskType: 'review' }] });
+        const b = await company(ownReview.key);
+        const planB = await app.get(CeoPlanner).plan(await newGoal(b.companyId));
+        expect(planB.workItems.map((w) => w.title)).toEqual(['Build', 'Release review']);
+      } finally {
+        process.env.FORGE_PRODUCTION_REVIEW = '0';
+      }
+    });
+
     it('the planning run is recorded at goal level on the CEO’s model, with usage', async () => {
       const rt = ceoRuntime({ workItems: [{ title: 'x', taskType: 'coding' }] });
       const { companyId, ceo } = await company(rt.key);

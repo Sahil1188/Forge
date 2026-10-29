@@ -115,6 +115,9 @@ const LABELS = {
   killed_budget: 'Stopped: budget',
   killed_timeout: 'Stopped: time limit',
   killed_tools: 'Stopped: tool limit',
+  killed_turns: 'Stopped: turn limit',
+  rate_limited: 'Paused: usage limit',
+  interrupted: 'Interrupted, resumed',
   idle: 'Idle',
   working: 'Working',
   error: 'Error',
@@ -132,9 +135,22 @@ export function label(status) {
 export function tone(s) {
   if (['done', 'completed', 'passed', 'approved'].includes(s)) return 'success';
   if (['in_progress', 'evaluating', 'active', 'working', 'running'].includes(s)) return 'info';
-  if (['needs_approval', 'paused', 'blocked', 'inconclusive', 'rework', 'pending'].includes(s)) return 'warning';
+  if (['needs_approval', 'paused', 'blocked', 'inconclusive', 'rework', 'pending', 'rate_limited', 'interrupted'].includes(s)) return 'warning';
   if (['failed', 'killed_budget', 'killed_timeout', 'killed_tools', 'error', 'denied'].includes(s)) return 'danger';
   return '';
+}
+
+/** A run's status; runs cut off by a Forge restart are stored as rate_limited but say what happened. */
+export function runBadge(r) {
+  return badge(String(r.error ?? '').startsWith('Interrupted') ? 'interrupted' : r.status);
+}
+
+/** A run's cost; Claude reports cost only when a run ends normally, so unknown is shown as unknown. */
+export function runCost(r) {
+  if (!r.estimatedCostUsd && ['running', 'rate_limited', 'killed_timeout', 'killed_tools', 'killed_turns', 'cancelled'].includes(r.status)) {
+    return html`<span class="muted" title="Not reported: the run did not finish normally">—</span>`;
+  }
+  return money(r.estimatedCostUsd);
 }
 
 export function badge(s, text) {
@@ -353,4 +369,43 @@ export function transcript(t) {
     }
   };
   return html`<div class="events">${t.events.map((e) => html`<div class="ev"><span class="k">${String(e.kind).replace(/_/g, ' ')}</span><div>${body(e)}</div></div>`)}</div>`;
+}
+
+/** One line on what a running agent is doing right now, so a stuck run is visible as one. */
+export function liveLine(r) {
+  if (r.status !== 'running') return '';
+  const a = r.live;
+  const elapsed = duration(Date.now() - new Date(r.startedAt).getTime());
+  const quietS = a?.lastAt ? Math.max(0, Math.round((Date.now() - new Date(a.lastAt).getTime()) / 1000)) : null;
+  const stale = quietS !== null && quietS > 300;
+  return html`<div class="live-line ${stale ? 'stale' : ''}">
+    <span>Working ${elapsed} · ${a?.actions ?? 0} actions</span>
+    ${a?.last ? html`<span>Now:</span><span class="now">${a.last}</span>` : html`<span>Starting…</span>`}
+    ${quietS !== null ? html`<span class="quiet">${stale ? `No activity for ${duration(quietS * 1000)}` : `last action ${duration(quietS * 1000)} ago`}</span>` : ''}
+  </div>`;
+}
+
+/** Opens a run's transcript; while the run is still going the panel refreshes itself. */
+export async function openTranscript(ctx, runId) {
+  const load = () => ctx.api(`/agent-runs/${runId}/transcript`);
+  const show = (t) => {
+    const title = `Transcript · ${t.run.model ?? t.run.runtimeKey}${t.run.status === 'running' ? ' · live' : ''}`;
+    ctx.openPanel(title, html`<div data-live-run="${runId}">${transcript(t)}</div>`);
+  };
+  const mine = () => document.querySelector(`.panel [data-live-run="${runId}"]`)?.closest('.panel-body');
+  const first = await load();
+  show(first);
+  if (first.run.status !== 'running') return;
+  const timer = setInterval(async () => {
+    const body = mine();
+    if (!body) return clearInterval(timer);
+    const atEnd = body.scrollTop + body.clientHeight >= body.scrollHeight - 40;
+    const y = body.scrollTop;
+    const t = await load().catch(() => null);
+    if (!t || !mine()) return clearInterval(timer);
+    show(t);
+    const next = mine();
+    if (next) next.scrollTop = atEnd ? next.scrollHeight : y;
+    if (t.run.status !== 'running') clearInterval(timer);
+  }, 4000);
 }

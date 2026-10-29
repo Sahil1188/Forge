@@ -1,7 +1,9 @@
 import { goalFields, html, lines } from './lib.js';
 
 /** The "New task" modal: one box for the instruction, Task vs Goal, optional acceptance checks. */
-export function openComposer(ctx, mode = 'task') {
+export async function openComposer(ctx, mode = 'task') {
+  const brands = await ctx.api('/brands').catch(() => []);
+  const companyBrand = brands.find((b) => b.slug === ctx.company.brand);
   ctx.openModal({
     title: 'New work',
     desc: 'Describe the outcome. Forge assigns it, builds it and checks it.',
@@ -19,6 +21,12 @@ export function openComposer(ctx, mode = 'task') {
       <label class="field"><span>Project folder <span class="muted" style="font-weight:400">(optional)</span></span>
         <input name="location" maxlength="500" placeholder="Default: your company's projects folder" style="font-family:var(--font-mono)" />
         <span class="help">A full path to a new or empty folder, for example C:\\Projects\\client-portal.</span></label>
+      ${brands.length
+        ? html`<label class="field"><span>Brand <span class="muted" style="font-weight:400">(for anything with a user interface)</span></span>
+            <select name="brand"><option value="">${companyBrand ? `Company default: ${companyBrand.name}` : 'Best fit for the product'}</option>
+              ${brands.map((b) => html`<option value="${b.slug}">${b.name}</option>`)}</select>
+            <span class="help">Screens follow this brand system exactly: colours, type, components and CSS.</span></label>`
+        : ''}
       <div class="form-foot">
         <button class="btn" type="button" data-action="close-overlay">Cancel</button>
         <button class="btn btn-primary" type="submit">Start work</button>
@@ -38,6 +46,7 @@ export const composerForms = {
         mode: data.mode === 'goal' ? 'plan' : 'direct',
         acceptance: lines(data.checks),
         ...(String(data.location ?? '').trim() ? { location: String(data.location).trim() } : {}),
+        ...(data.brand ? { brand: String(data.brand) } : {}),
         start: true,
       },
     });

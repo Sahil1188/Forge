@@ -6,8 +6,8 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { and, asc, desc, eq, not, notInArray, sql } from 'drizzle-orm';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { and, asc, desc, eq, isNotNull, not, notInArray, sql } from 'drizzle-orm';
+import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { DRIZZLE, Database } from '../infrastructure/database/drizzle.provider';
 import { OutboxService } from '../infrastructure/events/outbox.service';
@@ -30,9 +30,15 @@ import { BudgetsService } from '../modules/budgets/budgets.service';
 import { redactSecrets } from '../modules/governance/redaction';
 import { OMNI_ROUTER, OmniRouterPort } from '../modules/routing/omni/omni-router.port';
 import { MemoryService } from '../modules/memory/memory.service';
-import { UsageLimits, looksLikeUsageLimit } from '../modules/runtimes/usage-limits';
+import { UsageLimits, fallbackSelection, looksLikeUsageLimit } from '../modules/runtimes/usage-limits';
 import { stopProcessesIn } from './process-cleanup';
+import { evaluations } from '../modules/evaluation/evaluation.schema';
+import { agentRuns } from '../modules/runtimes/agent-runs.schema';
 import { standardsFor } from '../modules/work/standards';
+import { countAttempts } from '../modules/runtimes/attempts';
+import { brandBrief, describeBrand } from '../modules/brands/brand-library';
+import { SHARED_RULES, briefForEmployee, renderBrief } from '../modules/employees/employee-briefs';
+import { readFileSync } from 'node:fs';
 
 export type ExecutionStatus =
   | 'completed'
@@ -61,12 +67,14 @@ interface RunLimits {
   maxDurationMs: number;
 }
 
-type KillReason = 'budget' | 'timeout' | 'tools';
+type KillReason = 'budget' | 'timeout' | 'tools' | 'turns';
 type KillStatus = 'killed_budget' | 'killed_timeout' | 'killed_tools';
 const KILL_STATUS: Record<KillReason, KillStatus> = {
   budget: 'killed_budget',
   timeout: 'killed_timeout',
   tools: 'killed_tools',
+  // The agent used all its turns: like the tool ceiling, a limit that more time can fix.
+  turns: 'killed_tools',
 };
 const TIMEOUT = Symbol('timeout');
 const CANCELLED = Symbol('cancelled');
@@ -75,8 +83,8 @@ const CANCEL_POLL_MS = Number(process.env.FORGE_CANCEL_POLL_MS ?? 3000);
 // Real deliverables (installs, large generated files on Opus) need room; observed live: a workbook
 // task was cut off at 10 minutes mid-write. FORGE_MAX_RUN_MINUTES overrides the default per run.
 const DEFAULT_LIMITS: RunLimits = {
-  maxTurns: 60,
-  maxToolCalls: 120,
+  maxTurns: 100,
+  maxToolCalls: 200,
   maxDurationMs: Number(process.env.FORGE_MAX_RUN_MINUTES ?? 30) * 60 * 1000,
 };
 const DEFAULT_MAX_ATTEMPTS = 3;
@@ -139,6 +147,10 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     if (this.autoRun) return;
     this.autoRun = true;
     this.bus.subscribe(EventTypes.WorkAssigned, () => this.kick());
+    // Safety net: re-check the queue every minute, so held work resumes even if a wake-up timer was
+    // missed (observed live: a PC asleep past a usage-limit reset left work waiting until morning).
+    const sweep = setInterval(() => this.kick(), 60_000);
+    sweep.unref?.();
     this.bus.subscribe(EventTypes.WorkStatusChanged, (event) => {
       if ((event.payload as { to?: string }).to === 'done') this.kick();
     });
@@ -147,7 +159,37 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
   /** Resume anything left assigned from before this process started. */
   onApplicationBootstrap(): void {
     if (process.env.VITEST || process.env.FORGE_MANUAL_DRIVE) return;
-    this.kick();
+    void this.recoverInterrupted()
+      .catch((err) => this.logger.error(`Recovering interrupted runs failed: ${(err as Error).message}`))
+      .finally(() => this.kick());
+  }
+
+  /**
+   * Runs that were in flight when Forge stopped (restart, crash, PC shut down) would otherwise stay
+   * "running" forever. Save what they had written, record the interruption, and put the item back in
+   * the queue so the next attempt continues from that work.
+   */
+  async recoverInterrupted(): Promise<number> {
+    const orphans = await this.db.select().from(agentRuns).where(and(eq(agentRuns.status, 'running'), isNotNull(agentRuns.workItemId)));
+    for (const run of orphans) {
+      try {
+        let artifacts: Record<string, unknown> | undefined;
+        if (run.workspaceId) {
+          const handle = await this.loadWorkspace(run.workspaceId);
+          await stopProcessesIn(handle.rootPath);
+          const collected = await this.workspace.collect(handle);
+          artifacts = { branch: collected.branch, filesChanged: collected.filesChanged, agentRunId: run.id };
+        }
+        await this.agentRuns.finish(run.id, { status: 'rate_limited', error: 'Interrupted: Forge stopped while this run was working; continuing from its saved work' });
+        if (artifacts) await this.db.update(workItems).set({ artifacts }).where(eq(workItems.id, run.workItemId!));
+        const item = await this.getWorkItem(run.workItemId!);
+        if (item.status === 'in_progress') await this.work.changeStatus(item.id, { status: 'assigned' });
+        this.logger.log(`Recovered interrupted run ${run.id}; work item ${item.id} requeued`);
+      } catch (err) {
+        this.logger.warn(`Could not recover run ${run.id}: ${(err as Error).message}`);
+      }
+    }
+    return orphans.length;
   }
 
   onModuleDestroy(): void {
@@ -192,16 +234,42 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     return this.draining;
   }
 
+  /**
+   * Works the queue like a team: up to FORGE_CONCURRENCY items run at the same time, one per
+   * employee — whoever is free takes the next runnable item instead of waiting for the others.
+   * An item is never started twice; a blocked item is skipped for the rest of the drain.
+   */
   private async drainLoop(): Promise<ExecutionSummary[]> {
     const summaries: ExecutionSummary[] = [];
     const skipped = new Set<string>();
+    const concurrency = Math.max(1, Number(process.env.FORGE_CONCURRENCY ?? 3) || 1);
+    const running = new Map<string, Promise<{ id: string; summary: ExecutionSummary | null }>>();
+    const busyEmployees = new Map<string, string>(); // workItemId -> employeeId
     do {
       this.drainAgain = false;
       for (;;) {
-        const summary = await this.runOnce(skipped);
-        if (!summary) break;
-        summaries.push(summary);
-        if (summary.status === 'blocked') skipped.add(summary.workItemId);
+        while (running.size < concurrency) {
+          const item = await this.nextAssigned(new Set([...skipped, ...running.keys()]), [...busyEmployees.values()]);
+          if (!item) break;
+          busyEmployees.set(item.id, item.assignedEmployeeId ?? '');
+          running.set(
+            item.id,
+            this.startRun(item)
+              .catch((err) => {
+                this.logger.error(`Run for work item ${item.id} crashed: ${(err as Error).message}`);
+                return null;
+              })
+              .then((summary) => ({ id: item.id, summary })),
+          );
+        }
+        if (running.size === 0) break;
+        const { id, summary } = await Promise.race(running.values());
+        running.delete(id);
+        busyEmployees.delete(id);
+        if (summary) {
+          summaries.push(summary);
+          if (summary.status === 'blocked') skipped.add(summary.workItemId);
+        }
       }
     } while (this.drainAgain);
     return summaries;
@@ -237,7 +305,35 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     return this.resumeRun(run);
   }
 
-  private async nextAssigned(skip: ReadonlySet<string> = new Set()): Promise<WorkItem | undefined> {
+  private intakePaused = false;
+
+  /**
+   * Drain mode for safe restarts: while paused, nothing new starts, but work already running (and its
+   * checks) finishes normally. Restart once `activeWork()` reports zero, so no run is ever cut off.
+   */
+  pauseIntake(paused: boolean): void {
+    this.intakePaused = paused;
+    this.logger.log(paused ? 'Intake paused: finishing current work, starting nothing new' : 'Intake resumed');
+    if (!paused) this.kick();
+  }
+
+  get isIntakePaused(): boolean {
+    return this.intakePaused;
+  }
+
+  /** Runs in flight and items being checked; a restart is safe only at zero. */
+  async activeWork(): Promise<{ running: number; evaluating: number }> {
+    const [row] = await this.db
+      .select({
+        running: sql<number>`(select count(*) from ${agentRuns} where ${eq(agentRuns.status, 'running')})`,
+        evaluating: sql<number>`(select count(*) from ${workItems} where ${eq(workItems.status, 'evaluating')})`,
+      })
+      .from(sql`(select 1) as one`);
+    return { running: Number(row?.running ?? 0), evaluating: Number(row?.evaluating ?? 0) };
+  }
+
+  private async nextAssigned(skip: ReadonlySet<string> = new Set(), busyEmployees: string[] = []): Promise<WorkItem | undefined> {
+    if (this.intakePaused) return undefined;
     // An item is runnable only once everything it depends on is `done`; anything
     // upstream still in flight, failed or cancelled keeps it parked.
     const blockedByDependency = sql`exists (
@@ -253,6 +349,8 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
           eq(workItems.status, 'assigned'),
           not(blockedByDependency),
           skip.size > 0 ? notInArray(workItems.id, [...skip]) : undefined,
+          // One task per person at a time: someone already working is not free.
+          busyEmployees.length > 0 ? notInArray(workItems.assignedEmployeeId, busyEmployees) : undefined,
         ),
       )
       .orderBy(desc(workItems.priority), asc(workItems.createdAt))
@@ -266,16 +364,25 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     }
     const employee = await this.employees.findOne(item.assignedEmployeeId);
     // Omni Router decides WHAT executes this work item (spec §8).
-    const selection = this.omni.selectModel(item, employee);
+    let selection = this.omni.selectModel(item, employee);
+
+    // Subscription usage limit: switch to the fallback endpoint (OmniRoute/OpenRouter…) when one is
+    // configured; otherwise hold the item (it stays assigned) and wake up at the reset.
+    const heldUntil = this.usageLimits.blockedUntil(selection.runtimeKey);
+    let fallbackUntil: number | null = null;
+    if (heldUntil !== null) {
+      const fallback = fallbackSelection(selection.runtimeKey);
+      if (fallback && this.usageLimits.blockedUntil(fallback.runtimeKey) === null) {
+        this.logger.log(`${selection.runtimeKey} is at its usage limit; running work item ${item.id} on ${fallback.provider}:${fallback.model}`);
+        selection = fallback;
+        fallbackUntil = heldUntil;
+      } else {
+        this.wakeAt(heldUntil);
+        return { agentRunId: '', workItemId: item.id, status: 'blocked', model: selection.model, runtimeKey: selection.runtimeKey, filesChanged: [], estimatedCostUsd: 0 };
+      }
+    }
     const runtimeKey = selection.runtimeKey;
     const model = selection.model;
-
-    // Subscription usage limit: hold the item (it stays assigned) and wake up at the reset.
-    const heldUntil = this.usageLimits.blockedUntil(runtimeKey);
-    if (heldUntil !== null) {
-      this.wakeAt(heldUntil);
-      return { agentRunId: '', workItemId: item.id, status: 'blocked', model, runtimeKey, filesChanged: [], estimatedCostUsd: 0 };
-    }
 
     // Circuit breaker: block a new run when the budget is already exceeded (§21).
     const budget = await this.budgets.check(employee.id);
@@ -307,12 +414,15 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     try {
       // Branch off the project's shared repo so earlier items' work is present; a retry
       // (rework/failed → assigned) continues from its previous, unmerged attempt.
-      const previousBranch = (item.artifacts as { branch?: string } | null)?.branch;
+      const prior = (item.artifacts as { branch?: string; conflict?: string } | null) ?? {};
+      const previousBranch = prior.branch;
+      // After a merge conflict, start from the latest shared project with this work merged in, so the
+      // clash is resolved once instead of the retry colliding again and again.
       const handle = await this.workspace.prepare({
         employeeId: employee.id,
         workItemId: item.id,
         projectId: item.projectId,
-        baseRef: previousBranch,
+        ...(prior.conflict ? { mergeFrom: previousBranch } : { baseRef: previousBranch }),
       });
       await this.agentRuns.attachWorkspace(run.id, handle.id);
       // Cancelled while the workspace was being prepared: stop before an agent ever starts.
@@ -323,9 +433,11 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       await this.work.changeStatus(item.id, { status: 'in_progress' });
 
       const memoryBlock = await this.memory.recallBlock(employee.id, item.taskType);
+      // A retry is told exactly what failed last time (check output, design-review findings).
+      const feedback = await this.previousFeedback(item.id);
       const ctx = this.buildContext(
         run.id,
-        item,
+        feedback ? { ...item, description: `${item.description ?? ''}\n\n${feedback}` } : item,
         employee,
         handle,
         model,
@@ -337,8 +449,32 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       const iterable = this.registry.get(runtimeKey).run(ctx);
       return await this.drive(run.id, item.id, employee.id, model, runtimeKey, handle, iterable, limits);
     } catch (err) {
+      if (fallbackUntil !== null) return this.fallbackUnavailable(run, item.id, model, runtimeKey, fallbackUntil, (err as Error).message);
       return this.fail(run, model, runtimeKey, (err as Error).message);
     }
+  }
+
+  /**
+   * The fallback endpoint could not answer while the main runtime is at its usage limit. That is not
+   * the work's fault: never fail the item (observed live: a fallback 502 failed a step outright and
+   * nothing resumed it after the reset). Stop using the fallback until the main runtime resets, put
+   * the item back in the queue without spending an attempt, and wake up at the reset.
+   */
+  private async fallbackUnavailable(
+    run: AgentRun,
+    workItemId: string,
+    model: string,
+    runtimeKey: string,
+    resumeAt: number,
+    message: string,
+  ): Promise<ExecutionSummary> {
+    this.logger.warn(`Fallback ${runtimeKey}:${model} unavailable (${message.slice(0, 160)}); holding work item ${workItemId} until the usage limit resets`);
+    this.usageLimits.record(runtimeKey, { status: 'rejected', resetsAt: resumeAt, limitType: 'fallback_unavailable' });
+    await this.agentRuns.finish(run.id, { status: 'rate_limited', error: `Fallback unavailable: ${message.slice(0, 300)}. Waiting for the usage limit to reset.` });
+    const item = await this.getWorkItem(workItemId);
+    if (item.status === 'in_progress') await this.work.changeStatus(workItemId, { status: 'assigned' });
+    this.wakeAt(resumeAt);
+    return { agentRunId: run.id, workItemId, status: 'blocked', model, runtimeKey, filesChanged: [], estimatedCostUsd: 0 };
   }
 
   private async resumeRun(run: AgentRun): Promise<ExecutionSummary> {
@@ -398,9 +534,28 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     let pausedApprovalId: string | undefined;
     let killed: KillReason | undefined;
     let limited = false;
+    let resultText = '';
 
     const iterator = iterable[Symbol.asyncIterator]();
-    const deadline = Date.now() + limits.maxDurationMs;
+    let deadline = Date.now() + limits.maxDurationMs;
+    // Sleep-proof: when the clock jumps (the PC slept), the run could not work during the gap, so the
+    // gap does not count against its time budget (observed live: overnight sleep killed runs on wake).
+    let lastTick = Date.now();
+    let pending: Promise<IteratorResult<RuntimeEvent>> | null = null;
+    const sleepGuard = setInterval(() => {
+      const now = Date.now();
+      const gap = now - lastTick - 5_000;
+      if (gap > 20_000) {
+        deadline += gap;
+        this.logger.log(`Run ${runId}: clock jumped ${Math.round(gap / 1000)}s (sleep?); time budget extended`);
+      }
+      lastTick = now;
+    }, 5_000);
+    sleepGuard.unref?.();
+    // Live view: every event is appended to the transcript as it happens, so the console shows what the
+    // agent is doing right now (not only after the run ends) and a stuck run is visible as one.
+    const live = await this.openLiveTranscript(runId);
+    let lastProgressAt = 0;
     let cancelled = false;
     const abort = this.aborts.get(workItemId);
     const cancelP = new Promise<typeof CANCELLED>((resolve) => {
@@ -427,12 +582,17 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
           killed = 'timeout';
           break;
         }
-        const next = await this.raceNext(iterator, remaining, cancelP);
+        // Keep one pending read across wake-ups, so no event is ever requested twice (and lost).
+        pending ??= iterator.next();
+        const next = await this.raceNext(pending, remaining, cancelP);
+        if (next !== TIMEOUT && next !== CANCELLED) pending = null;
         if (next === CANCELLED) {
           cancelled = true;
           break;
         }
         if (next === TIMEOUT) {
+          // The deadline may have moved (sleep detected meanwhile): only a real overrun stops the run.
+          if (deadline - Date.now() > 0) continue;
           killed = 'timeout';
           break;
         }
@@ -440,6 +600,15 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
 
         const event = next.value;
         transcript.push(event);
+        live.write(event);
+        if ((event.kind === 'tool_use' || event.kind === 'usage') && Date.now() - lastProgressAt > 3_000) {
+          lastProgressAt = Date.now();
+          void this.db
+            .update(agentRuns)
+            .set({ toolCallCount: toolCalls + (event.kind === 'tool_use' ? 1 : 0), estimatedCostUsd: costUsd })
+            .where(eq(agentRuns.id, runId))
+            .catch(() => undefined);
+        }
 
         if (event.kind === 'session') {
           sessionId = event.sessionId;
@@ -470,6 +639,7 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
           break;
         } else if (event.kind === 'completed') {
           completed = true;
+          resultText = event.result;
           if (event.sessionId) sessionId = event.sessionId;
           break;
         } else if (event.kind === 'failed') {
@@ -486,6 +656,7 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       // Stopping early (limit, kill, cancel): abort the runtime so the agent process ends now, and
       // don't wait forever for a generator that is blocked on its next message.
       clearInterval(watch);
+      clearInterval(sleepGuard);
       if (cancelled || killed || limited || pausedApprovalId) abort?.abort();
       await Promise.race([iterator.return?.(), new Promise((r) => setTimeout(r, 15_000).unref?.())]);
       this.aborts.delete(workItemId);
@@ -493,9 +664,13 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       if (!pausedApprovalId) await stopProcessesIn(handle.rootPath);
     }
 
-    await this.persistTranscript(runId, transcript);
+    // The live file already holds every event (with timestamps); rewrite only if streaming failed.
+    if (!(await live.close())) await this.persistTranscript(runId, transcript);
 
     const usage = { sessionId, inputTokens, outputTokens, costUsd, toolCalls };
+
+    // Self-reflection: the lessons the employee wrote at the end of the task become their memory.
+    if (completed) await this.harvestReflection(employeeId, workItemId, runId, resultText);
 
     if (cancelled) {
       return this.finalizeCancelled(runId, workItemId, model, runtimeKey, handle, usage);
@@ -510,6 +685,11 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     }
     if (pausedApprovalId && !completed) {
       return this.finalizePaused(runId, workItemId, model, runtimeKey, pausedApprovalId, usage);
+    }
+    // Ran out of turns mid-work (observed live: a whole-project review needed more than 60): keep
+    // the work and continue from it in another attempt, like the time and tool limits.
+    if (!completed && ranOutOfTurns(failedError)) {
+      return this.finalizeKilled(runId, workItemId, model, runtimeKey, handle, 'turns', usage);
     }
     return this.finalizeDone(runId, workItemId, model, runtimeKey, handle, completed, failedError, usage);
   }
@@ -539,7 +719,7 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
   }
 
   private async raceNext(
-    iterator: AsyncIterator<RuntimeEvent>,
+    pending: Promise<IteratorResult<RuntimeEvent>>,
     remainingMs: number,
     cancelP: Promise<typeof CANCELLED>,
   ): Promise<IteratorResult<RuntimeEvent> | typeof TIMEOUT | typeof CANCELLED> {
@@ -548,7 +728,7 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       timer = setTimeout(() => resolve(TIMEOUT), remainingMs);
     });
     try {
-      return await Promise.race([iterator.next(), timeoutP, cancelP]);
+      return await Promise.race([pending, timeoutP, cancelP]);
     } finally {
       if (timer) clearTimeout(timer);
     }
@@ -639,11 +819,13 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     if (reason === 'budget') return;
     const item = await this.getWorkItem(workItemId);
     if (item.status !== 'failed' || !item.assignedEmployeeId) return;
-    const attempts = (await this.agentRuns.findByWorkItem(workItemId)).filter((r) => r.status !== 'rate_limited').length;
+    const { attempts, continuations } = countAttempts(await this.agentRuns.findByWorkItem(workItemId));
     const max = Number(process.env.FORGE_MAX_ATTEMPTS ?? DEFAULT_MAX_ATTEMPTS);
     if (attempts >= max) return;
     await this.work.assign(workItemId, { employeeId: item.assignedEmployeeId, assignedBy: `auto_retry_${reason}` });
-    this.logger.log(`Work item ${workItemId} hit its ${reason} limit; retry ${attempts + 1}/${max} continues from its branch`);
+    this.logger.log(
+      `Work item ${workItemId} hit its ${reason} limit; continues from its branch (attempt ${attempts + 1}/${max}, ${continuations} continuation(s) so far)`,
+    );
   }
 
   /**
@@ -755,7 +937,7 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       task: this.buildTask(item),
       model,
       provider,
-      systemPromptAppend: this.buildClaudeMd(employee, item, memoryBlock),
+      systemPromptAppend: this.buildClaudeMd(employee, item, memoryBlock, handle.rootPath),
       allowedTools: this.governance.allowedTools(employee.governance),
       disallowedTools: this.governance.deniedTools(employee.governance),
       limits: { maxTurns: limits.maxTurns, maxToolCalls: limits.maxToolCalls },
@@ -853,6 +1035,30 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     };
   }
 
+  /** Appends events to the run's transcript file in order, as they arrive; failures never stop the run. */
+  private async openLiveTranscript(runId: string): Promise<{ write(e: RuntimeEvent): void; close(): Promise<boolean> }> {
+    const file = path.join(this.transcriptDir, `${runId}.jsonl`);
+    let ok = true;
+    const fail = (e: unknown) => {
+      if (ok) this.logger.warn(`Live transcript for ${runId} unavailable: ${String(e)}`);
+      ok = false;
+    };
+    let chain: Promise<unknown> = mkdir(this.transcriptDir, { recursive: true })
+      .then(() => writeFile(file, '', 'utf8'))
+      .then(() => this.agentRuns.setTranscriptRef(runId, file))
+      .catch(fail);
+    return {
+      write: (e) => {
+        const line = redactSecrets(JSON.stringify({ ...e, at: new Date().toISOString() })) + '\n';
+        chain = chain.then(() => (ok ? appendFile(file, line, 'utf8') : undefined)).catch(fail);
+      },
+      close: async () => {
+        await chain;
+        return ok;
+      },
+    };
+  }
+
   private async persistTranscript(runId: string, transcript: RuntimeEvent[]): Promise<void> {
     if (transcript.length === 0) return;
     await mkdir(this.transcriptDir, { recursive: true });
@@ -889,6 +1095,45 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     }
   }
 
+  /** Saves the "## Lessons" an employee wrote at the end of a task as their own memories. */
+  private async harvestReflection(employeeId: string, workItemId: string, runId: string, resultText: string): Promise<void> {
+    const lessons = extractLessons(resultText);
+    if (!lessons.length) return;
+    const [item] = await this.db.select({ taskType: workItems.taskType }).from(workItems).where(eq(workItems.id, workItemId));
+    for (const lesson of lessons) {
+      await this.memory.remember({ employeeId, kind: 'lesson', taskType: item?.taskType ?? null, sourceRunId: runId, salience: 65, content: `Reflection: ${lesson}` });
+    }
+  }
+
+  /** What the last evaluation of this item found wrong, written for the person fixing it. */
+  private async previousFeedback(workItemId: string): Promise<string | null> {
+    const [latest] = await this.db
+      .select()
+      .from(evaluations)
+      .where(eq(evaluations.workItemId, workItemId))
+      .orderBy(desc(evaluations.createdAt))
+      .limit(1);
+    const [own] = await this.db.select({ artifacts: workItems.artifacts }).from(workItems).where(eq(workItems.id, workItemId));
+    const conflict = (own?.artifacts as { conflict?: string } | null)?.conflict;
+    if (conflict) {
+      return [
+        '## Your previous work passed its checks but clashed with work a teammate merged meanwhile',
+        'You start from the latest shared project with your work merged in. Conflicting spots are marked with',
+        "<<<<<<< / ======= / >>>>>>> in the files below: reconcile each one keeping BOTH sides' intent, remove",
+        'the markers, and make sure everything still builds and passes.',
+        String(conflict).slice(-1500),
+      ].join('\n');
+    }
+    if (!latest || latest.status !== 'failed') return null;
+    const dims = (latest.detail as { dimensions?: Record<string, { exitCode?: number; command?: string; output?: string }> }).dimensions ?? {};
+    const failing = Object.entries(dims).filter(([, d]) => d.exitCode !== 0);
+    if (!failing.length) return null;
+    return [
+      '## Your previous attempt was rejected — fix these before anything else',
+      ...failing.map(([name, d]) => `### ${name === 'visual' ? 'Design review' : name}: ${d.command ?? ''}\n${String(d.output ?? '').slice(-2500)}`),
+    ].join('\n\n');
+  }
+
   private buildTask(item: WorkItem): string {
     return [
       item.title,
@@ -910,38 +1155,35 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     ].join('\n');
   }
 
-  private buildClaudeMd(employee: EmployeeWithRelations, item: WorkItem, memoryBlock = ''): string {
-    const skills = employee.skills.map((s) => `${s.skillKey} (${s.level})`).join(', ');
+  /**
+   * The employee's system prompt, most stable first so the prefix is prompt-cached across tasks:
+   * shared rules → Forge platform rules → this employee's brief → brand → lessons → this task.
+   */
+  private buildClaudeMd(employee: EmployeeWithRelations, item: WorkItem, memoryBlock = '', rootPath?: string): string {
+    const brief = briefForEmployee(employee);
+    const brand = rootPath ? projectBrandName(rootPath) : null;
+    const minutes = Math.round(this.buildLimits(employee).maxDurationMs / 60000);
     return [
-      `# ${employee.name} — ${employee.role}${employee.department ? `, ${employee.department}` : ''}`,
+      SHARED_RULES,
       '',
-      employee.description ?? '',
-      skills ? `Expertise: ${skills}.` : '',
+      FORGE_RULES,
       '',
-      'You are a senior, autonomous employee in an AI company (Forge). Do production-grade work',
-      'and own the outcome. Only touch the current working directory.',
+      '---',
       '',
-      '## Production standard (what a senior reviewer will check)',
+      brief ? renderBrief(brief) : legacyIdentity(employee),
+      '',
+      `Time budget: about ${minutes} minutes per run (hard stop). Deliver the required files in the first half, then refine.`,
+      '',
+      '---',
+      '',
+      ...(brand ? [...brandBrief(brand), ''] : []),
+      ...(memoryBlock.trim() ? [memoryBlock.trim(), ''] : []),
+      '## Standards for this kind of task',
       ...standardsFor(item.taskType).map((s) => `- ${s}`),
-      '',
-      '## Definition of done',
-      '- Run the project\'s tests (and any acceptance checks you are given) before you finish.',
-      '- If anything fails, read the error, fix the cause and run them again. Do not stop on a failure.',
-      '- Leave the repository working: no broken scripts, no placeholder code.',
-      '- Make it runnable by someone who has never seen it: README.md with the exact commands to install,',
-      '  run and test it, and a working start command (e.g. "npm start", "python main.py", or the generator',
-      '  script for a document). Run it yourself once before you finish; stop anything you started.',
-      '- Documents are files you generate with code inside this folder: Excel with openpyxl/exceljs,',
-      '  Word with python-docx/docx, PDF with reportlab/pdfkit, slides with python-pptx. Check them by',
-      '  reading them back with the same library. Never open, render, preview or print them with',
-      '  LibreOffice, Microsoft Office, a browser or any desktop app (those are blocked), and never touch',
-      '  files outside this folder.',
       '',
       '## Current task',
       `- ${item.title}`,
       item.description ? `- ${item.description}` : '',
-      '',
-      memoryBlock,
     ].join('\n');
   }
 }
@@ -962,4 +1204,66 @@ export function desktopAppLaunch(toolName: string, input: unknown): string | nul
   const command = String((input as { command?: unknown } | null)?.command ?? '');
   const m = command.match(DESKTOP_APPS);
   return m ? `Launching a desktop app (${m[0].trim()})` : null;
+}
+
+/** The bullet points under a "## Lessons" heading in an agent's final message (at most 3). */
+export function extractLessons(text: string): string[] {
+  const m = String(text ?? '').match(/^#{1,4}\s*Lessons[^\n]*\n([\s\S]*?)(?=^#{1,4}\s|\s*$(?![\s\S]))/im);
+  if (!m) return [];
+  return m[1]
+    .split('\n')
+    .map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim())
+    .filter((l) => l.length > 10)
+    .slice(0, 3)
+    .map((l) => l.slice(0, 400));
+}
+
+/**
+ * The agent used up its turn allowance. Claude Code reports this as the result subtype
+ * `error_max_turns` (observed live: a step was failed outright instead of continuing), and in
+ * other places as "Reached maximum number of turns (N)".
+ */
+export function ranOutOfTurns(error: string | undefined): boolean {
+  return /maximum number of turns|error_max_turns/i.test(error ?? '');
+}
+
+/** The brand the project follows, from the BRAND.md committed into it (null when it has none). */
+export function projectBrandName(rootPath: string): string | null {
+  try {
+    const content = readFileSync(path.join(rootPath, 'BRAND.md'), 'utf8');
+    return describeBrand('brand', content).name;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * How work happens inside Forge: the same for every employee and task (so it is cached), and the
+ * place where the shared rules' generic words ("escalate", "hand-off") get their Forge meaning.
+ */
+export const FORGE_RULES = [
+  'HOW FORGE WORKS',
+  '- You work alone in the current directory, a checkout of the shared project. Only touch files inside it.',
+  "- Your work is checked automatically when you finish: the project's lint/test/build scripts and the task's",
+  '  acceptance checks must pass. Run them yourself first; a failing check sends the work straight back.',
+  '- To escalate: stop, finish with your hand-off, and start "Risks & follow-ups" with "ESCALATION:" plus the',
+  '  evidence (command, output, what you tried). Do not keep trying the same fix.',
+  '- Leave the repository runnable by someone who has never seen it: README.md with the exact install, run and',
+  '  test commands and a working start command. Run it once yourself and stop anything you started.',
+  '- Documents are files you generate with code in this folder (Excel: openpyxl/exceljs, Word: python-docx/docx,',
+  '  PDF: reportlab/pdfkit, slides: python-pptx) and check by reading them back with the same library. Never open',
+  '  them with LibreOffice, Office, a browser or any desktop app (blocked).',
+  '- After the hand-off, end with a "## Lessons" section: 1-3 short, specific, reusable lessons from this task.',
+  '  They become your memory and your team\'s playbook.',
+].join('\n');
+
+/** Identity for an employee with no written brief (a custom hire in a new role). */
+function legacyIdentity(employee: EmployeeWithRelations): string {
+  const skills = employee.skills.map((s) => s.skillKey).join(', ');
+  return [
+    `# You are ${employee.name}, ${employee.role}${employee.department ? ` (${employee.department})` : ''}`,
+    '',
+    employee.description ?? '',
+    skills ? `Your expertise: ${skills}.` : '',
+  ].join('\n');
 }

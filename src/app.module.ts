@@ -22,6 +22,7 @@ import { HeartbeatsModule } from './modules/heartbeats/heartbeats.module';
 import { ObservabilityModule } from './modules/observability/observability.module';
 import { WorkersModule } from './workers/workers.module';
 import { ConsoleModule } from './modules/console/console.module';
+import { BrandsModule } from './modules/brands/brands.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { ConsoleModule } from './modules/console/console.module';
     ObservabilityModule,
     WorkersModule,
     ConsoleModule,
+    BrandsModule,
   ],
 })
 export class AppModule {}

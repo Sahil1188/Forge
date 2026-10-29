@@ -60,7 +60,23 @@ export class UsageLimits {
   }
 }
 
-/** Recognises a usage-limit failure from error text, for runtimes that don't send structured events. */
+/** Recognises a usage-limit or out-of-credit failure from error text (runtimes without structured events). */
 export function looksLikeUsageLimit(error: string | undefined): boolean {
-  return Boolean(error && /usage limit|rate limit|limit reached|too many requests|\b429\b/i.test(error));
+  return Boolean(
+    error && /usage limit|rate limit|limit reached|too many requests|\b429\b|\b402\b|insufficient (credits|quota|funds|balance)|quota exceeded|out of credits/i.test(error),
+  );
+}
+
+/**
+ * Where work goes while a runtime is at its limit: the OpenAI-compatible fallback endpoint (an
+ * AI gateway such as OmniRoute or OpenRouter), when configured with a model. Never falls back from
+ * the fallback itself — if that runs out too, work waits for a reset like before.
+ */
+export function fallbackSelection(blockedRuntime: string, env: NodeJS.ProcessEnv = process.env): { runtimeKey: string; provider: string; model: string } | null {
+  if (blockedRuntime === 'custom') return null;
+  if (env.FORGE_FALLBACK_AUTO === '0') return null;
+  const base = env.FORGE_FALLBACK_BASE_URL?.trim();
+  const model = env.FORGE_FALLBACK_MODEL?.trim();
+  if (!base || !model) return null;
+  return { runtimeKey: 'custom', provider: 'openai', model };
 }

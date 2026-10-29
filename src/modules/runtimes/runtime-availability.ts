@@ -39,6 +39,11 @@ export class RuntimeAvailability {
         ? { available: true }
         : { available: false, reason: 'FORGE_ANTHROPIC_API_KEY is not set' };
     }
+    if (name === 'openai') {
+      return process.env.FORGE_FALLBACK_BASE_URL
+        ? { available: true }
+        : { available: false, reason: 'FORGE_FALLBACK_BASE_URL is not set' };
+    }
     if (name === 'ollama') {
       return (await this.ollamaReachable())
         ? { available: true }

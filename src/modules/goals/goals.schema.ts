@@ -19,6 +19,8 @@ export const goals = pgTable('goals', {
   acceptance: jsonb('acceptance_json').$type<string[]>().notNull().default([]),
   /** Exact folder for this goal's project, when the operator chose one. */
   location: text('location'),
+  /** Brand (brands/<slug>.md) this goal's UI follows; set by the user, the company default or the planner. */
+  brand: text('brand'),
   createdByUserId: uuid('created_by_user_id').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true })

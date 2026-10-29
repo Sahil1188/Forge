@@ -15,9 +15,12 @@ import { RuntimeRegistry } from '../runtimes/runtime-registry';
 import { RuntimeRunContext } from '../runtimes/runtime.port';
 import { confinementGate } from '../governance/path-confinement';
 import { BudgetsService } from '../budgets/budgets.service';
-import { UsageLimits } from '../runtimes/usage-limits';
+import { UsageLimits, fallbackSelection } from '../runtimes/usage-limits';
 import { standardsFor } from '../work/standards';
 import { WORKSPACE_PORT, WorkspacePort } from '../workspaces/workspace.port';
+import { CompaniesService } from '../companies/companies.service';
+import { SHARED_RULES, briefForEmployee, renderBrief } from '../employees/employee-briefs';
+import { Brand, fittingBrand, getBrand, listBrands } from '../brands/brand-library';
 import { OMNI_ROUTER, OmniRouterPort } from '../routing/omni/omni-router.port';
 import { WORKFORCE_ROUTER, WorkforceRouterPort } from '../routing/workforce/workforce-router.port';
 import {
@@ -39,7 +42,8 @@ export interface PlanResult {
   workItems: { workItemId: string; title: string; assignedTo: string | null }[];
 }
 
-const DEFAULT_MAX_PLAN_ITEMS = 3;
+// Big goals split into right-sized parallel steps (e.g. one per screen); the production review is added on top.
+const DEFAULT_MAX_PLAN_ITEMS = 12;
 const DEFAULT_MAX_HIRES = 2;
 
 /**
@@ -63,6 +67,7 @@ export class CeoPlanner {
     @Inject(WORKFORCE_ROUTER) private readonly router: WorkforceRouterPort,
     private readonly budgets: BudgetsService,
     private readonly usageLimits: UsageLimits,
+    private readonly companies: CompaniesService,
   ) {}
 
   /** Finds the planning employee for a company (CEO by role, else the top of the org). */
@@ -115,7 +120,12 @@ export class CeoPlanner {
       );
     }
 
-    const selection = this.omni.selectModel({ taskType: 'architecture' }, planner);
+    let selection = this.omni.selectModel({ taskType: 'architecture' }, planner);
+    // Claude at its usage limit: plan on the fallback endpoint (OmniRoute/OpenRouter…) if configured.
+    if (this.usageLimits.blockedUntil(selection.runtimeKey) !== null) {
+      const fallback = fallbackSelection(selection.runtimeKey);
+      if (fallback) selection = fallback;
+    }
     const run = await this.agentRuns.create({
       goalId,
       employeeId: planner.id,
@@ -134,7 +144,7 @@ export class CeoPlanner {
         workItemId: `plan:${goalId}`,
         employeeId: planner.id,
         cwd: handle.rootPath,
-        task: this.planningPrompt(goal, await this.employees.findByCompany(goal.companyId)),
+        task: this.planningPrompt(goal, await this.employees.findByCompany(goal.companyId), await this.brandOptions(goal)),
         model: selection.model,
         systemPromptAppend: this.planningClaudeMd(planner, goal),
         limits: { maxTurns: 30 },
@@ -209,7 +219,7 @@ export class CeoPlanner {
    */
   private async materialize(
     goal: Goal,
-    plan: { project: string; workItems: PlannedItem[] },
+    plan: { project: string; workItems: PlannedItem[]; brand?: string },
     ceoRunId: string | null,
     plannedBy: string,
   ): Promise<PlanResult> {
@@ -218,6 +228,7 @@ export class CeoPlanner {
     const shaped = attachGoalAcceptance(capped, resolveDependencies(capped), goal.acceptance ?? []);
 
     const project = await this.projects.create(goal.id, { name: plan.project });
+    await this.applyBrand(goal, project.id, plan.brand, shaped.items);
     const created = [];
     for (const planned of shaped.items) {
       created.push(
@@ -271,9 +282,14 @@ export class CeoPlanner {
     assigned: PlanResult['workItems'],
   ): Promise<PlanResult['workItems'][number] | null> {
     if (process.env.FORGE_PRODUCTION_REVIEW === '0' || built.length === 0) return null;
-    const primary = built[0].taskType;
-    const engineering = ['coding', 'frontend', 'qa', 'devops', 'cloud', 'network', 'data', 'security', 'architecture', 'review', 'generic'];
-    const taskType: TaskType = engineering.includes(primary) ? 'review' : this.coerceTaskType(primary);
+    // The planner already ended its plan with a review step: don't add a second one.
+    if (built[built.length - 1].taskType === 'review') return null;
+    const engineering = ['coding', 'frontend', 'design', 'qa', 'devops', 'cloud', 'network', 'data', 'security', 'architecture', 'review', 'generic'];
+    // Anything with engineering or design in it is a product: the review specialists sign it off.
+    // Pure business work (finance, legal, …) is reviewed by another senior of that department.
+    const productWork = built.some((i) => engineering.includes(i.taskType));
+    const primary = productWork ? (built.find((i) => i.taskType !== 'design')?.taskType ?? 'frontend') : built[0].taskType;
+    const taskType: TaskType = productWork ? 'review' : this.coerceTaskType(primary);
     const regression = [...new Set(built.flatMap((i) => i.acceptance ?? []))].slice(0, 20);
     const item = await this.work.createWorkItem(projectId, {
       title: 'Production review and hardening',
@@ -296,13 +312,59 @@ export class CeoPlanner {
     return { workItemId: item.id, title: item.title, assignedTo: decision?.employeeId ?? null };
   }
 
+  /** The brand block of the planning prompt: fixed by the user/company, or the list to choose from. */
+  private async brandOptions(goal: Goal): Promise<string[]> {
+    const company = await this.companies.findOne(goal.companyId).catch(() => null);
+    const fixed = await getBrand(goal.brand ?? company?.brand ?? null);
+    if (fixed) {
+      return [`Brand: every user interface follows the ${fixed.name} brand (BRAND.md in the repository); it is already chosen, do not pick another.`];
+    }
+    const brands = await listBrands();
+    if (brands.length === 0) return [];
+    return [
+      'Brands: every user interface Forge builds follows exactly one of these brand systems (the chosen one is put',
+      'in the repository as BRAND.md with its exact CSS). If the goal has a user interface, set "brand" in PLAN.json',
+      'to the id whose personality fits the product and its users best:',
+      ...brands.map((b) => `- ${b.slug}: ${b.name}. ${b.metaphor} ${b.personality}`),
+    ];
+  }
+
+  /**
+   * Puts the goal's brand into the project as BRAND.md, so design, frontend and review all build to it.
+   * Order of preference: the goal's brand, the company default, the planner's pick, then the brand that
+   * fits the product. Only for work with a user interface (or when a brand was chosen explicitly).
+   */
+  private async applyBrand(goal: Goal, projectId: string, planBrand: string | undefined, items: PlannedItem[]): Promise<Brand | null> {
+    try {
+      const company = await this.companies.findOne(goal.companyId).catch(() => null);
+      const explicit = goal.brand ?? company?.brand ?? null;
+      const text = `${goal.title} ${goal.description ?? ''}`;
+      const hasUi =
+        items.some((i) => i.taskType === 'frontend' || i.taskType === 'design') ||
+        /\b(ui|web ?app|website|dashboard|frontend|front-end|interface|screens?|landing page|portal)\b/i.test(text);
+      if (!explicit && !hasUi) return null;
+      const available = (await listBrands()).map((b) => b.slug);
+      const slug = [explicit, planBrand].find((s) => s && available.includes(s)) ?? fittingBrand(text, available);
+      const brand = await getBrand(slug);
+      if (!brand) return null;
+      await this.workspace.seedFile(projectId, 'BRAND.md', brand.content, `chore: brand system ${brand.name}`);
+      if (goal.brand !== brand.slug) await this.goals.setBrand(goal.id, brand.slug);
+      this.logger.log(`Goal ${goal.id} follows the ${brand.name} brand`);
+      return brand;
+    } catch (err) {
+      // A missing brand never blocks planning; the work still happens.
+      this.logger.warn(`Could not apply a brand to goal ${goal.id}: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
   private async readPlan(
     rootPath: string,
     goal: Goal,
-  ): Promise<{ project: string; workItems: PlannedItem[]; hires: PlannedHire[] }> {
+  ): Promise<{ project: string; workItems: PlannedItem[]; hires: PlannedHire[]; brand?: string }> {
     try {
       const raw = await readFile(path.join(rootPath, 'PLAN.json'), 'utf8');
-      const parsed = JSON.parse(raw) as { project?: unknown; workItems?: unknown; hires?: unknown } | null;
+      const parsed = JSON.parse(raw) as { project?: unknown; workItems?: unknown; hires?: unknown; brand?: unknown } | null;
       // PLAN.json is model-written: trust nothing about its shape.
       const items = Array.isArray(parsed?.workItems) ? parsed!.workItems.flatMap(sanitizeItem) : [];
       if (items.length > 0) {
@@ -311,7 +373,8 @@ export class CeoPlanner {
             ? parsed!.project.trim().slice(0, 200)
             : 'Delivery';
         const hires = Array.isArray(parsed!.hires) ? parsed!.hires.flatMap(sanitizeHire) : [];
-        return { project, workItems: items, hires };
+        const brand = typeof parsed!.brand === 'string' ? parsed!.brand.trim().toLowerCase().slice(0, 50) : undefined;
+        return { project, workItems: items, hires, brand };
       }
     } catch {
       // fall through to a sensible default
@@ -347,7 +410,7 @@ export class CeoPlanner {
         runtimeConfig: {
           runtimeKey: 'claude_code',
           modelPolicy: { default: 'sonnet', byComplexity: { high: 'opus', low: 'sonnet' }, complexityThreshold: 0.8 },
-          settings: { maxTurns: 60 },
+          settings: { maxTurns: 100 },
         },
         skills: h.skills,
       });
@@ -361,7 +424,7 @@ export class CeoPlanner {
     return isTaskType(value) ? value : 'coding';
   }
 
-  private planningPrompt(goal: Goal, roster: Array<{ name: string; role: string; department: string | null }>): string {
+  private planningPrompt(goal: Goal, roster: Array<{ name: string; role: string; department: string | null }>, brandLines: string[] = []): string {
     const max = process.env.FORGE_MAX_PLAN_ITEMS ?? DEFAULT_MAX_PLAN_ITEMS;
     const departments = new Map<string, string[]>();
     for (const e of roster) {
@@ -385,13 +448,22 @@ export class CeoPlanner {
       'Domains (use exactly one as each item\'s "taskType"):',
       ...domains,
       '',
-      'All items work in ONE shared repository and run in the order you list them (each starts',
-      'from the result of the previous ones). Deliver what the goal actually asks for, in the format',
+      'Your team works IN PARALLEL like a real company: every item whose dependencies are done starts at once',
+      'with whoever is free. So plan for parallel work: give every item "dependsOn" (use [] when it can start',
+      'right away) and only depend on what an item truly needs. Agree interfaces up front in the descriptions',
+      '(e.g. the API or data shape) so dependent work can start from the contract, not wait for the build.',
+      'All items work in ONE shared repository; each starts from the integrated project at that moment and',
+      'its result is merged back. Deliver what the goal actually asks for, in the format',
       'a professional would hand over: production applications, documentation, Excel workbooks',
       '(.xlsx, generated by a script that is kept in the repo), Word/PDF reports, slide decks, CSV data,',
       'diagrams, infrastructure code. Every deliverable is a file in the repository, with a check',
       'that proves it is right (tests for code, a script that opens and validates a workbook, etc.).',
-      'Prefer few, substantial items; a small goal can be a single item. Every item must leave the',
+      'Size every item to about 20-40 minutes of focused work for one senior specialist: a small goal is one',
+      'or two items, a big one is split so the pieces run side by side (observed: one giant "frontend" item took',
+      'hours alone while the rest of the team waited). Items that run in parallel must work in different',
+      'files/folders (give each its own folder or module and name it in the description) so their results merge',
+      'cleanly; put shared foundations (app shell, shared types, API client, theme) in one early item that the',
+      'others depend on. Every item must leave the',
       'project working: if it defines npm build/test/lint scripts they must pass after that item,',
       'so never split "add a test script" from the code and tests it runs. Make each description',
       'self-contained and specific.',
@@ -403,23 +475,48 @@ export class CeoPlanner {
       'The final item must include at least one check that actually runs the deliverable the way a user',
       'would (start the CLI with sample input, import and call the library, run the generator and open its',
       'output), not only its unit tests. Servers must be started and stopped inside the check.',
+      'If the goal has a user interface (web app, site, dashboard, screens):',
+      '- The first item is a "design" item for the designer: DESIGN.md that applies BRAND.md to this product: the',
+      '  user journeys, which brand components and tokens each screen uses, the layout of every screen at desktop',
+      '  and phone width, and every component with its states (empty, loading, error, filled). It never invents',
+      '  its own palette, fonts or radii: the brand is the design system.',
+      '- Frontend work builds exactly to DESIGN.md and depends on it: one "frontend" item for the app shell',
+      '  (routing, layout, theme, shared components, API client), then one item per screen or feature area that',
+      '  depends only on the shell, so the screens are built in parallel.',
+      '- Unless the goal says otherwise: React + Vite + TypeScript, styled only with the tokens.css and',
+      '  components.css from BRAND.md (Tailwind only through its tailwind-theme.css; Radix allowed for behaviour),',
+      '  charts with a proper library in the brand chart colours, and "npm start" serving the production build.',
+      '  Light only: no dark mode, no theme toggle. A backend, if needed, is its own item with a clean API.',
+      '- Every UI item is checked by a design review of real screenshots before it is accepted.',
       'If the work needs expertise nobody in the organisation has, you may hire up to',
       `${process.env.FORGE_MAX_HIRES_PER_GOAL ?? DEFAULT_MAX_HIRES} senior specialists in "hires" (name, role, department, a description of their`,
       'expertise, and skills with levels 85-98). Only hire when it is truly needed; the new people',
       'will report to you and can be given this goal\'s items.',
+      'Usefulness first: before listing screens, think like the real users of this product. Name the jobs they do',
+      'every day and plan each one as a complete working workflow (create, edit, search, filter, act on it, export,',
+      'see the result), with realistic seeded data. A screen that only displays numbers is not a feature. Prefer depth',
+      'in the core workflows over many thin tabs, and make the acceptance checks exercise those workflows.',
+      ...brandLines,
       'Write a file named PLAN.json in the current working directory with the shape:',
-      `{ "project": string, "workItems": [ { "title": string, "description": string, "taskType": ${TASK_TYPES.filter((t) => t !== 'generic').map((t) => `"${t}"`).join('|')}, "acceptance": string[], "dependsOn"?: number[] } ], "hires"?: [ { "name": string, "role": string, "department": string, "description": string, "skills": [ { "skillKey": string, "level": number } ] } ] }`,
-      'dependsOn is optional: 0-based indices of earlier items; omit it to depend on the previous item.',
+      `{ "project": string, "workItems": [ { "title": string, "description": string, "taskType": ${TASK_TYPES.filter((t) => t !== 'generic').map((t) => `"${t}"`).join('|')}, "acceptance": string[], "dependsOn"?: number[] } ], "brand"?: string, "hires"?: [ { "name": string, "role": string, "department": string, "description": string, "skills": [ { "skillKey": string, "level": number } ] } ] }`,
+      'dependsOn: 0-based indices of earlier items this one needs; [] means it starts immediately in parallel.',
     ].join('\n');
   }
 
   private planningClaudeMd(planner: EmployeeWithRelations, goal: Goal): string {
+    const brief = briefForEmployee(planner);
     return [
-      `# ${planner.name} — ${planner.role}${planner.department ? `, ${planner.department}` : ''}`,
+      SHARED_RULES,
       '',
-      planner.description ?? 'You lead an AI company (Forge). Plan strategically and delegate.',
+      '---',
       '',
-      'You plan and delegate; specialists in each department do the work.',
+      brief
+        ? renderBrief(brief)
+        : [`# You are ${planner.name}, ${planner.role}`, '', planner.description ?? 'You lead an AI company (Forge). Plan strategically and delegate.'].join('\n'),
+      '',
+      '---',
+      '',
+      'You plan and delegate; specialists in each department do the work. Your plan is PLAN.json (see the task).',
       `Current goal: ${goal.title}`,
       '',
     ].join('\n');

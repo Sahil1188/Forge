@@ -2,6 +2,7 @@ import { badge, html, icon, pageHead, toast, when } from './lib.js';
 
 const SECTIONS = [
   ['company', 'Company'],
+  ['brands', 'Brands'],
   ['people', 'People & access'],
   ['runtimes', 'Runtimes'],
   ['claude', 'Claude Code'],
@@ -11,7 +12,7 @@ export async function render(ctx) {
   const section = SECTIONS.find((s) => s[0] === ctx.query.get('s'))?.[0] ?? 'company';
   const system = await ctx.api('/system');
   const body =
-    section === 'company' ? company(ctx, system) : section === 'people' ? await people(ctx) : section === 'runtimes' ? runtimes(system) : claude(system);
+    section === 'company' ? company(ctx, system) : section === 'brands' ? await brands(ctx) : section === 'people' ? await people(ctx) : section === 'runtimes' ? runtimes(system) : claude(system);
 
   return html`${pageHead({ title: 'Settings', desc: 'Your company and the runtimes your team works on.' })}
   <div class="subnav-layout">
@@ -41,6 +42,43 @@ function company(ctx, system) {
       <div class="card-head"><div><h2>Another company</h2><p class="muted" style="margin-top:var(--space-1)">Each company has its own team, work and budget.</p></div>
         <a class="btn" href="#/setup">${icon('plus')}New company</a></div>
     </section>`;
+}
+
+async function brands(ctx) {
+  const list = await ctx.api('/brands');
+  const current = ctx.company.brand ?? '';
+  return html`<form class="card" data-form="brand-default">
+      <div class="card-head"><div><h2>Brand for your products</h2>
+        <p class="muted" style="margin-top:var(--space-1)">Every interface your team builds follows one brand system: its colours, type, components and exact CSS.</p></div></div>
+      <div class="form">
+        <label class="field"><span>Default brand</span>
+          <select name="brand">
+            <option value="" ${current ? '' : 'selected'}>Pick the best fit for each product</option>
+            ${list.map((b) => html`<option value="${b.slug}" ${b.slug === current ? 'selected' : ''}>${b.name}</option>`)}
+          </select>
+          <span class="help">A single goal can still choose its own brand when you create it.</span></label>
+      </div>
+      <div class="form-foot"><button class="btn btn-primary" type="submit">Save brand</button></div>
+    </form>
+    <section class="card">
+      <div class="card-head"><h2>Brand library</h2><span class="muted">${list.length} brands</span></div>
+      <div class="table-wrap"><table class="table">
+        <thead><tr><th>Brand</th><th class="hide-sm">Idea</th><th class="hide-sm">Personality</th><th>ID</th></tr></thead>
+        <tbody>${list.map(
+          (b) => html`<tr><td class="primary">${b.name}${b.slug === current ? html` ${badge('active', 'Default')}` : ''}</td>
+            <td class="wrap hide-sm">${b.metaphor}</td><td class="wrap hide-sm">${b.personality}</td><td><span class="id">${b.slug}</span></td></tr>`,
+        )}</tbody></table></div>
+    </section>
+    <form class="card" data-form="add-brand">
+      <div class="card-head"><div><h2>Add a brand</h2>
+        <p class="muted" style="margin-top:var(--space-1)">Paste a complete brand file (same structure as the others, including the Part 4 tokens.css and components.css). It is available to every new goal straight away.</p></div></div>
+      <div class="form">
+        <label class="field"><span>ID</span><input name="slug" required pattern="[a-z0-9][a-z0-9-]{1,48}" maxlength="49" placeholder="ocean-desk" style="font-family:var(--font-mono)" />
+          <span class="help">Lowercase letters, digits and dashes. Using an existing ID replaces that brand.</span></label>
+        <label class="field"><span>Brand file</span><textarea name="content" required rows="8" style="font-family:var(--font-mono);font-size:var(--text-small)" placeholder="# OCEAN-DESK.md · Sahil Shaikh brand (all-in-one)"></textarea></label>
+      </div>
+      <div class="form-foot"><button class="btn" type="submit">Add brand</button></div>
+    </form>`;
 }
 
 const ROLE_HELP = {
@@ -148,6 +186,9 @@ function runtimes(s) {
       <dl class="kv">
         <dt>Version</dt><dd class="mono">${s.version}</dd>
         <dt>Auto-run</dt><dd>${s.autoRun ? badge('done', 'On') : badge('created', 'Off')}<span class="muted" style="margin-left:var(--space-2)">${s.autoRun ? 'Work runs as soon as it is assigned' : 'Set by FORGE_MANUAL_DRIVE'}</span></dd>
+        <dt>When Claude runs out</dt><dd>${s.fallback
+          ? html`${badge('done', 'Switches automatically')}<span class="help" style="display:block;margin-top:var(--space-1)">Work moves to ${s.fallback.model} at ${s.fallback.endpoint} and returns to Claude after the reset.</span>`
+          : html`${badge('needs_approval', 'Waits for the reset')}<span class="help" style="display:block;margin-top:var(--space-1)">Set FORGE_FALLBACK_BASE_URL, FORGE_FALLBACK_API_KEY and FORGE_FALLBACK_MODEL (OmniRoute or OpenRouter) to keep working.</span>`}</dd>
         <dt>Checks and tests</dt><dd>${s.sandbox === 'docker' ? 'Docker container' : 'This machine'} <span class="muted">(FORGE_SANDBOX=${s.sandbox})</span></dd>
         <dt>Agent commands</dt><dd>${s.agentSandbox?.protected ? badge('done', 'Sandboxed') : badge('needs_approval', 'Not isolated')}
           <span class="help" style="display:block;margin-top:var(--space-1)">${s.agentSandbox?.note ?? ''}</span></dd>
@@ -205,6 +246,17 @@ export const changes = {
 };
 
 export const forms = {
+  async 'brand-default'(data, form, ctx) {
+    await ctx.api(`/companies/${ctx.company.id}`, { method: 'PATCH', body: { brand: String(data.brand ?? '') } });
+    await ctx.reloadCompanies(ctx.company.id);
+    toast(data.brand ? 'Default brand saved' : 'Forge will pick the best brand for each product');
+    ctx.refresh();
+  },
+  async 'add-brand'(data, form, ctx) {
+    const b = await ctx.api('/brands', { method: 'POST', body: { slug: String(data.slug).trim(), content: String(data.content) } });
+    toast(`${b.name} added`);
+    ctx.refresh();
+  },
   async 'setup-accounts'(data, form, ctx) {
     await ctx.api('/auth/setup', { method: 'POST', body: { name: data.name, email: data.email, password: data.password } });
     toast('Accounts are on. You are the owner.');

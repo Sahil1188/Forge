@@ -217,3 +217,27 @@ describe('EvaluationEngine — acceptance checks (does the work match its brief?
     expect(r.overallScore).toBe(100);
   });
 });
+
+describe('EvaluationEngine — speed without losing feedback', () => {
+  it('skips acceptance checks while the project checks fail, keeping the failing output as the feedback', async () => {
+    const runner = new FakeRunner({ 'npm --silent run lint': { exitCode: 1, output: "'x' is never used" } });
+    const e = new EvaluationEngine(new FakeDiscovery([S('lint'), S('test')]), runner);
+    const r = await e.evaluateRepo('/x', ['node -e "check()"']);
+    expect(r.status).toBe('failed');
+    expect(r.dimensions.lint.output).toContain('never used');
+    expect(r.dimensions.test.ran).toBe(true); // every project check still runs, for complete feedback
+    expect(r.dimensions['acceptance#1']).toMatchObject({ ran: false, score: 0 });
+    expect(runner.ran).not.toContain('node -e "check()"');
+    expect(r.brokenChecks).toBeUndefined();
+  });
+
+  it('runs acceptance checks once the project checks pass, and never runs the same command twice', async () => {
+    const runner = new FakeRunner({});
+    const e = new EvaluationEngine(new FakeDiscovery([S('build'), S('test')]), runner);
+    const r = await e.evaluateRepo('/x', ['npm --silent run build', 'node -e "check()"']);
+    expect(r.status).toBe('passed');
+    expect(runner.ran.filter((c) => c === 'npm --silent run build')).toHaveLength(1);
+    expect(runner.ran).toContain('node -e "check()"');
+    expect(r.dimensions['acceptance#1'].ran).toBe(true);
+  });
+});

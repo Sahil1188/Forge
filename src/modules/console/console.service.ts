@@ -1,3 +1,4 @@
+import { briefForEmployee } from '../employees/employee-briefs';
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -16,7 +17,7 @@ import { WorkService } from '../work/work.service';
 import { agentRuns, AgentRun } from '../runtimes/agent-runs.schema';
 import { AgentRunsService } from '../runtimes/agent-runs.service';
 import { RuntimeAvailability } from '../runtimes/runtime-availability';
-import { UsageLimits } from '../runtimes/usage-limits';
+import { UsageLimits, fallbackSelection } from '../runtimes/usage-limits';
 import { defaultProjectsRoot } from '../projects/project-location';
 import { evaluations } from '../evaluation/evaluation.schema';
 import { approvals } from '../approvals/approvals.schema';
@@ -47,6 +48,44 @@ export function runSummary(run: AgentRun) {
     startedAt: run.startedAt,
     endedAt: run.endedAt,
   };
+}
+
+/** What a running agent is doing right now, read from its live transcript. */
+export interface LiveActivity {
+  actions: number;
+  last: string | null;
+  lastAt: string | null;
+}
+
+/** Drops the agent's private workspace prefix so paths read as project paths (apps/web/src/...). */
+function relativeToRun(text: string): string {
+  return text.replace(/(?:[A-Za-z]:)?[\\/][^\s'"]*?workspaces[\\/]runs[\\/][0-9a-f-]{36}[\\/]?/gi, '');
+}
+
+/** Summarises a live transcript: how many actions so far, and the latest thing the agent did. */
+export function summariseLive(raw: string): LiveActivity {
+  let actions = 0;
+  let last: string | null = null;
+  let lastAt: string | null = null;
+  for (const line of raw.split('\n')) {
+    if (!line) continue;
+    let e: { kind?: string; toolName?: string; input?: Record<string, unknown>; text?: string; at?: string };
+    try {
+      e = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (e.at) lastAt = e.at;
+    if (e.kind === 'tool_use') {
+      actions += 1;
+      const input = e.input ?? {};
+      const target = input.command ?? input.file_path ?? input.path ?? input.pattern ?? input.url ?? input.description;
+      last = target ? `${e.toolName}: ${relativeToRun(String(target)).replace(/\s+/g, ' ').slice(0, 140)}` : (e.toolName ?? 'tool');
+    } else if (e.kind === 'assistant_text' && e.text?.trim()) {
+      last = e.text.trim().replace(/\s+/g, ' ').slice(0, 160);
+    }
+  }
+  return { actions, last, lastAt };
 }
 
 /**
@@ -178,6 +217,8 @@ export class ConsoleService {
     const people = new Map(roster.map((e) => [e.id, { id: e.id, name: e.name, role: e.role }]));
     const [ceoRun] = await this.db.select().from(agentRuns).where(eq(agentRuns.goalId, goalId)).orderBy(desc(agentRuns.createdAt)).limit(1);
 
+    const live = await this.liveActivity(runs);
+
     const boardItems = items.map((item) => {
       const itemRuns = runs.filter((r) => r.workItemId === item.id);
       const latestEval = evals.find((e) => e.workItemId === item.id);
@@ -192,7 +233,7 @@ export class ConsoleService {
         acceptance: item.acceptance ?? [],
         assignee: item.assignedEmployeeId ? people.get(item.assignedEmployeeId) ?? null : null,
         dependsOn: deps.filter((d) => d.workItemId === item.id).map((d) => d.dependsOnWorkItemId),
-        runs: itemRuns.map(runSummary),
+        runs: itemRuns.map((r) => ({ ...runSummary(r), live: live.get(r.id) ?? null })),
         costUsd: itemRuns.reduce((a, r) => a + (r.estimatedCostUsd ?? 0), 0),
         evaluation: latestEval
           ? {
@@ -202,6 +243,7 @@ export class ConsoleService {
               dimensions: Object.entries(dims).map(([name, d]) => ({
                 name,
                 score: d.score as number,
+                ran: d.ran !== false,
                 command: d.command as string,
                 output: String(d.output ?? '').slice(-1500),
               })),
@@ -265,6 +307,22 @@ export class ConsoleService {
       .limit(200);
     const goalByProject = await this.goalIdsForItems(rows.map((r) => r.workItemId));
     return rows.map((r) => ({ ...r, goalId: goalByProject.get(r.workItemId) ?? null }));
+  }
+
+  /** Live activity of the runs that are still going (read from their streaming transcripts). */
+  private async liveActivity(runs: AgentRun[]): Promise<Map<string, LiveActivity>> {
+    const active = runs.filter((r) => r.status === 'running' && r.transcriptRef);
+    const out = new Map<string, LiveActivity>();
+    await Promise.all(
+      active.map(async (r) => {
+        try {
+          out.set(r.id, summariseLive(await readFile(r.transcriptRef!, 'utf8')));
+        } catch {
+          // not written yet
+        }
+      }),
+    );
+    return out;
   }
 
   /** The redacted event stream of a run (what the agent did, step by step). */
@@ -387,10 +445,11 @@ export class ConsoleService {
 
   /** What this installation can run right now — for the console's status indicator and setup. */
   async system() {
-    const [claudeCode, anthropicApi, ollama] = await Promise.all([
+    const [claudeCode, anthropicApi, ollama, fallbackApi] = await Promise.all([
       this.availability.check('claude_code'),
       this.availability.check('custom', 'anthropic'),
       this.availability.check('custom', 'ollama'),
+      this.availability.check('custom', 'openai'),
     ]);
     return {
       version: process.env.npm_package_version ?? '0.1.0',
@@ -407,7 +466,12 @@ export class ConsoleService {
         { key: 'claude_code', label: 'Claude Code (subscription)', ...claudeCode },
         { key: 'custom:anthropic', label: 'API workers', ...anthropicApi },
         { key: 'custom:ollama', label: 'Local models (Ollama)', ...ollama },
+        { key: 'custom:openai', label: 'Fallback gateway (OmniRoute / OpenRouter)', ...fallbackApi },
       ],
+      // Where work goes automatically while Claude is at its usage limit.
+      fallback: fallbackSelection('claude_code')
+        ? { model: process.env.FORGE_FALLBACK_MODEL, endpoint: new URL(process.env.FORGE_FALLBACK_BASE_URL as string).host }
+        : null,
     };
   }
 
@@ -427,12 +491,12 @@ export class ConsoleService {
         name: m.name,
         role: template === 'minimal' && m.key === 'backend' ? 'Software Engineer' : m.role,
         department: m.department,
-        description: m.description,
+        description: briefForEmployee(m)?.mission ?? m.description,
         managerEmployeeId: (m.reportsTo && (ids.get(m.reportsTo) ?? ids.get('ceo'))) || undefined,
         runtimeConfig: {
           runtimeKey: 'claude_code',
           modelPolicy: modelPolicyFor(m, model),
-          settings: { maxTurns: m.executive ? 30 : 60 },
+          settings: { maxTurns: m.executive ? 30 : m.key === 'reviewer' ? 150 : 100 },
         },
         skills: m.skills.map(([skillKey, level]) => ({ skillKey, level })),
       });
@@ -465,10 +529,12 @@ export class ConsoleService {
           .where(inArray(workItems.id, itemIds))
       : [];
     const byItem = new Map(items.map((i) => [i.id, i]));
+    const live = await this.liveActivity(rows.map((r) => r.run));
     return rows.map(({ run, employeeName }) => {
       const item = run.workItemId ? byItem.get(run.workItemId) : undefined;
       return {
         ...runSummary(run),
+        live: live.get(run.id) ?? null,
         employeeName,
         kind: run.goalId && !run.workItemId ? 'planning' : 'work',
         workItemId: run.workItemId,

@@ -1,4 +1,4 @@
-import { ago, avatar, badge, duration, empty, html, icon, kpi, label, money, pageHead, person, toast, transcript, when } from './lib.js';
+import { ago, avatar, badge, duration, empty, html, icon, kpi, label, money, pageHead, person, toast, liveLine, openTranscript, when, runBadge, runCost } from './lib.js';
 
 const expanded = new Set();
 let lastGoal = null;
@@ -26,14 +26,14 @@ export async function render(ctx) {
     title: b.goal.title,
     desc: b.goal.description && b.goal.description !== b.goal.title ? b.goal.description : null,
     meta: html`${waiting ? badge('needs_approval') : badge(b.goal.status)}
-      <span class="muted">${b.planningRun ? 'Planned by your CEO' : 'Direct task'} · Created ${when(b.goal.createdAt)}</span>
+      <span class="muted">${b.planningRun ? 'Planned by your CEO' : 'Direct task'} · Created ${when(b.goal.createdAt)}${b.goal.brand ? ` · Brand: ${b.goal.brand}` : ''}</span>
       ${live ? html`<span class="muted">· Updates automatically</span>` : ''}`,
-    actions:
+    actions: html`<a class="btn" href="#/ask?goal=${b.goal.id}">${icon('help')}Ask about this</a>${
       b.goal.status === 'draft'
         ? html`<button class="btn btn-primary" data-action="start">${icon('play')}Start</button>`
         : b.projects.length && b.items.length
           ? html`<button class="btn" data-action="changes">${icon('retry')}Request changes</button>`
-          : '',
+          : ''}`,
   })}
 
   <section class="grid-4" aria-label="Summary">
@@ -126,8 +126,8 @@ function body(it, goal) {
           <span class="label">Checks${ev ? html` · ${label(ev.status)}` : ''}</span>
           <div class="checks">${dims.length
             ? dims.map(
-                (d) => html`<div class="check-row">${d.score === 100 ? badge('passed', 'Pass') : badge('failed', 'Fail')}<code>${d.name.startsWith('acceptance') ? d.command : `npm run ${d.name}`}</code></div>
-                  ${d.score !== 100 && d.output ? html`<pre class="out">${d.output}</pre>` : ''}`,
+                (d) => html`<div class="check-row">${d.score === 100 ? badge('passed', 'Pass') : d.ran === false ? badge('created', 'Not run') : badge('failed', 'Fail')}<code>${d.name.startsWith('acceptance') ? d.command : `npm run ${d.name}`}</code></div>
+                  ${d.score !== 100 && d.ran !== false && d.output ? html`<pre class="out">${d.output}</pre>` : ''}`,
               )
             : it.acceptance.map((c) => html`<div class="check-row">${badge('created', 'Pending')}<code>${c}</code></div>`)}</div></div>`
       : ev?.note
@@ -140,10 +140,10 @@ function body(it, goal) {
           <thead><tr><th>Status</th><th class="hide-sm">Model</th><th>Time</th><th class="r hide-sm">Tools</th><th class="r">Cost</th><th class="hide-sm">Started</th><th></th></tr></thead><tbody>
           ${it.runs.map(
             (r) => html`<tr>
-              <td>${badge(r.status)}</td><td class="hide-sm"><span class="id">${r.model ?? '—'}</span></td><td class="num">${duration(r.durationMs)}</td>
-              <td class="r num hide-sm">${r.toolCallCount}</td><td class="r num">${money(r.estimatedCostUsd)}</td><td class="hide-sm">${ago(r.startedAt)}</td>
+              <td>${runBadge(r)}</td><td class="hide-sm"><span class="id">${r.model ?? '—'}</span></td><td class="num">${duration(r.durationMs)}</td>
+              <td class="r num hide-sm">${r.toolCallCount}</td><td class="r num">${runCost(r)}</td><td class="hide-sm">${ago(r.startedAt)}</td>
               <td class="r"><button class="btn btn-sm btn-ghost" data-action="transcript" data-run="${r.id}">${icon('terminal')}Transcript</button></td>
-            </tr>${r.error ? html`<tr><td colspan="7" class="wrap"><pre class="out">${r.error}</pre></td></tr>` : ''}`,
+            </tr>${r.status === 'running' ? html`<tr><td colspan="7" class="wrap">${liveLine(r)}</td></tr>` : ''}${r.error ? html`<tr><td colspan="7" class="wrap"><pre class="out">${r.error}</pre></td></tr>` : ''}`,
           )}
           </tbody></table></div></div>`
       : ''}
@@ -206,8 +206,7 @@ export const actions = {
     ctx.refresh();
   },
   async transcript(el, ctx) {
-    const t = await ctx.api(`/agent-runs/${el.dataset.run}/transcript`);
-    ctx.openPanel(`Transcript · ${t.run.model ?? t.run.runtimeKey}`, transcript(t));
+    await openTranscript(ctx, el.dataset.run);
   },
   async retry(el, ctx) {
     await ctx.api(`/work-items/${el.dataset.id}/retry`, { method: 'POST' });

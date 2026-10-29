@@ -31,3 +31,22 @@ export async function stopProcessesIn(dir: string): Promise<number> {
     return 0;
   }
 }
+
+/**
+ * Stops a process and everything it started. `child.kill()` on a `shell: true` spawn only ends the
+ * shell: on Windows the real server (`npm start` → cmd → `node server.js`) is orphaned and keeps its
+ * port (observed live: visual-check apps left running for days). Best effort: failures are ignored.
+ */
+export async function killTree(pid: number | undefined): Promise<void> {
+  if (!pid) return;
+  try {
+    if (process.platform === 'win32') {
+      await run('taskkill', ['/pid', String(pid), '/T', '/F'], { windowsHide: true, timeout: 15_000 });
+    } else {
+      // Spawned detached, so the child leads its own process group: signal the whole group.
+      process.kill(-pid, 'SIGKILL');
+    }
+  } catch {
+    // already gone
+  }
+}

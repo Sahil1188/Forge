@@ -1,4 +1,5 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit, OnApplicationBootstrap } from '@nestjs/common';
+import { countAttempts } from '../runtimes/attempts';
 import { asc, eq, inArray } from 'drizzle-orm';
 import { OutboxService } from '../../infrastructure/events/outbox.service';
 import { WORKSPACE_PORT, WorkspacePort } from '../workspaces/workspace.port';
@@ -11,7 +12,8 @@ import { workItems, WorkItem } from '../work/work.schema';
 import { workspaces } from '../workspaces/workspaces.schema';
 import { WorkService } from '../work/work.service';
 import { AgentRunsService } from '../runtimes/agent-runs.service';
-import { EvaluationEngine } from './evaluation-engine';
+import { EvaluationEngine, EvaluationResult } from './evaluation-engine';
+import { VisualGate } from './visual/visual-gate';
 import { EvaluationsService } from './evaluations.service';
 import { Evaluation } from './evaluation.schema';
 import { PerformanceService } from '../performance/performance.service';
@@ -48,7 +50,7 @@ const DEFAULT_MAX_ATTEMPTS = 3;
  * to `done` (pass/inconclusive) or `rework` (fail) — spec §12.
  */
 @Injectable()
-export class EvaluationWorker implements OnModuleInit {
+export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
   private readonly logger = new Logger(EvaluationWorker.name);
 
   constructor(
@@ -63,7 +65,28 @@ export class EvaluationWorker implements OnModuleInit {
     private readonly memory: MemoryService,
     @Inject(WORKSPACE_PORT) private readonly workspace: WorkspacePort,
     private readonly outbox: OutboxService,
+    private readonly visual: VisualGate,
   ) {}
+
+  /**
+   * UI work must also look right: frontend, design and final-review steps that passed their checks
+   * go through the visual gate (run the app, screenshot it, design review). Failing it fails the item.
+   */
+  private async withVisualGate(item: WorkItem, rootPath: string, result: EvaluationResult): Promise<EvaluationResult> {
+    if (result.status === 'failed' || !['frontend', 'design', 'review'].includes(item.taskType)) return result;
+    const [project] = await this.db.select({ goalId: projects.goalId }).from(projects).where(eq(projects.id, item.projectId));
+    if (!project) return result;
+    const visual = await this.visual.check(rootPath, { companyId: item.companyId, goalId: project.goalId, title: item.title });
+    if (!visual) return result;
+    const dimensions = { ...result.dimensions, visual };
+    const scores = Object.values(dimensions).map((d) => d.score);
+    return {
+      ...result,
+      status: visual.exitCode === 0 ? (result.status === 'inconclusive' ? 'passed' : result.status) : 'failed',
+      overallScore: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
+      dimensions,
+    };
+  }
 
   onModuleInit(): void {
     // Prod trigger: when a work item enters `evaluating`, evaluate it. Tests call
@@ -73,6 +96,30 @@ export class EvaluationWorker implements OnModuleInit {
       return;
     }
     this.enableAutoRun();
+  }
+
+  /**
+   * Checks that were running when Forge stopped would leave their item "evaluating" forever (nothing
+   * re-triggers them). Re-run them on start: checks are plain commands, so re-running loses nothing,
+   * and it makes a restart during checking safe.
+   */
+  onApplicationBootstrap(): void {
+    if (process.env.VITEST || process.env.FORGE_MANUAL_DRIVE) return;
+    void this.resumeInterrupted().catch((err) => this.logger.error(`Resuming interrupted checks failed: ${(err as Error).message}`));
+  }
+
+  async resumeInterrupted(): Promise<number> {
+    const stuck = await this.db.select({ id: workItems.id }).from(workItems).where(eq(workItems.status, 'evaluating'));
+    for (const { id } of stuck) {
+      this.logger.log(`Re-running interrupted checks for work item ${id}`);
+      try {
+        const r = await this.evaluate(id);
+        if (r.routedTo === 'rework') await this.retryOrFail(r.workItemId);
+      } catch (err) {
+        if (!(err instanceof NotAwaitingEvaluationError)) this.logger.warn(`Checks for ${id} failed to run: ${(err as Error).message}`);
+      }
+    }
+    return stuck.length;
   }
 
   private autoRun = false;
@@ -115,7 +162,7 @@ export class EvaluationWorker implements OnModuleInit {
     }
     const rootPath = await this.resolveWorkspacePath(item);
 
-    const result = await this.engine.evaluateRepo(rootPath, item.acceptance ?? []);
+    const result = await this.withVisualGate(item, rootPath, await this.engine.evaluateRepo(rootPath, item.acceptance ?? []));
     const runs = await this.agentRuns.findByWorkItem(item.id);
     const evaluation = await this.evaluations.create({
       workItemId: item.id,
@@ -134,7 +181,15 @@ export class EvaluationWorker implements OnModuleInit {
         if (!merged.merged) {
           routedTo = 'rework';
           integrationConflict = merged.conflict;
+          // Remembered so the retry starts from the latest main with this work merged in.
+          await this.db
+            .update(workItems)
+            .set({ artifacts: { ...((item.artifacts as Record<string, unknown> | null) ?? {}), conflict: merged.conflict ?? 'merge conflict' } })
+            .where(eq(workItems.id, item.id));
           this.logger.warn(`Work item ${item.id} passed but could not be merged: ${merged.conflict}`);
+        } else if ((item.artifacts as { conflict?: string } | null)?.conflict) {
+          const { conflict: _resolved, ...rest } = item.artifacts as Record<string, unknown>;
+          await this.db.update(workItems).set({ artifacts: rest }).where(eq(workItems.id, item.id));
         }
       }
     }
@@ -162,15 +217,35 @@ export class EvaluationWorker implements OnModuleInit {
       // Write a durable lesson so the employee carries this outcome into future
       // runs (spec §15). Failures are salient — you learn most from what broke.
       const passed = result.status !== 'failed';
+      const failing = Object.entries(result.dimensions).filter(([, d]) => d.exitCode !== 0);
+      const earlier = (await this.evaluations.findByWorkItem(item.id)).slice(1); // newest first; [0] is this one
+      const lastFailure = earlier.find((e) => e.status === 'failed');
+      const changed = ((item.artifacts as { filesChanged?: string[] } | null)?.filesChanged ?? []).slice(0, 8);
+      let content: string;
+      let salience: number;
+      if (!passed) {
+        // Specific: what broke and the evidence, so the same mistake is recognised next time.
+        content = [`Mistake on "${item.title}" (${item.taskType}):`, ...failing.map(([name, d]) => `- ${name}: ${keyLines(d.output, name)}`)].join('\n');
+        salience = 85;
+      } else if (lastFailure) {
+        // What fixed it: the most valuable kind of lesson.
+        const was = Object.entries((lastFailure.detail as { dimensions?: Record<string, { exitCode?: number; output?: string }> }).dimensions ?? {})
+          .filter(([, d]) => d.exitCode !== 0)
+          .map(([name, d]) => `${name}: ${keyLines(d.output ?? '', name)}`)
+          .join('; ');
+        content = `Fixed "${item.title}" (${item.taskType}) after ${earlier.length + 1} attempts. The problem was — ${was}. The fix touched: ${changed.join(', ') || 'see the project history'}. Apply this up front next time.`;
+        salience = 80;
+      } else {
+        content = `"${item.title}" (${item.taskType}) passed first time (score ${result.overallScore}). Files: ${changed.join(', ') || 'n/a'}.`;
+        salience = 40;
+      }
       await this.memory.remember({
         employeeId: item.assignedEmployeeId,
-        kind: passed ? 'outcome' : 'lesson',
+        kind: passed && !lastFailure ? 'outcome' : 'lesson',
         taskType: item.taskType,
         sourceRunId: runs[0]?.id ?? null,
-        salience: passed ? 45 : 80,
-        content: passed
-          ? `"${item.title}" (${item.taskType}) passed evaluation at score ${result.overallScore}. The approach worked — reuse it.`
-          : `"${item.title}" (${item.taskType}) FAILED evaluation (score ${result.overallScore}). Revisit the build/test failure before retrying similar work.`,
+        salience,
+        content: content.slice(0, 1500),
       });
     }
 
@@ -207,7 +282,7 @@ export class EvaluationWorker implements OnModuleInit {
       return 'failed';
     }
     // Runs stopped by a usage limit are not attempts: the employee never got to finish.
-    const attempts = (await this.agentRuns.findByWorkItem(item.id)).filter((r) => r.status !== 'rate_limited').length;
+    const { attempts } = countAttempts(await this.agentRuns.findByWorkItem(item.id));
     const max = Number(process.env.FORGE_MAX_ATTEMPTS ?? DEFAULT_MAX_ATTEMPTS);
     if (attempts < max) {
       await this.work.assign(item.id, { employeeId: item.assignedEmployeeId, assignedBy: 'auto_rework' });
@@ -265,4 +340,14 @@ export class EvaluationWorker implements OnModuleInit {
     }
     return item;
   }
+}
+
+/** The few lines of a check's output that say what actually went wrong. */
+export function keyLines(output: string, name: string): string {
+  const lines = String(output ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
+  // Design review: its findings are the bullet lines.
+  const findings = lines.filter((l) => /^- \[(critical|major|minor)\]/.test(l));
+  if (name === 'visual' && findings.length) return findings.slice(0, 5).join(' | ');
+  const signal = lines.filter((l) => /error|fail|expected|assert|not ok|cannot|undefined|exception|✗|×/i.test(l));
+  return (signal.length ? signal : lines.slice(-3)).slice(0, 4).join(' | ').slice(0, 600);
 }

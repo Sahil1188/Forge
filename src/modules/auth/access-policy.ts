@@ -20,6 +20,8 @@ export function atLeast(have: Role | null | undefined, need: Role): boolean {
 export function requiredRole(method: string, path: string): Role {
   // People and their emails/roles: owners only, even to read.
   if (/^\/companies\/[^/]+\/members(\/[^/]+)?$/.test(path)) return 'owner';
+  if (/^\/system\/intake$/.test(path) && method === 'POST') return 'admin';
+  if (/^\/brands$/.test(path) && method === 'POST') return 'admin';
   if (method === 'GET' || method === 'HEAD') return 'viewer';
   if (method === 'PATCH' && /^\/companies\/[^/]+$/.test(path)) return 'admin';
   if (/^\/companies\/[^/]+\/(employees|starter-team)$/.test(path)) return 'admin';

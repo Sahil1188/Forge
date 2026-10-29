@@ -15,6 +15,12 @@ export class CreateCompanyDto {
 }
 
 export class UpdateCompanyDto {
+  /** Default brand slug (brands/<slug>.md); empty string = let the planner pick per product. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  brand?: string;
+
   /** Folder where this company's projects are created; empty string resets to the Forge default. */
   @IsOptional()
   @IsString()

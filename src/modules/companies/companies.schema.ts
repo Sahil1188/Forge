@@ -16,6 +16,8 @@ export const companies = pgTable('companies', {
   description: text('description'),
   /** Where this company's projects are created (each in its own subfolder); null = the Forge default. */
   projectsDir: text('projects_dir'),
+  /** Default brand (brands/<slug>.md) for every UI this company's goals build; null = pick per product. */
+  brand: text('brand'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()

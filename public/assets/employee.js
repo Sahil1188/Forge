@@ -1,4 +1,4 @@
-import { ago, avatar, badge, duration, empty, html, icon, list, money, MODELS, pageHead, parseSkills, RUNTIMES, runtimeLabel, toast, transcript, when } from './lib.js';
+import { ago, avatar, badge, duration, empty, html, icon, list, money, MODELS, pageHead, parseSkills, RUNTIMES, runtimeLabel, toast, openTranscript, when, runBadge, runCost } from './lib.js';
 
 const SECTIONS = [
   ['profile', 'Profile'],
@@ -153,8 +153,8 @@ function runsSection(runs) {
       ? html`<div style="overflow-x:auto"><table class="table">
           <thead><tr><th>Status</th><th class="hide-sm">Model</th><th>Time</th><th class="r hide-sm">Tools</th><th class="r">Cost</th><th class="hide-sm">Started</th><th></th></tr></thead>
           <tbody>${runs.map(
-            (r) => html`<tr><td>${badge(r.status)}</td><td class="hide-sm"><span class="id">${r.model ?? r.runtimeKey}</span></td><td class="num">${duration(r.durationMs)}</td>
-              <td class="r num hide-sm">${r.toolCallCount}</td><td class="r num">${money(r.estimatedCostUsd)}</td><td class="hide-sm">${ago(r.startedAt)}</td>
+            (r) => html`<tr><td>${runBadge(r)}</td><td class="hide-sm"><span class="id">${r.model ?? r.runtimeKey}</span></td><td class="num">${duration(r.durationMs)}</td>
+              <td class="r num hide-sm">${r.toolCallCount}</td><td class="r num">${runCost(r)}</td><td class="hide-sm">${ago(r.startedAt)}</td>
               <td class="r"><button class="btn btn-sm btn-ghost" data-action="transcript" data-run="${r.id}" aria-label="Transcript">${icon('terminal')}<span class="hide-sm">Transcript</span></button></td></tr>`,
           )}</tbody></table></div>`
       : empty('activity', 'No runs yet', 'Runs appear here once this employee is given work.')}
@@ -213,7 +213,6 @@ export const actions = {
     ctx.go('#/team');
   },
   async transcript(el, ctx) {
-    const t = await ctx.api(`/agent-runs/${el.dataset.run}/transcript`);
-    ctx.openPanel(`Transcript · ${t.run.model ?? t.run.runtimeKey}`, transcript(t));
+    await openTranscript(ctx, el.dataset.run);
   },
 };

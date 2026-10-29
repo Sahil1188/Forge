@@ -33,10 +33,13 @@ describe('WorkforceRouter scoring', () => {
     expect(dev.reasons.availability).toBe(100); // idle
   });
 
-  it('ignores reputation in V1 (weight 0)', () => {
-    const withRep = scoreCandidate('coding', { ...backendDev, reputation: 100 });
-    const withoutRep = scoreCandidate('coding', { ...backendDev, reputation: 0 });
-    expect(withRep.score).toBe(withoutRep.score);
+  it('a proven track record wins work; newcomers start neutral, not at zero', () => {
+    const proven = scoreCandidate('coding', { ...backendDev, reputation: 95 });
+    const struggling = scoreCandidate('coding', { ...backendDev, reputation: 30 });
+    const newcomer = scoreCandidate('coding', { ...backendDev, reputation: null });
+    expect(proven.score).toBeGreaterThan(newcomer.score);
+    expect(newcomer.score).toBeGreaterThan(struggling.score);
+    expect(selectBest('coding', [{ ...backendDev, id: 'b', reputation: 30 }, { ...backendDev, id: 'a', reputation: 95 }])?.employeeId).toBe('a');
   });
 
   it('returns null with no candidates', () => {

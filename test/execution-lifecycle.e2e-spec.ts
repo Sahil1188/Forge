@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RuntimeRegistry } from '../src/modules/runtimes/runtime-registry';
 import { AgentRunsService } from '../src/modules/runtimes/agent-runs.service';
 import { BudgetsService } from '../src/modules/budgets/budgets.service';
@@ -79,6 +79,45 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
 
   const cancel = (id: string) => request(server).post(`/work-items/${id}/status`).send({ status: 'cancelled' });
 
+  it('different employees work at the same time; one person never runs two tasks at once', async () => {
+    // Each script waits until the other has started: they can only finish if they run in parallel.
+    const started = new Set<string>();
+    let maxConcurrentForGrace = 0;
+    let graceActive = 0;
+    const both = (who: string) => async function* () {
+      yield { kind: 'session', sessionId: who } as RuntimeEvent;
+      started.add(who);
+      for (let i = 0; i < 100 && !(started.has('A') && started.has('B')); i += 1) await new Promise((r) => setTimeout(r, 50));
+      if (!(started.has('A') && started.has('B'))) throw new Error('ran alone: no parallelism');
+      yield { kind: 'completed', result: 'ok', sessionId: who } as RuntimeEvent;
+    };
+    const a = await world(both('A'));
+    const b = await world(both('B'));
+    // Two tasks for the same person (B's employee): must not overlap.
+    const second = await createWorkItem(app, b.projectId, { title: 'second for same person' });
+    app.get(RuntimeRegistry).register(
+      new ScriptedRuntime(b.key, (ctx, n) =>
+        n === 1
+          ? both('B')()
+          : (async function* () {
+              graceActive += 1;
+              maxConcurrentForGrace = Math.max(maxConcurrentForGrace, graceActive);
+              yield { kind: 'completed', result: 'ok' } as RuntimeEvent;
+              graceActive -= 1;
+            })(),
+      ),
+    );
+    await assign(app, second, b.employeeId);
+
+    const summaries = await worker().drain();
+    const byItem = new Map(summaries.map((s) => [s.workItemId, s.status]));
+    expect(byItem.get(a.workItemId)).toBe('completed');
+    expect(byItem.get(b.workItemId)).toBe('completed');
+    expect(byItem.get(second)).toBe('completed');
+    expect(maxConcurrentForGrace).toBe(1);
+    for (const id of [a.workItemId, b.workItemId, second]) await cancel(id);
+  });
+
   it('cancelling a work item stops its running agent at once and keeps the item cancelled', async () => {
     let aborted = false;
     const w = await world((ctx) =>
@@ -129,6 +168,62 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       await cancel(w.workItemId);
     });
 
+    it('with a fallback endpoint configured (OmniRoute/OpenRouter), work switches to it instead of waiting', async () => {
+      const saved = { ...process.env };
+      Object.assign(process.env, { FORGE_FALLBACK_BASE_URL: 'https://gateway.test/v1', FORGE_FALLBACK_API_KEY: 'k', FORGE_FALLBACK_MODEL: 'openrouter/auto' });
+      const fetchMock = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: 'Done.' }, finish_reason: 'stop' }], usage: { prompt_tokens: 5, completion_tokens: 2, cost: 0.0001 } }), { status: 200 }));
+      try {
+        const companyId = await createCompany(app, 'Fallback Co');
+        const employeeId = await createEmployee(app, companyId, { name: 'Grace', role: 'Engineer', runtimeKey: 'claude_code', modelPolicy: { default: 'sonnet' } });
+        const { projectId } = await createProject(app, companyId);
+        const workItemId = await createWorkItem(app, projectId, {});
+        await assign(app, workItemId, employeeId);
+        app.get(UsageLimits).record('claude_code', { status: 'rejected', resetsAt: Date.now() + 3_600_000 });
+
+        const summary = await worker().runOnce();
+        expect(summary).toMatchObject({ status: 'completed', runtimeKey: 'custom', model: 'openrouter/auto' });
+        expect((await runs().findByWorkItem(workItemId))[0]).toMatchObject({ runtimeKey: 'custom', provider: 'openai', model: 'openrouter/auto', status: 'completed' });
+        expect(String(fetchMock.mock.calls[0][0])).toBe('https://gateway.test/v1/chat/completions');
+        await cancel(workItemId);
+      } finally {
+        app.get(UsageLimits).record('claude_code', { status: 'allowed' });
+        process.env = saved;
+        vi.restoreAllMocks();
+      }
+    });
+
+    it('when the fallback cannot answer either, the work is held until the reset — never failed', async () => {
+      const saved = { ...process.env };
+      Object.assign(process.env, { FORGE_FALLBACK_BASE_URL: 'https://gateway.test/v1', FORGE_FALLBACK_API_KEY: 'k', FORGE_FALLBACK_MODEL: 'auto/coding' });
+      const resetsAt = Date.now() + 3_600_000;
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: { message: 'Model is unavailable' } }), { status: 502 }));
+      try {
+        const companyId = await createCompany(app, 'Fallback Down Co');
+        const employeeId = await createEmployee(app, companyId, { name: 'Grace', role: 'Engineer', runtimeKey: 'claude_code', modelPolicy: { default: 'sonnet' } });
+        const { projectId } = await createProject(app, companyId);
+        const workItemId = await createWorkItem(app, projectId, {});
+        await assign(app, workItemId, employeeId);
+        app.get(UsageLimits).record('claude_code', { status: 'rejected', resetsAt });
+
+        const summary = await worker().runOnce();
+        expect(summary).toMatchObject({ status: 'blocked', runtimeKey: 'custom' });
+        expect((await getWorkItem(app, workItemId)).status).toBe('assigned'); // queued, not failed
+        expect((await runs().findByWorkItem(workItemId))[0]).toMatchObject({ status: 'rate_limited' }); // no attempt spent
+        // The broken fallback is not hammered: the next pick waits for the reset instead.
+        const calls = fetchMock.mock.calls.length;
+        expect(await worker().runOnce()).toMatchObject({ status: 'blocked', agentRunId: '' });
+        expect(fetchMock.mock.calls.length).toBe(calls);
+        await cancel(workItemId);
+      } finally {
+        app.get(UsageLimits).record('claude_code', { status: 'allowed' });
+        app.get(UsageLimits).record('custom', { status: 'allowed' });
+        process.env = saved;
+        vi.restoreAllMocks();
+      }
+    });
+
     it('a usage-limit error without a structured event is recognised too', async () => {
       const w = await world(() => events([{ kind: 'failed', error: 'Claude AI usage limit reached|1761140000' }]));
       const r = await worker().runOnce();
@@ -174,12 +269,21 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
     });
 
     it('a failed event without completion marks the run and item failed and keeps the error text', async () => {
-      const w = await world(() => events([{ kind: 'session', sessionId: 's' }, { kind: 'failed', error: 'error_max_turns' }]));
+      const w = await world(() => events([{ kind: 'session', sessionId: 's' }, { kind: 'failed', error: 'error_during_execution' }]));
       expect((await worker().runOnce())?.status).toBe('failed');
       const run = (await runs().findByWorkItem(w.workItemId))[0];
       expect(run.status).toBe('failed');
-      expect(JSON.stringify(run.errorJson)).toContain('error_max_turns');
+      expect(JSON.stringify(run.errorJson)).toContain('error_during_execution');
       expect((await getWorkItem(app, w.workItemId)).status).toBe('failed');
+    });
+
+    it('running out of turns (error_max_turns) is a limit to continue from, not a failure (live bug)', async () => {
+      const w = await world(() => events([{ kind: 'session', sessionId: 's' }, { kind: 'failed', error: 'error_max_turns' }]));
+      await worker().runOnce();
+      const run = (await runs().findByWorkItem(w.workItemId))[0];
+      expect(run.status).toBe('killed_tools'); // turn and tool limits share the limit status
+      expect((await getWorkItem(app, w.workItemId)).status).toBe('assigned'); // queued to continue
+      await cancel(w.workItemId);
     });
 
     it('a stream that ends with no terminal event is a failure, not a success', async () => {
@@ -517,7 +621,10 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       const text = await readFile(run.transcriptRef!, 'utf8');
       expect(text).not.toContain('AKIAIOSFODNN7EXAMPLE');
       expect(text).not.toContain('hunter2hunter2');
-      expect(text.split('\n').length).toBe(3);
+      const lines = text.split('\n').filter(Boolean);
+      expect(lines.length).toBe(3);
+      // Streamed live: every event carries the time it happened.
+      expect(lines.every((l) => typeof JSON.parse(l).at === 'string')).toBe(true);
       await cancel(w.workItemId);
     });
 
@@ -525,11 +632,33 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       const w = await world(() => events(completes()), { settings: { maxTurns: 7 } });
       await worker().runOnce();
       const ctx = w.runtime.contexts[0];
-      expect(ctx.systemPromptAppend).toContain('Worker — Engineer');
+      expect(ctx.systemPromptAppend).toContain('# You are Worker, Engineer');
       expect(ctx.task).toContain('Work');
       expect(ctx.limits?.maxTurns).toBe(7);
       expect(ctx.canUseTool).toBeTypeOf('function');
       await cancel(w.workItemId);
+    });
+
+    it('an employee with a written brief works under it, in cache order, with no skill numbers', async () => {
+      const key = `brief-${randomUUID().slice(0, 6)}`;
+      const runtime = new ScriptedRuntime(key, () => events(completes()));
+      app.get(RuntimeRegistry).register(runtime);
+      const companyId = await createCompany(app, `Brief Co ${key}`);
+      const grace = await createEmployee(app, companyId, { name: 'Grace', role: 'Senior Backend Engineer', runtimeKey: key, skills: [{ skillKey: 'node', level: 95 }] });
+      const { projectId } = await createProject(app, companyId);
+      const workItemId = await createWorkItem(app, projectId, { title: 'Build the payments API' });
+      await assign(app, workItemId, grace);
+      await worker().runOnce();
+      const prompt = runtime.contexts[0].systemPromptAppend ?? '';
+      const at = (s: string) => prompt.indexOf(s);
+      // Most stable first: shared rules, Forge rules, the brief, then this task's specifics last.
+      expect(at('You are a senior professional at Forge')).toBe(0);
+      expect(at('HOW FORGE WORKS')).toBeGreaterThan(0);
+      expect(at('# You are Grace, Senior Backend Engineer')).toBeGreaterThan(at('HOW FORGE WORKS'));
+      expect(at('## Current task')).toBeGreaterThan(at('# You are Grace'));
+      expect(prompt).toContain('Never concatenate SQL strings with user input.');
+      expect(prompt).not.toContain('node (95)');
+      await cancel(workItemId);
     });
   });
 
@@ -779,7 +908,8 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       await assign(app, w.workItemId, w.employeeId); // rework → assigned
       expect((await worker().runOnce())?.status).toBe('completed');
       // The retry carries the lesson learned from the failure.
-      expect(w.runtime.contexts[1].systemPromptAppend).toMatch(/FAILED evaluation/);
+      // Specific, not generic: which check failed (the test script), not just "it failed".
+      expect(w.runtime.contexts[1].systemPromptAppend).toMatch(/Mistake on "[^"]+" \(\w+\):\n- test:/);
 
       const e2 = await evaluator.evaluate(w.workItemId);
       expect(e2).toMatchObject({ status: 'passed', routedTo: 'done', overallScore: 100 });
@@ -796,7 +926,9 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       expect(profile.reputation.overall).toBeGreaterThan(50);
 
       const memories = await app.get(MemoryService).findByEmployee(w.employeeId);
-      expect(memories.map((m) => m.kind).sort()).toEqual(['lesson', 'outcome']);
+      // Two lessons: what went wrong, then what fixed it (the most valuable kind of memory).
+      expect(memories.map((m) => m.kind)).toEqual(['lesson', 'lesson']);
+      expect(memories.map((m) => m.content).join('\n')).toMatch(/Fixed "[^"]+" \(\w+\) after 2 attempts\. The problem was — test:/);
     });
 
     it('a repo with nothing to verify is inconclusive → done, and earns no score, skill or memory', async () => {

@@ -4,6 +4,7 @@ import * as home from './home.js';
 import * as work from './work.js';
 import * as goal from './goal.js';
 import * as runs from './runs.js';
+import * as ask from './ask.js';
 import * as deliverables from './deliverables.js';
 import * as team from './team.js';
 import * as employee from './employee.js';
@@ -18,6 +19,7 @@ const ROUTES = [
   { re: /^\/work\/([\w-]+)$/, view: goal, nav: 'work', keys: ['id'] },
   { re: /^\/goals\/([\w-]+)$/, view: goal, nav: 'work', keys: ['id'] }, // older links
   { re: /^\/runs$/, view: runs, nav: 'runs' },
+  { re: /^\/ask$/, view: ask, nav: 'ask' },
   { re: /^\/deliverables$/, view: deliverables, nav: 'deliverables' },
   { re: /^\/deliverables\/([\w-]+)$/, view: deliverables, nav: 'deliverables', keys: ['id'] },
   { re: /^\/team$/, view: team, nav: 'team' },
@@ -33,6 +35,7 @@ const NAV = [
     ['overview', '#/', 'Overview', 'overview'],
     ['work', '#/work', 'Work', 'work'],
     ['runs', '#/runs', 'Runs', 'activity'],
+    ['ask', '#/ask', 'Ask Forge', 'help'],
     ['deliverables', '#/deliverables', 'Deliverables', 'folder'],
     ['team', '#/team', 'Team', 'team'],
     ['approvals', '#/approvals', 'Approvals', 'shield'],
@@ -280,6 +283,7 @@ async function render({ silent = false, force = false } = {}) {
       }
     }
     if (silent) window.scrollTo(0, y);
+    view.mounted?.(ctx);
   } catch (err) {
     clearInterval(state.poll);
     main.innerHTML = html`<div class="notice danger">${icon('alert')}<span class="grow">${err.message}</span>

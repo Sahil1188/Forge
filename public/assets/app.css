@@ -317,3 +317,26 @@ code, pre, .code, .out, .mono, .id, .file-list a { font-variant-ligatures: none;
 .limit-banner { width: 100%; max-width: var(--content-max); margin: 0 auto; padding: var(--space-4) var(--space-6) 0; }
 .limit-banner:empty { display: none; }
 @media (max-width: 1023px) { .limit-banner { padding: var(--space-4) var(--space-4) 0; } }
+
+/* Live line under a running run: what the agent is doing right now. */
+.live-line { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: baseline; font-size: var(--text-small); line-height: var(--leading-small); color: var(--ink-secondary); }
+.live-line .now { font-family: var(--font-mono); color: var(--ink); overflow-wrap: anywhere; }
+.live-line.stale .quiet { color: var(--warning); font-weight: 500; }
+
+/* Ask Forge: a question-and-answer thread about the company or one goal. */
+.ask { display: flex; flex-direction: column; gap: var(--space-4); max-width: 880px; }
+.ask-scope { max-width: 480px; }
+.ask-thread { display: flex; flex-direction: column; gap: var(--space-4); border: 1px solid var(--rule); border-radius: var(--radius-md); background: var(--white); padding: var(--space-5); max-height: 62vh; overflow-y: auto; }
+.ask-msg { display: flex; flex-direction: column; gap: var(--space-1); max-width: 100%; }
+.ask-msg.user { align-self: flex-end; max-width: 80%; background: var(--fern-soft); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
+.ask-msg.assistant { border-left: 2px solid var(--rule-strong); padding-left: var(--space-4); }
+.ask-who { font: 500 var(--text-label)/var(--leading-label) var(--font-sans); color: var(--ink-secondary); }
+.ask-msg p { margin: 0; color: var(--ink); overflow-wrap: anywhere; white-space: pre-wrap; }
+.ask-answer { display: flex; flex-direction: column; gap: var(--space-2); color: var(--ink); line-height: var(--leading-body); }
+.ask-answer p { white-space: normal; }
+.ask-answer h3 { margin: var(--space-2) 0 0; font: 600 var(--text-body)/var(--leading-body) var(--font-sans); }
+.ask-answer ul, .ask-answer ol { margin: 0; padding-left: var(--space-5); display: flex; flex-direction: column; gap: var(--space-1); }
+.ask-answer code { font-family: var(--font-mono); font-size: var(--text-small); background: var(--linen); border-radius: var(--radius-xs); padding: 0 var(--space-1); overflow-wrap: anywhere; }
+.ask-suggest { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: center; }
+.ask-form { display: flex; flex-direction: column; gap: var(--space-2); }
+.ask-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }

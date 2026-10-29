@@ -57,10 +57,30 @@ export class EvaluationEngine {
 
     const dimensions: Record<string, DimensionResult> = {};
     const scores: number[] = [];
+    // The same command is never run twice in one round (checks often repeat build/test).
+    const ranAlready = new Map<string, { exitCode: number | null; output: string }>();
+    let projectChecksFailed = false;
     for (const script of scripts) {
+      const isAcceptance = script.name.startsWith('acceptance');
+      // When the project's own lint/test/build already fail, acceptance checks would rebuild and fail on
+      // the same errors: skip them this round (the failing checks carry the feedback) to save minutes.
+      if (isAcceptance && projectChecksFailed) {
+        dimensions[script.name] = {
+          score: 0,
+          ran: false,
+          exitCode: null,
+          command: script.command,
+          output: 'Not run this round: fix the failing project checks (lint/test/build) first.',
+          durationMs: 0,
+        };
+        scores.push(0);
+        continue;
+      }
       const started = Date.now();
-      const result = await this.runner.run(script.command, rootPath);
+      const result = ranAlready.get(script.command) ?? (await this.runner.run(script.command, rootPath));
+      ranAlready.set(script.command, result);
       const score = result.exitCode === 0 ? 100 : 0;
+      if (!isAcceptance && score === 0) projectChecksFailed = true;
       dimensions[script.name] = {
         score,
         ran: true,

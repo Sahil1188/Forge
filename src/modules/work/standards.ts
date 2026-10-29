@@ -18,7 +18,9 @@ export const GENERAL_STANDARDS = [
 
 export const STANDARDS: Partial<Record<TaskType, string[]>> = {
   frontend: [
-    'A real design, not browser defaults: a consistent type scale, spacing scale and colour palette defined once (CSS variables/design tokens).',
+    'Build exactly to DESIGN.md when the project has one: its tokens, layouts and component states are the spec.',
+    'Modern stack unless told otherwise: React + Vite + TypeScript, a real chart library; npm start serves the production build.',
+    'The design system is BRAND.md when the project has one: tokens.css and components.css copied exactly from its Part 4, only its variables and classes, its fonts, light only (no dark mode or theme toggle), no animation in app UI. Without a brand: a consistent type scale, spacing scale and palette defined once as CSS variables.',
     'Responsive from 360px to wide desktop: no horizontal scrolling, nothing cut off; tables become stacked cards or scroll inside their container on phones.',
     'Accessible (WCAG 2.2 AA): semantic HTML, labelled form fields, visible keyboard focus, sufficient contrast, ARIA only where needed.',
     'Every state designed: loading, empty (with a helpful message and next step), error (with retry), success feedback.',
@@ -35,7 +37,7 @@ export const STANDARDS: Partial<Record<TaskType, string[]>> = {
     'Unit tests for logic and integration tests for the interface (CLI commands / HTTP endpoints).',
   ],
   qa: ['Test plan covering happy paths, edge cases, invalid input and regressions; automated where possible.', 'Tests are deterministic, isolated (temp dirs, no shared state) and fast.'],
-  design: ['Design tokens (colour, type, spacing, radius) and component specs with all states.', 'Accessibility and responsive behaviour specified, not left to the developer.'],
+  design: ['When the project has BRAND.md, DESIGN.md applies it: the brand\'s tokens, type scale and components mapped to every screen, never a new palette or fonts. Without a brand: design tokens (colour, type, spacing, radius).', 'User journeys for the real jobs users do, and component specs with every state (empty, loading, error, filled).', 'Accessibility and responsive behaviour specified, not left to the developer.'],
   devops: ['Reproducible builds with pinned versions; least-privilege CI tokens; caching; fails fast on test/lint errors.', 'Containers run as non-root with a minimal base image and a healthcheck.'],
   cloud: ['Infrastructure as code with variables and outputs; least-privilege IAM; encryption at rest and in transit; tagging; cost awareness.'],
   network: ['Documented addressing plan, segmentation (public/private), deny-by-default firewall rules, redundancy, and a diagram.'],

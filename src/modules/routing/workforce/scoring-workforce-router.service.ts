@@ -48,6 +48,9 @@ export class ScoringWorkforceRouter implements WorkforceRouterPort {
       });
     }
 
-    return selectBest(target.taskType, executionPool(candidates));
+    // Reviewers sign work off; they build only when nobody else can (or they'd review their own work).
+    const pool = executionPool(candidates);
+    const builders = target.taskType === 'review' ? pool : pool.filter((c) => !/\breview(er)?\b/i.test(c.role));
+    return selectBest(target.taskType, builders.length ? builders : pool);
   }
 }

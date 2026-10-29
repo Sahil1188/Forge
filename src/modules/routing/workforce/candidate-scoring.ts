@@ -15,8 +15,9 @@ export interface CandidateInput {
   reputation?: number | null;
 }
 
-// V1 weights. Reputation is wired but weighted 0 (spec §7) until there's data.
-const WEIGHTS = { skill: 0.5, role: 0.3, availability: 0.2, reputation: 0.0 };
+// Track record counts: people whose work keeps passing get preferred. Newcomers start neutral.
+const WEIGHTS = { skill: 0.4, role: 0.3, availability: 0.15, reputation: 0.15 };
+const NEUTRAL_REPUTATION = 60;
 
 const AVAILABILITY: Record<string, number> = {
   idle: 1,
@@ -52,7 +53,7 @@ export function scoreCandidate(
   const skill = relevantSkillScore(taskType, candidate.skills);
   const role = roleAffinity(taskType, candidate.role, candidate.department);
   const availability = AVAILABILITY[candidate.status] ?? 0.5;
-  const reputation = (candidate.reputation ?? 0) / 100;
+  const reputation = (candidate.reputation ?? NEUTRAL_REPUTATION) / 100;
 
   const score =
     (WEIGHTS.skill * skill +

@@ -33,6 +33,12 @@ export class CreateGoalDto {
   @MaxLength(500)
   location?: string;
 
+  /** Brand slug (brands/<slug>.md) the UI must follow. Default: the company's brand, else the planner picks. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  brand?: string;
+
   /** Start the goal right away (create + start in one call). */
   @IsOptional()
   @IsBoolean()

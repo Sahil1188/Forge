@@ -56,7 +56,7 @@ export const FULL_ORG: OrgMember[] = [
     skills: [['product management', 96], ['requirements', 95], ['roadmapping', 93], ['ux', 88]],
   },
   {
-    key: 'designer', name: 'Noor', role: 'Senior UI/UX Designer', department: 'Product & Design', reportsTo: 'cpo',
+    key: 'designer', name: 'Noor', role: 'Senior UI/UX Designer', department: 'Product & Design', reportsTo: 'cpo', model: 'opus',
     description: 'Senior UI/UX designer. Produces user flows, wireframes, design systems and production-ready specs (tokens, spacing, states, accessibility), delivered as files in the repo.',
     skills: [['ui design', 96], ['ux', 96], ['design systems', 95], ['user research', 90], ['accessibility', 92]],
   },

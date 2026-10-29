@@ -104,24 +104,17 @@ describe('Short tasks, plan size, and acceptance checks (e2e)', () => {
   });
 
   describe('plan size cap', () => {
-    it('folds an over-sliced plan into at most FORGE_MAX_PLAN_ITEMS (default 3) without dropping work', async () => {
+    it('folds an over-sliced plan into at most FORGE_MAX_PLAN_ITEMS (default 12) without dropping work', async () => {
+      const titles = Array.from({ length: 14 }, (_, i) => `Step ${i + 1}`);
       const t = await team({
-        plan: {
-          workItems: [
-            { title: 'Init project' },
-            { title: 'Write module', description: 'core logic' },
-            { title: 'Write tests', description: 'cover it' },
-            { title: 'Add docs' },
-            { title: 'Verify end to end' },
-          ],
-        },
+        plan: { workItems: titles.map((title) => ({ title, description: `${title} work` })) },
         dev: async function* () {},
       });
       const plan = await app.get(CeoPlanner).plan((await goal(t.companyId, { title: 'Lib' })).id);
-      expect(plan.workItems.map((w) => w.title)).toEqual(['Init project', 'Write module', 'Write tests']);
-      const last = (await request(server).get(`/work-items/${plan.workItems[2].workItemId}`).expect(200)).body;
-      expect(last.description).toContain('Add docs');
-      expect(last.description).toContain('Verify end to end');
+      expect(plan.workItems.map((w) => w.title)).toEqual(titles.slice(0, 12));
+      const last = (await request(server).get(`/work-items/${plan.workItems[11].workItemId}`).expect(200)).body;
+      expect(last.description).toContain('Step 13');
+      expect(last.description).toContain('Step 14');
     });
 
     it('the cap is configurable', async () => {

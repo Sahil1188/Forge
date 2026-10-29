@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res, StreamableFile } from '@nestjs/common';
 import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 import { ConsoleService } from './console.service';
+import { AskService } from './ask.service';
 
 class StarterTeamDto {
   @IsOptional()
@@ -24,6 +25,17 @@ class ChangeRequestDto {
   workItemId?: string;
 }
 
+class AskDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(4000)
+  question!: string;
+
+  @IsOptional()
+  @IsUUID()
+  goalId?: string;
+}
+
 /** The slice of the HTTP response the download handler uses (keeps us free of express typings). */
 interface DownloadResponse {
   setHeader(name: string, value: string): void;
@@ -32,7 +44,21 @@ interface DownloadResponse {
 /** Endpoints shaped for the web console (each screen = one request). */
 @Controller()
 export class ConsoleController {
-  constructor(private readonly console: ConsoleService) {}
+  constructor(
+    private readonly console: ConsoleService,
+    private readonly askSvc: AskService,
+  ) {}
+
+  /** "Ask Forge" conversation about the company (no goal) or one goal. */
+  @Get('companies/:id/ask')
+  askHistory(@Param('id', ParseUUIDPipe) id: string, @Query('goalId') goalId?: string) {
+    return this.askSvc.history(id, goalId && /^[0-9a-f-]{36}$/i.test(goalId) ? goalId : null);
+  }
+
+  @Post('companies/:id/ask')
+  ask(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AskDto) {
+    return this.askSvc.ask(id, dto);
+  }
 
   @Get('system')
   system() {

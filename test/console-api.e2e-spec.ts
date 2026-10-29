@@ -60,7 +60,7 @@ describe('Console API — endpoints shaped for the web UI (e2e)', () => {
 
   it('GET /system reports what can run', async () => {
     const res = await request(server).get('/system').expect(200);
-    expect(res.body.runtimes.map((r: { key: string }) => r.key)).toEqual(['claude_code', 'custom:anthropic', 'custom:ollama']);
+    expect(res.body.runtimes.map((r: { key: string }) => r.key)).toEqual(['claude_code', 'custom:anthropic', 'custom:ollama', 'custom:openai']);
     expect(res.body.runtimes[0].available).toBe(true);
     expect(typeof res.body.version).toBe('string');
   });

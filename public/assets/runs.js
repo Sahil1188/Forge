@@ -1,4 +1,4 @@
-import { ago, badge, duration, empty, html, icon, kpi, money, pageHead, searchBox, tabs, transcript } from './lib.js';
+import { ago, badge, duration, empty, html, icon, kpi, money, pageHead, searchBox, tabs, liveLine, openTranscript, runBadge, runCost } from './lib.js';
 
 const TABS = [
   ['all', 'All', () => true],
@@ -42,14 +42,14 @@ export async function render(ctx) {
               <td class="clip">${r.kind === 'planning'
                 ? html`<a href="#/work/${r.goalId}" class="secondary">Planning</a>`
                 : r.goalId ? html`<a href="#/work/${r.goalId}" class="secondary">${r.workItemTitle}</a>` : r.workItemTitle ?? '—'}</td>
-              <td>${badge(r.status)}</td>
+              <td>${runBadge(r)}</td>
               <td class="hide-sm"><span class="id">${r.model ?? r.runtimeKey}</span></td>
               <td class="num hide-sm">${duration(r.durationMs)}</td>
               <td class="r num hide-sm">${r.toolCallCount}</td>
-              <td class="r num">${money(r.estimatedCostUsd)}</td>
+              <td class="r num">${runCost(r)}</td>
               <td class="hide-sm">${ago(r.startedAt)}</td>
               <td class="r"><button class="btn btn-sm btn-ghost" data-action="transcript" data-run="${r.id}" aria-label="Transcript">${icon('terminal')}<span class="hide-sm">Transcript</span></button></td>
-            </tr>`,
+            </tr>${r.status === 'running' ? html`<tr data-text="${r.employeeName} ${r.workItemTitle ?? 'planning'}"><td colspan="9" class="wrap">${liveLine(r)}</td></tr>` : ''}`,
           )}
           <tr class="no-match" hidden><td colspan="9" class="muted">No runs match that filter.</td></tr>
           </tbody></table></div>`
@@ -59,7 +59,6 @@ export async function render(ctx) {
 
 export const actions = {
   async transcript(el, ctx) {
-    const t = await ctx.api(`/agent-runs/${el.dataset.run}/transcript`);
-    ctx.openPanel(`Transcript · ${t.run.model ?? t.run.runtimeKey}`, transcript(t));
+    await openTranscript(ctx, el.dataset.run);
   },
 };
