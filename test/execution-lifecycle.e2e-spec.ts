@@ -388,6 +388,20 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       await cancel(w.workItemId);
     });
 
+    it('running out of turns reported by a thrown error also continues (live bug: the SDK throws it)', async () => {
+      const w = await world(() =>
+        (async function* (): AsyncIterable<RuntimeEvent> {
+          yield { kind: 'session', sessionId: 's' };
+          throw new Error('Claude Code returned an error result: Reached maximum number of turns (100)');
+        })(),
+      );
+      await worker().runOnce();
+      const run = (await runs().findByWorkItem(w.workItemId))[0];
+      expect(run.status).toBe('killed_tools');
+      expect((await getWorkItem(app, w.workItemId)).status).toBe('assigned'); // queued to continue, not failed
+      await cancel(w.workItemId);
+    });
+
     it('a stream that ends with no terminal event is a failure, not a success', async () => {
       const w = await world(() => events([{ kind: 'session', sessionId: 's' }, { kind: 'assistant_text', text: 'hmm' }]));
       expect((await worker().runOnce())?.status).toBe('failed');

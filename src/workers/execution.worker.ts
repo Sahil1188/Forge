@@ -784,6 +784,12 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
           }
         }
       }
+    } catch (err) {
+      // The SDK throws the turn limit instead of emitting `failed` (observed live: "Reached maximum
+      // number of turns (100)" failed a step outright). Treat it like the reported limit so the work
+      // continues; any other thrown error keeps its own handling in the caller.
+      if (!ranOutOfTurns((err as Error).message)) throw err;
+      failedError = (err as Error).message;
     } finally {
       // Stopping early (limit, kill, cancel): abort the runtime so the agent process ends now, and
       // don't wait forever for a generator that is blocked on its next message.
