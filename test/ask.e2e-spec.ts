@@ -114,3 +114,24 @@ describe('Drain mode for safe restarts (e2e)', () => {
     }
   });
 });
+
+describe('Fallback drill (e2e)', () => {
+  it('refuses without a fallback, then limits Claude for N minutes and releases it on demand', async () => {
+    const app = await bootApp();
+    const server = app.getHttpServer();
+    const saved = { ...process.env };
+    try {
+      await request(server).post('/system/fallback-drill').send({ minutes: 5 }).expect(400);
+      Object.assign(process.env, { FORGE_FALLBACK_BASE_URL: 'http://127.0.0.1:9/v1', FORGE_FALLBACK_MODEL: 'auto/coding' });
+      const on = await request(server).post('/system/fallback-drill').send({ minutes: 5 }).expect(201);
+      expect(on.body.fallback).toBe('openai:auto/coding');
+      expect(Date.parse(on.body.claudeLimitedUntil)).toBeGreaterThan(Date.now() + 4 * 60_000);
+      await request(server).post('/system/fallback-drill').send({ minutes: 0 }).expect(400);
+      const off = await request(server).delete('/system/fallback-drill').expect(200);
+      expect(off.body.claudeLimitedUntil).toBeNull();
+    } finally {
+      process.env = saved;
+      await app.close();
+    }
+  });
+});

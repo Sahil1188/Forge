@@ -1,3 +1,4 @@
+import { FallbackDrillController } from './fallback-drill.controller';
 import { IntakeController } from './intake.controller';
 import { KeepAwakeService } from './keep-awake.service';
 import { Module } from '@nestjs/common';
@@ -25,7 +26,7 @@ import { ApprovalDecisionListener } from './approval-decision.listener';
     RoutingModule,
     MemoryModule,
   ],
-  controllers: [IntakeController],
+  controllers: [IntakeController, FallbackDrillController],
   providers: [ExecutionWorker, ApprovalDecisionListener, KeepAwakeService],
   exports: [ExecutionWorker],
 })

@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { readFile, readdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir, unlink, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -14,6 +14,8 @@ import { EvaluationWorker } from '../src/modules/evaluation/evaluation.worker';
 import { CeoPlanner } from '../src/modules/heartbeats/ceo-planner.service';
 import { WORKSPACE_PORT, WorkspacePort } from '../src/modules/workspaces/workspace.port';
 import { events as eventsTable } from '../src/infrastructure/events/events.schema';
+import { workItems } from '../src/modules/work/work.schema';
+import { evaluations } from '../src/modules/evaluation/evaluation.schema';
 import { EventTypes } from '../src/infrastructure/events/event-types';
 import { RuntimeEvent, RuntimeRunContext } from '../src/modules/runtimes/runtime.port';
 import {
@@ -108,6 +110,68 @@ describe('Shared project workspace — work items build on each other (e2e)', ()
     await worker().runOnce();
     expect((await evaluator().evaluate(id)).routedTo).toBe('rework');
     expect(existsSync(path.join(await workspace().projectPath(s.projectId), 'bad.js'))).toBe(false);
+  });
+
+  /** Acceptance check: the file exists in the project. */
+  const fileExists = (name: string) => `node -e "require('fs').accessSync('${name}')"`;
+
+  it('a later step that breaks an earlier step’s checks is sent back, naming the step it broke', async () => {
+    const s = await setup(async function* (ctx) {
+      yield { kind: 'session', sessionId: 's' } as RuntimeEvent;
+      const title = ctx.task.split('\n')[0];
+      if (title === 'Customers API') {
+        await writeFile(path.join(ctx.cwd, 'package.json'), passingPkg);
+        await writeFile(path.join(ctx.cwd, 'customers.js'), 'module.exports = [];');
+      } else {
+        // Observed live: a later step emptied an earlier step's routes while doing its own work.
+        await unlink(path.join(ctx.cwd, 'customers.js'));
+        await writeFile(path.join(ctx.cwd, 'reports.js'), 'module.exports = {};');
+      }
+      yield { kind: 'completed', result: 'ok', sessionId: 's' } as RuntimeEvent;
+    });
+    const a = await createWorkItem(app, s.projectId, { title: 'Customers API' });
+    const b = await createWorkItem(app, s.projectId, { title: 'Reports' });
+    await db(app).update(workItems).set({ acceptance: [fileExists('customers.js')] }).where(eq(workItems.id, a));
+    await request(server).post(`/work-items/${b}/dependencies`).send({ dependsOnWorkItemId: a }).expect(201);
+    await assign(app, a, s.emp);
+    await assign(app, b, s.emp);
+
+    await worker().runOnce();
+    expect((await evaluator().evaluate(a)).routedTo).toBe('done');
+    await worker().runOnce();
+    const evaluated = await evaluator().evaluate(b);
+    expect(evaluated.routedTo).toBe('rework'); // its own checks pass; the earlier step's do not
+
+    const [latest] = await db(app).select().from(evaluations).where(eq(evaluations.workItemId, b));
+    const dims = (latest.detail as { dimensions: Record<string, { output: string }> }).dimensions;
+    expect(dims['regression#1'].output).toContain('finished step "Customers API"');
+    const main = await workspace().projectPath(s.projectId);
+    expect(existsSync(path.join(main, 'customers.js'))).toBe(true); // the break never reached main
+    expect(existsSync(path.join(main, 'reports.js'))).toBe(false);
+  });
+
+  it('parallel steps are checked against what merged meanwhile, so an earlier step’s checks see its own work', async () => {
+    const s = await setup(
+      writes({
+        Ledger: { 'package.json': passingPkg, 'ledger.js': 'module.exports = 1;' },
+        Aging: { 'aging.js': 'module.exports = 2;' },
+      }),
+    );
+    // No dependency: both start from the same empty main and run side by side.
+    const a = await createWorkItem(app, s.projectId, { title: 'Ledger' });
+    const b = await createWorkItem(app, s.projectId, { title: 'Aging' });
+    await db(app).update(workItems).set({ acceptance: [fileExists('ledger.js')] }).where(eq(workItems.id, a));
+    await assign(app, a, s.emp);
+    await assign(app, b, s.emp);
+    await worker().runOnce();
+    await worker().runOnce();
+
+    expect((await evaluator().evaluate(a)).routedTo).toBe('done');
+    // Aging's branch never had ledger.js; checked after merging main in, Ledger's check passes.
+    expect((await evaluator().evaluate(b)).routedTo).toBe('done');
+    const main = await workspace().projectPath(s.projectId);
+    expect(existsSync(path.join(main, 'ledger.js'))).toBe(true);
+    expect(existsSync(path.join(main, 'aging.js'))).toBe(true);
   });
 
   it('a retry continues from its previous attempt instead of starting over', async () => {

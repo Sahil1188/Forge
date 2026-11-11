@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit, OnApplicationBootstrap } from '@nestjs/common';
 import { countAttempts } from '../runtimes/attempts';
-import { asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 import { OutboxService } from '../../infrastructure/events/outbox.service';
 import { WORKSPACE_PORT, WorkspacePort } from '../workspaces/workspace.port';
 import { projects } from '../projects/projects.schema';
@@ -12,7 +12,7 @@ import { workItems, WorkItem } from '../work/work.schema';
 import { workspaces } from '../workspaces/workspaces.schema';
 import { WorkService } from '../work/work.service';
 import { AgentRunsService } from '../runtimes/agent-runs.service';
-import { EvaluationEngine, EvaluationResult } from './evaluation-engine';
+import { EvaluationEngine, EvaluationResult, RegressionCheck } from './evaluation-engine';
 import { VisualGate } from './visual/visual-gate';
 import { EvaluationsService } from './evaluations.service';
 import { Evaluation } from './evaluation.schema';
@@ -161,8 +161,15 @@ export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
       throw new NotAwaitingEvaluationError(item.id, item.status);
     }
     const rootPath = await this.resolveWorkspacePath(item);
+    const branch = (item.artifacts as { branch?: string } | null)?.branch;
 
-    const result = await this.withVisualGate(item, rootPath, await this.engine.evaluateRepo(rootPath, item.acceptance ?? []));
+    // Check the work as the code `main` will become: other steps may have merged since it started,
+    // and each one's checks must still pass (observed live: a later step emptied an earlier step's
+    // API, every step passed its own checks, and the assembled app was broken).
+    const caughtUp = branch ? await this.workspace.catchUp(item.projectId, rootPath) : { merged: true };
+    const result = caughtUp.merged
+      ? await this.withVisualGate(item, rootPath, await this.engine.evaluateRepo(rootPath, item.acceptance ?? [], await this.regressionChecks(item)))
+      : mergeConflictResult(caughtUp.conflict);
     const runs = await this.agentRuns.findByWorkItem(item.id);
     const evaluation = await this.evaluations.create({
       workItemId: item.id,
@@ -172,10 +179,18 @@ export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
 
     let routedTo: 'done' | 'rework' = result.status === 'failed' ? 'rework' : 'done';
     let integrationConflict: string | undefined;
+    if (!caughtUp.merged) {
+      integrationConflict = caughtUp.conflict;
+      // Remembered so the retry starts from the latest main with this work merged in.
+      await this.db
+        .update(workItems)
+        .set({ artifacts: { ...((item.artifacts as Record<string, unknown> | null) ?? {}), conflict: caughtUp.conflict ?? 'merge conflict' } })
+        .where(eq(workItems.id, item.id));
+      this.logger.warn(`Work item ${item.id} conflicts with the latest main: ${caughtUp.conflict}`);
+    }
     if (routedTo === 'done') {
       // Passing work becomes part of the project's deliverable (`main`), so the next item
       // starts from it. A merge that doesn't apply cleanly sends the item back for rework.
-      const branch = (item.artifacts as { branch?: string } | null)?.branch;
       if (branch) {
         const merged = await this.workspace.integrate(item.projectId, branch);
         if (!merged.merged) {
@@ -320,6 +335,17 @@ export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
     this.logger.log(`Goal ${goal.id} completed (${live.length} work item(s) done)`);
   }
 
+  /** Every finished step's acceptance checks in the same project, so new work cannot break old work. */
+  private async regressionChecks(item: WorkItem): Promise<RegressionCheck[]> {
+    const done = await this.db
+      .select({ title: workItems.title, acceptance: workItems.acceptance })
+      .from(workItems)
+      .where(and(eq(workItems.projectId, item.projectId), eq(workItems.status, 'done'), ne(workItems.id, item.id)))
+      .orderBy(asc(workItems.createdAt));
+    const max = Number(process.env.FORGE_MAX_REGRESSION_CHECKS ?? DEFAULT_MAX_REGRESSION_CHECKS);
+    return done.flatMap((d) => (d.acceptance ?? []).map((command) => ({ command, from: d.title }))).slice(0, max);
+  }
+
   private async resolveWorkspacePath(item: WorkItem): Promise<string> {
     const runs = await this.agentRuns.findByWorkItem(item.id);
     const workspaceId = runs[0]?.workspaceId;
@@ -350,4 +376,26 @@ export function keyLines(output: string, name: string): string {
   if (name === 'visual' && findings.length) return findings.slice(0, 5).join(' | ');
   const signal = lines.filter((l) => /error|fail|expected|assert|not ok|cannot|undefined|exception|✗|×/i.test(l));
   return (signal.length ? signal : lines.slice(-3)).slice(0, 4).join(' | ').slice(0, 600);
+}
+
+/** Upper bound on earlier steps' checks re-run per evaluation, so a long project stays fast. */
+const DEFAULT_MAX_REGRESSION_CHECKS = 30;
+
+/** The latest main cannot be merged into the work: nothing was checked; the employee resolves it. */
+function mergeConflictResult(conflict: string | undefined): EvaluationResult {
+  return {
+    status: 'failed',
+    overallScore: 0,
+    dimensions: {
+      merge: {
+        score: 0,
+        ran: true,
+        exitCode: 1,
+        command: 'git merge main',
+        output: `Your work conflicts with work other steps merged into main since you started. Resolve the conflict, keeping both:
+${conflict ?? ''}`.slice(0, 4000),
+        durationMs: 0,
+      },
+    },
+  };
 }

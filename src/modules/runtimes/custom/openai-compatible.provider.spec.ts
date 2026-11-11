@@ -44,6 +44,28 @@ describe('OpenAI-compatible fallback provider (OmniRoute / OpenRouter / OpenAI)'
     expect(out).toEqual({ text: '', toolCalls: [{ id: 'c2', name: 'write_file', input: { path: 'a.js', content: 'x' } }], stopReason: 'tool_use', usage: { inputTokens: 120, outputTokens: 30, costUsd: 0.0012 } });
   });
 
+  it('retries once when the gateway is unreachable or overloaded, then succeeds', async () => {
+    const ok = new Response(JSON.stringify({ choices: [{ message: { content: 'done' }, finish_reason: 'stop' }] }), { status: 200 });
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('fetch failed')).mockResolvedValueOnce(ok);
+    const out = await new OpenAICompatibleProvider().chat({ model: 'auto', tools: [], messages: [{ role: 'user', content: 'hi' }] });
+    expect(out.text).toBe('done');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const fetch2 = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('busy', { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] }), { status: 200 }));
+    expect((await new OpenAICompatibleProvider().chat({ model: 'auto', tools: [], messages: [{ role: 'user', content: 'hi' }] })).text).toBe('ok');
+    expect(fetch2).toHaveBeenCalledTimes(2);
+  }, 20_000);
+
+  it('gives up after the retry with a clear message, and every attempt is time-bounded', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('fetch failed'));
+    await expect(new OpenAICompatibleProvider().chat({ model: 'auto', tools: [], messages: [{ role: 'user', content: 'hi' }] })).rejects.toThrow('Could not reach the fallback endpoint');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const call of fetchMock.mock.calls) expect((call[1] as RequestInit).signal).toBeInstanceOf(AbortSignal);
+  }, 20_000);
+
   it('an out-of-credit error is surfaced in words Forge recognises, without leaking the key', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: { message: 'Insufficient credits. Add more using https://openrouter.ai/credits' } }), { status: 402 }));
     const err = await new OpenAICompatibleProvider().chat({ model: 'auto', messages: [{ role: 'user', content: 'x' }], tools: [] }).catch((e: Error) => e);

@@ -56,27 +56,43 @@ export class OpenAICompatibleProvider implements ModelProvider {
       }
     }
 
-    let res: Response;
-    try {
-      res = await fetch(`${config.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          ...(config.apiKey ? { authorization: `Bearer ${config.apiKey}` } : {}),
-          'x-title': 'Forge',
-        },
-        body: JSON.stringify({
-          model: request.model,
-          messages,
-          tools: request.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.inputSchema } })),
-          ...(request.maxTokens ? { max_tokens: request.maxTokens } : {}),
-          usage: { include: true }, // OpenRouter reports the request's cost when asked
-        }),
-      });
-    } catch (err) {
-      throw new Error(`Could not reach the fallback endpoint at ${config.baseUrl} (${(err as Error).message}).`);
+    const body = JSON.stringify({
+      model: request.model,
+      messages,
+      tools: request.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.inputSchema } })),
+      ...(request.maxTokens ? { max_tokens: request.maxTokens } : {}),
+      usage: { include: true }, // OpenRouter reports the request's cost when asked
+    });
+    // A gateway cycling through exhausted providers can hang for minutes (observed live: OmniRoute
+    // tried several dead providers until Node's own 5-minute timeout). Bound each attempt, retry once.
+    const timeoutMs = Math.max(10_000, Number(process.env.FORGE_FALLBACK_TIMEOUT_MS ?? 120_000) || 120_000);
+    let res: Response | undefined;
+    let raw = '';
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        res = await fetch(`${config.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            ...(config.apiKey ? { authorization: `Bearer ${config.apiKey}` } : {}),
+            'x-title': 'Forge',
+          },
+          body,
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        raw = await res.text();
+      } catch (err) {
+        if (attempt === 2) throw new Error(`Could not reach the fallback endpoint at ${config.baseUrl} (${(err as Error).message}).`);
+        await new Promise((r) => setTimeout(r, 3_000));
+        continue;
+      }
+      if ((res.status >= 500 || res.status === 429) && attempt === 1) {
+        await new Promise((r) => setTimeout(r, 3_000));
+        continue;
+      }
+      break;
     }
-    const raw = await res.text();
+    if (!res) throw new Error(`Could not reach the fallback endpoint at ${config.baseUrl}.`);
     let data: OpenAIResponse = {};
     try {
       data = JSON.parse(raw) as OpenAIResponse;

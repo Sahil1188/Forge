@@ -56,8 +56,13 @@ export class KeepAwakeService implements OnModuleInit, OnModuleDestroy {
   async busy(): Promise<boolean> {
     const [row] = await this.db
       .select({
+        // Running work, plus queued work that is ready to run (e.g. held until a usage limit resets:
+        // observed live, a PC that slept through the reset resumed hours late).
         n: sql<number>`(select count(*) from ${workItems} where ${inArray(workItems.status, ['in_progress', 'evaluating'])})
-          + (select count(*) from ${agentRuns} where ${eq(agentRuns.status, 'running')})`,
+          + (select count(*) from ${agentRuns} where ${eq(agentRuns.status, 'running')})
+          + (select count(*) from work_items w where w.status = 'assigned' and not exists (
+              select 1 from work_dependencies d join work_items dep on dep.id = d.depends_on_work_item_id
+              where d.work_item_id = w.id and dep.status <> 'done'))`,
       })
       .from(sql`(select 1) as one`);
     return Number(row?.n ?? 0) > 0;

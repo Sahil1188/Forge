@@ -205,7 +205,14 @@ function renderLimitBanner() {
   const windowName = u?.limitType ? `${LIMIT_WINDOWS[u.limitType] ?? u.limitType.replace(/_/g, ' ')} ` : '';
   const resets = u?.resetsAt ? ` It resets ${when(u.resetsAt)}.` : '';
   if (u?.status === 'rejected') {
-    el.innerHTML = html`<div class="notice warning">${icon('clock')}<span class="grow">Claude ${windowName}usage limit reached. Work is paused and resumes on its own.${resets}</span></div>`.value;
+    const fallback = state.system?.fallback;
+    const fallbackDown = (state.system?.usage ?? []).some((x) => x.runtimeKey === 'custom' && x.status === 'rejected');
+    const what = !fallback
+      ? 'Work is paused and resumes on its own.'
+      : fallbackDown
+        ? `The fallback (${fallback.model}) is not answering either; Forge retries it every few minutes and Claude takes over when it resets.`
+        : `Work continues on the fallback (${fallback.model}) and moves back to Claude when it resets.`;
+    el.innerHTML = html`<div class="notice warning">${icon('clock')}<span class="grow">Claude ${windowName}usage limit reached. ${what}${resets}</span></div>`.value;
   } else if (u?.status === 'allowed_warning') {
     const used = typeof u.utilization === 'number' ? `${Math.round(u.utilization * 100)}% of the` : 'Close to the';
     el.innerHTML = html`<div class="notice">${icon('alert')}<span class="grow">${used} Claude ${windowName}usage limit used.${resets}</span></div>`.value;

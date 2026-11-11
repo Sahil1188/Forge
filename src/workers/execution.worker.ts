@@ -6,7 +6,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { and, asc, desc, eq, isNotNull, not, notInArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, not, notInArray, sql } from 'drizzle-orm';
 import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { DRIZZLE, Database } from '../infrastructure/database/drizzle.provider';
@@ -215,6 +215,8 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
   }
 
   private draining?: Promise<ExecutionSummary[]>;
+  /** Wakes a drain that is waiting on running items, so newly runnable work starts at once. */
+  private wakeDrain?: () => void;
   private drainAgain = false;
 
   /**
@@ -226,6 +228,8 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
   drain(): Promise<ExecutionSummary[]> {
     if (this.draining) {
       this.drainAgain = true;
+      // New work arrived while others run: fill free slots now, not when a running item finishes.
+      this.wakeDrain?.();
       return this.draining;
     }
     this.draining = this.drainLoop().finally(() => {
@@ -242,14 +246,19 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
   private async drainLoop(): Promise<ExecutionSummary[]> {
     const summaries: ExecutionSummary[] = [];
     const skipped = new Set<string>();
-    const concurrency = Math.max(1, Number(process.env.FORGE_CONCURRENCY ?? 3) || 1);
+    const concurrency = Math.max(1, Number(process.env.FORGE_CONCURRENCY ?? DEFAULT_CONCURRENCY) || 1);
     const running = new Map<string, Promise<{ id: string; summary: ExecutionSummary | null }>>();
     const busyEmployees = new Map<string, string>(); // workItemId -> employeeId
     do {
       this.drainAgain = false;
+      // Spread one person's queued, independent steps across same-role teammates before starting.
+      await this.spreadQueued().catch((err) => this.logger.warn(`Spreading queued work failed: ${(err as Error).message}`));
       for (;;) {
         while (running.size < concurrency) {
-          const item = await this.nextAssigned(new Set([...skipped, ...running.keys()]), [...busyEmployees.values()]);
+          const taken = new Set([...skipped, ...running.keys()]);
+          const busy = [...busyEmployees.values()];
+          // Ready work whose owner is busy goes to a teammate in the same role (added if needed).
+          const item = (await this.nextAssigned(taken, busy)) ?? (await this.staffUp(taken, busy));
           if (!item) break;
           busyEmployees.set(item.id, item.assignedEmployeeId ?? '');
           running.set(
@@ -263,7 +272,14 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
           );
         }
         if (running.size === 0) break;
-        const { id, summary } = await Promise.race(running.values());
+        const woken = new Promise<null>((resolve) => {
+          this.wakeDrain = () => resolve(null);
+        });
+        const next = await Promise.race([...running.values(), woken]);
+        this.wakeDrain = undefined;
+        // Woken by new work (observed live: a freshly planned goal sat idle until an unrelated run finished).
+        if (next === null) continue;
+        const { id, summary } = next;
         running.delete(id);
         busyEmployees.delete(id);
         if (summary) {
@@ -332,6 +348,115 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     return { running: Number(row?.running ?? 0), evaluating: Number(row?.evaluating ?? 0) };
   }
 
+  /**
+   * Parallel staffing: a ready item waits only because its owner is busy on another item. Give it to
+   * a free teammate with the same role, or add one (same role, skills, brief and model) up to
+   * FORGE_MAX_PER_ROLE people per role, so independent work runs side by side instead of queueing.
+   * Executives are never cloned; FORGE_AUTOSTAFF=0 turns this off.
+   */
+  private async staffUp(skip: ReadonlySet<string>, busyEmployees: string[]): Promise<WorkItem | undefined> {
+    if (process.env.FORGE_AUTOSTAFF === '0' || busyEmployees.length === 0 || this.intakePaused) return undefined;
+    const blockedByDependency = sql`exists (
+      select 1 from work_dependencies d
+      join work_items dep on dep.id = d.depends_on_work_item_id
+      where d.work_item_id = ${workItems.id} and dep.status <> 'done'
+    )`;
+    const waiting = await this.db
+      .select()
+      .from(workItems)
+      .where(
+        and(
+          eq(workItems.status, 'assigned'),
+          not(blockedByDependency),
+          skip.size > 0 ? notInArray(workItems.id, [...skip]) : undefined,
+          inArray(workItems.assignedEmployeeId, busyEmployees),
+        ),
+      )
+      .orderBy(desc(workItems.priority), asc(workItems.createdAt))
+      .limit(5);
+    const maxPerRole = Math.max(1, Number(process.env.FORGE_MAX_PER_ROLE ?? DEFAULT_MAX_PER_ROLE) || 1);
+    for (const item of waiting) {
+      const owner = await this.employees.findOne(item.assignedEmployeeId!);
+      if (isExecutiveRole(owner.role)) continue;
+      const sameRole = (await this.employees.findByCompany(owner.companyId)).filter(
+        (e) => e.role.toLowerCase() === owner.role.toLowerCase(),
+      );
+      let helper: { id: string; name: string } | undefined = sameRole.find((e) => e.id !== owner.id && !busyEmployees.includes(e.id));
+      if (!helper && sameRole.length < maxPerRole) helper = await this.addTeammate(owner, sameRole.map((e) => e.name));
+      if (!helper) continue;
+      const reassigned = await this.work.reassign(item.id, helper.id, `auto_staff:${owner.name}`);
+      this.logger.log(`Parallel staffing: "${item.title}" goes to ${helper.name} (${owner.role}) while ${owner.name} is busy`);
+      return reassigned;
+    }
+    return undefined;
+  }
+
+  /**
+   * Planned parallel work should be visible and staffed up front: when one person has several queued
+   * steps, they are shared round-robin across up to FORGE_MAX_PER_ROLE people in that role (free
+   * teammates first, then new ones), so independent steps start together instead of one by one.
+   * Executives are never spread; FORGE_AUTOSTAFF=0 turns this off.
+   */
+  async spreadQueued(): Promise<number> {
+    if (process.env.FORGE_AUTOSTAFF === '0' || this.intakePaused) return 0;
+    const queued = await this.db
+      .select()
+      .from(workItems)
+      .where(and(eq(workItems.status, 'assigned'), isNotNull(workItems.assignedEmployeeId)))
+      .orderBy(asc(workItems.createdAt));
+    const byOwner = new Map<string, WorkItem[]>();
+    for (const item of queued) byOwner.set(item.assignedEmployeeId!, [...(byOwner.get(item.assignedEmployeeId!) ?? []), item]);
+    const maxPerRole = Math.max(1, Number(process.env.FORGE_MAX_PER_ROLE ?? DEFAULT_MAX_PER_ROLE) || 1);
+    let moved = 0;
+    for (const [ownerId, items] of byOwner) {
+      if (items.length < 2) continue;
+      const owner = await this.employees.findOne(ownerId);
+      if (isExecutiveRole(owner.role)) continue;
+      const sameRole = (await this.employees.findByCompany(owner.companyId)).filter(
+        (e) => e.role.toLowerCase() === owner.role.toLowerCase() && e.id !== owner.id,
+      );
+      // Free teammates first (those with queued work keep it), then new ones, never more than the cap.
+      const target = Math.min(maxPerRole, items.length);
+      const pool: Array<{ id: string; name: string }> = [{ id: owner.id, name: owner.name }];
+      for (const e of sameRole) if (pool.length < target && !byOwner.has(e.id)) pool.push(e);
+      let roleSize = 1 + sameRole.length;
+      while (pool.length < target && roleSize < maxPerRole) {
+        pool.push(await this.addTeammate(owner, pool.map((x) => x.name)));
+        roleSize += 1;
+      }
+      if (pool.length < 2) continue;
+      for (const [i, item] of items.entries()) {
+        const to = pool[i % pool.length];
+        if (to.id === ownerId) continue;
+        await this.work.reassign(item.id, to.id, `auto_staff:${owner.name}`);
+        moved += 1;
+        this.logger.log(`Parallel staffing: "${item.title}" goes to ${to.name} (${owner.role}) so it can run alongside ${owner.name}'s work`);
+      }
+    }
+    return moved;
+  }
+
+  /** A new teammate with the same role, skills, brief and model as `owner`, reporting to the same manager. */
+  private async addTeammate(owner: EmployeeWithRelations, taken: string[]): Promise<{ id: string; name: string }> {
+    const roster = (await this.employees.findByCompany(owner.companyId)).map((e) => e.name.toLowerCase());
+    const name = TEAMMATE_NAMES.find((n) => !roster.includes(n.toLowerCase()) && !taken.includes(n)) ?? `${owner.name} ${taken.length + 1}`;
+    const rc = owner.runtimeConfig;
+    const hired = await this.employees.create(owner.companyId, {
+      name,
+      role: owner.role,
+      department: owner.department ?? undefined,
+      description: owner.description ?? undefined,
+      managerEmployeeId: owner.managerEmployeeId ?? undefined,
+      runtimeConfig: rc
+        ? { runtimeKey: rc.runtimeKey, provider: rc.provider ?? undefined, modelPolicy: rc.modelPolicy as Record<string, unknown>, settings: rc.settings as Record<string, unknown> }
+        : undefined,
+      skills: owner.skills.map((s) => ({ skillKey: s.skillKey, level: s.level })),
+      governance: owner.governance as never,
+    });
+    this.logger.log(`Parallel staffing: added ${name} as another ${owner.role}`);
+    return { id: hired.id, name };
+  }
+
   private async nextAssigned(skip: ReadonlySet<string> = new Set(), busyEmployees: string[] = []): Promise<WorkItem | undefined> {
     if (this.intakePaused) return undefined;
     // An item is runnable only once everything it depends on is `done`; anything
@@ -372,7 +497,12 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     let fallbackUntil: number | null = null;
     if (heldUntil !== null) {
       const fallback = fallbackSelection(selection.runtimeKey);
-      if (fallback && this.usageLimits.blockedUntil(fallback.runtimeKey) === null) {
+      // A step the fallback already tried several times waits for Claude instead (observed live: weaker
+      // fallback models looped on the same build errors until the step ran out of attempts).
+      const fallbackTries = fallback
+        ? (await this.agentRuns.findByWorkItem(item.id)).filter((r) => r.runtimeKey === fallback.runtimeKey && r.status !== 'rate_limited').length
+        : 0;
+      if (fallback && this.usageLimits.blockedUntil(fallback.runtimeKey) === null && fallbackTries < MAX_FALLBACK_TRIES) {
         this.logger.log(`${selection.runtimeKey} is at its usage limit; running work item ${item.id} on ${fallback.provider}:${fallback.model}`);
         selection = fallback;
         fallbackUntil = heldUntil;
@@ -468,12 +598,14 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     resumeAt: number,
     message: string,
   ): Promise<ExecutionSummary> {
-    this.logger.warn(`Fallback ${runtimeKey}:${model} unavailable (${message.slice(0, 160)}); holding work item ${workItemId} until the usage limit resets`);
-    this.usageLimits.record(runtimeKey, { status: 'rejected', resetsAt: resumeAt, limitType: 'fallback_unavailable' });
-    await this.agentRuns.finish(run.id, { status: 'rate_limited', error: `Fallback unavailable: ${message.slice(0, 300)}. Waiting for the usage limit to reset.` });
+    // Try the fallback again soon (its providers recover), and in any case when Claude resets.
+    const retryAt = Math.min(resumeAt, Date.now() + FALLBACK_RETRY_MS);
+    this.logger.warn(`Fallback ${runtimeKey}:${model} unavailable (${message.slice(0, 160)}); holding work item ${workItemId}, retrying the fallback at ${new Date(retryAt).toISOString()}`);
+    this.usageLimits.record(runtimeKey, { status: 'rejected', resetsAt: retryAt, limitType: 'fallback_unavailable' });
+    await this.agentRuns.finish(run.id, { status: 'rate_limited', error: `Fallback unavailable: ${message.slice(0, 300)}. Retrying it shortly; Claude takes over again when its limit resets.` });
     const item = await this.getWorkItem(workItemId);
     if (item.status === 'in_progress') await this.work.changeStatus(workItemId, { status: 'assigned' });
-    this.wakeAt(resumeAt);
+    this.wakeAt(retryAt);
     return { agentRunId: run.id, workItemId, status: 'blocked', model, runtimeKey, filesChanged: [], estimatedCostUsd: 0 };
   }
 
@@ -1170,7 +1302,8 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       '',
       '---',
       '',
-      brief ? renderBrief(brief) : legacyIdentity(employee),
+      // A teammate added for parallel work shares the role's brief under their own name.
+      brief ? renderBrief({ ...brief, name: employee.name }) : legacyIdentity(employee),
       '',
       `Time budget: about ${minutes} minutes per run (hard stop). Deliver the required files in the first half, then refine.`,
       '',
@@ -1244,6 +1377,8 @@ export function projectBrandName(rootPath: string): string | null {
 export const FORGE_RULES = [
   'HOW FORGE WORKS',
   '- You work alone in the current directory, a checkout of the shared project. Only touch files inside it.',
+  '- Teammates build other parts at the same time. If your task says "Owns: ...", change only those folders/files;',
+  '  anything you need elsewhere goes in your hand-off as a follow-up, so parallel work merges without conflicts.',
   "- Your work is checked automatically when you finish: the project's lint/test/build scripts and the task's",
   '  acceptance checks must pass. Run them yourself first; a failing check sends the work straight back.',
   '- To escalate: stop, finish with your hand-off, and start "Risks & follow-ups" with "ESCALATION:" plus the',
@@ -1266,4 +1401,21 @@ function legacyIdentity(employee: EmployeeWithRelations): string {
     employee.description ?? '',
     skills ? `Your expertise: ${skills}.` : '',
   ].join('\n');
+}
+
+/** Fallback runs per step before it waits for Claude instead (below the free fallback runs in attempts.ts). */
+const MAX_FALLBACK_TRIES = 3;
+
+/** How soon a fallback that failed is tried again (its providers often recover within minutes). */
+const FALLBACK_RETRY_MS = 10 * 60_000;
+
+/** Parallel slots: how many items run at the same time across the company. */
+const DEFAULT_CONCURRENCY = 5;
+/** How many people may share one role when parallel work needs them (the original included). */
+const DEFAULT_MAX_PER_ROLE = 3;
+/** Names for teammates added for parallel work. */
+const TEAMMATE_NAMES = ['Iris', 'Theo', 'Nadia', 'Arjun', 'Lena', 'Felix', 'Maya', 'Yusuf', 'Clara', 'Hugo', 'Aisha', 'Mateo', 'Sana', 'Eli', 'Rhea', 'Jonas'];
+
+function isExecutiveRole(role: string): boolean {
+  return /\b(chief|ceo|cto|cfo|cpo|ciso|cdo|coo|head of|vp)\b/i.test(role);
 }

@@ -23,4 +23,10 @@ describe('countAttempts', () => {
     const runs = Array.from({ length: 5 }, () => ({ status: 'killed_timeout', filesChangedCount: 3 }));
     expect(countAttempts(runs, 3)).toEqual({ attempts: 2, continuations: 3 });
   });
+
+  it('fallback runs are best effort: they do not use up attempts (capped)', () => {
+    const fb = (status: string) => ({ status, runtimeKey: 'custom' });
+    expect(countAttempts([fb('completed'), fb('failed'), fb('completed'), { status: 'completed', runtimeKey: 'claude_code' }])).toEqual({ attempts: 1, continuations: 0 });
+    expect(countAttempts(Array.from({ length: 5 }, () => fb('completed')), 6, 3)).toEqual({ attempts: 2, continuations: 0 });
+  });
 });

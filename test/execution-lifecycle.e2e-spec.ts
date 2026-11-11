@@ -8,6 +8,7 @@ import * as path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RuntimeRegistry } from '../src/modules/runtimes/runtime-registry';
+import { EmployeesService } from '../src/modules/employees/employees.service';
 import { AgentRunsService } from '../src/modules/runtimes/agent-runs.service';
 import { BudgetsService } from '../src/modules/budgets/budgets.service';
 import { ApprovalsService } from '../src/modules/approvals/approvals.service';
@@ -118,6 +119,80 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
     for (const id of [a.workItemId, b.workItemId, second]) await cancel(id);
   });
 
+  it('ready work waiting for a busy person goes to teammates in the same role, added as needed', async () => {
+    process.env.FORGE_AUTOSTAFF = '1';
+    process.env.FORGE_MAX_PER_ROLE = '3';
+    const ranBy = new Map<string, string>();
+    const key = `staff-${randomUUID().slice(0, 6)}`;
+    // Each run waits until all three have started: they can only finish if three people work at once.
+    app.get(RuntimeRegistry).register(
+      new ScriptedRuntime(key, (ctx) =>
+        (async function* () {
+          ranBy.set(ctx.workItemId, ctx.employeeId);
+          for (let i = 0; i < 100 && ranBy.size < 3; i += 1) await new Promise((r) => setTimeout(r, 50));
+          if (ranBy.size < 3) throw new Error('not enough parallel staff');
+          yield { kind: 'completed', result: 'ok' } as RuntimeEvent;
+        })(),
+      ),
+    );
+    const companyId = await createCompany(app, `Staff Co ${key}`);
+    const mira = await createEmployee(app, companyId, { name: 'Mira', role: 'Frontend Engineer', runtimeKey: key, skills: [{ skillKey: 'react', level: 94 }] });
+    const { projectId } = await createProject(app, companyId);
+    const items: string[] = [];
+    for (const title of ['Import screen', 'Ledger screen', 'Dashboard screen']) {
+      const id = await createWorkItem(app, projectId, { title, taskType: 'frontend' });
+      await assign(app, id, mira);
+      items.push(id);
+    }
+    try {
+      const summaries = await worker().drain();
+      for (const id of items) expect(summaries.find((x) => x.workItemId === id)?.status).toBe('completed');
+      expect(new Set(ranBy.values()).size).toBe(3);
+      // Two teammates joined with the same role and skills; the original kept one of the items.
+      const team = (await app.get(EmployeesService).findByCompany(companyId)).filter((e) => e.role === 'Frontend Engineer');
+      expect(team).toHaveLength(3);
+      expect([...ranBy.values()]).toContain(mira);
+      for (const e of team) expect((await app.get(EmployeesService).findOne(e.id)).skills).toEqual([expect.objectContaining({ skillKey: 'react', level: 94 })]);
+    } finally {
+      process.env.FORGE_AUTOSTAFF = '0';
+      delete process.env.FORGE_MAX_PER_ROLE;
+      for (const id of items) await cancel(id);
+    }
+  });
+
+  it('queued steps on one person are shared across same-role teammates up front (visible on the board)', async () => {
+    process.env.FORGE_AUTOSTAFF = '1';
+    process.env.FORGE_MAX_PER_ROLE = '3';
+    const key = `spread-${randomUUID().slice(0, 6)}`;
+    app.get(RuntimeRegistry).register(new ScriptedRuntime(key, () => events(completes())));
+    const companyId = await createCompany(app, `Spread Co ${key}`);
+    const grace = await createEmployee(app, companyId, { name: 'Grace', role: 'Backend Engineer', runtimeKey: key, skills: [{ skillKey: 'node', level: 95 }] });
+    const { projectId } = await createProject(app, companyId);
+    // A foundation step everyone waits for, so nothing starts while we look at the board.
+    const foundation = await createWorkItem(app, projectId, { title: 'Foundation' });
+    const steps: string[] = [];
+    for (const title of ['Import', 'Matching', 'Exceptions', 'Receivables', 'Reporting']) {
+      const id = await createWorkItem(app, projectId, { title });
+      await request(server).post(`/work-items/${id}/dependencies`).send({ dependsOnWorkItemId: foundation }).expect(201);
+      await assign(app, id, grace);
+      steps.push(id);
+    }
+    try {
+      expect(await worker().spreadQueued()).toBe(3);
+      const owners = await Promise.all(steps.map(async (id) => (await getWorkItem(app, id)).assignedEmployeeId));
+      expect(new Set(owners).size).toBe(3); // three people, round-robin
+      expect(owners[0]).toBe(grace);
+      expect(owners[3]).toBe(grace);
+      const team = (await app.get(EmployeesService).findByCompany(companyId)).filter((e) => e.role === 'Backend Engineer');
+      expect(team).toHaveLength(3); // never more than the cap
+      expect(await worker().spreadQueued()).toBe(0); // already spread: stable
+    } finally {
+      process.env.FORGE_AUTOSTAFF = '0';
+      delete process.env.FORGE_MAX_PER_ROLE;
+      for (const id of [foundation, ...steps]) await cancel(id);
+    }
+  });
+
   it('cancelling a work item stops its running agent at once and keeps the item cancelled', async () => {
     let aborted = false;
     const w = await world((ctx) =>
@@ -186,6 +261,33 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
         expect(summary).toMatchObject({ status: 'completed', runtimeKey: 'custom', model: 'openrouter/auto' });
         expect((await runs().findByWorkItem(workItemId))[0]).toMatchObject({ runtimeKey: 'custom', provider: 'openai', model: 'openrouter/auto', status: 'completed' });
         expect(String(fetchMock.mock.calls[0][0])).toBe('https://gateway.test/v1/chat/completions');
+        await cancel(workItemId);
+      } finally {
+        app.get(UsageLimits).record('claude_code', { status: 'allowed' });
+        process.env = saved;
+        vi.restoreAllMocks();
+      }
+    });
+
+    it('a step the fallback already tried 3 times waits for Claude instead of looping on the fallback', async () => {
+      const saved = { ...process.env };
+      Object.assign(process.env, { FORGE_FALLBACK_BASE_URL: 'https://gateway.test/v1', FORGE_FALLBACK_API_KEY: 'k', FORGE_FALLBACK_MODEL: 'auto/coding' });
+      const fetchMock = vi.spyOn(globalThis, 'fetch');
+      try {
+        const companyId = await createCompany(app, 'Fallback Tries Co');
+        const employeeId = await createEmployee(app, companyId, { name: 'Grace', role: 'Engineer', runtimeKey: 'claude_code', modelPolicy: { default: 'sonnet' } });
+        const { projectId } = await createProject(app, companyId);
+        const workItemId = await createWorkItem(app, projectId, {});
+        // Three earlier runs on the fallback that did not get the step through its checks.
+        for (let i = 0; i < 3; i += 1) {
+          const r = await runs().create({ workItemId, employeeId, runtimeKey: 'custom', provider: 'openai', model: 'auto/coding' });
+          await runs().finish(r.id, { status: 'completed' });
+        }
+        await assign(app, workItemId, employeeId);
+        app.get(UsageLimits).record('claude_code', { status: 'rejected', resetsAt: Date.now() + 3_600_000 });
+        expect(await worker().runOnce()).toMatchObject({ status: 'blocked', agentRunId: '' });
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect((await getWorkItem(app, workItemId)).status).toBe('assigned'); // waits for Claude, not failed
         await cancel(workItemId);
       } finally {
         app.get(UsageLimits).record('claude_code', { status: 'allowed' });

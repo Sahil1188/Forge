@@ -11,6 +11,8 @@ process.env.FORGE_SKIP_PROCESS_CLEANUP ??= '1';
 process.env.FORGE_PRODUCTION_REVIEW ??= '0';
 // The visual gate launches real apps and an Opus reviewer; it has its own tests.
 process.env.FORGE_VISUAL_GATE ??= '0';
+// Parallel staffing adds employees; suites that do not test it keep a fixed roster.
+process.env.FORGE_AUTOSTAFF ??= '0';
 // The machine's own fallback endpoint (e.g. a local OmniRoute in .env) must not leak into tests:
 // empty values win over .env (dotenv never overrides), and fallback tests set their own.
 for (const key of ['FORGE_FALLBACK_BASE_URL', 'FORGE_FALLBACK_API_KEY', 'FORGE_FALLBACK_MODEL']) process.env[key] = '';

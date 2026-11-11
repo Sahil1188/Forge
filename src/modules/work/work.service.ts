@@ -161,6 +161,22 @@ export class WorkService {
     return item;
   }
 
+  /**
+   * Hands a queued (assigned, not yet started) item to another employee of the same company, e.g. a
+   * teammate in the same role who is free, so ready work does not wait for one busy person.
+   */
+  async reassign(workItemId: string, employeeId: string, assignedBy: string): Promise<WorkItem> {
+    const item = await this.getRaw(workItemId);
+    if (item.status !== 'assigned') throw new BadRequestException(`Work item ${workItemId} is ${item.status}, not queued`);
+    const employee = await this.employees.findOne(employeeId);
+    if (employee.companyId !== item.companyId) throw new BadRequestException('Employee belongs to a different company');
+    return this.db.transaction(async (tx) => {
+      await tx.insert(workAssignments).values({ workItemId, employeeId, assignedBy });
+      const [updated] = await tx.update(workItems).set({ assignedEmployeeId: employeeId }).where(eq(workItems.id, workItemId)).returning();
+      return updated;
+    });
+  }
+
   private assertStatus(from: WorkItemStatus, to: WorkItemStatus): void {
     try {
       assertTransition(from, to);
