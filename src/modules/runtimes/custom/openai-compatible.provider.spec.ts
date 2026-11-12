@@ -92,6 +92,8 @@ describe('OpenAI-compatible fallback provider (OmniRoute / OpenRouter / OpenAI)'
     expect(out.text).toBe('done');
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
+    // A second spy on the same function reuses the first one (and its call count) unless restored.
+    vi.restoreAllMocks();
     const fetch2 = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response('busy', { status: 503 }))
