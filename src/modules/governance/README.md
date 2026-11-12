@@ -1,15 +1,39 @@
-# `modules/governance/` — the tool gate + secret redaction
+# `modules/governance/` — what an employee's agent may do
 
-Decides whether a tool call is allowed, denied, or needs human approval, and strips secrets from
-anything persisted (spec §19/§20/§24). Built **on** the runtime's permission callback rather than a
-separate policing layer.
+Every tool call an agent makes passes through a permission check before it runs. This module holds the
+rules: which tools an employee may use, which need a person's approval, which paths a tool may touch,
+and which secrets must never be stored.
 
-| File | What it does | Significance |
-| --- | --- | --- |
-| `governance.service.ts` | `evaluate(governance, toolName) → allow | deny | approval_required` from the employee's `governance_json` (`allowedTools`/`deniedTools`/`approvalRequiredTools`); `allowedTools()` forwards an allow-list to the runtime. | Pure policy; default-deny capable. The execution worker calls this inside `canUseTool`. |
-| `redaction.ts` | `redactSecrets(text)` — masks token/bearer/keyed-secret patterns. | Applied to every stored transcript so secrets never land on disk/logs. |
-| `governance.service.spec.ts` | Unit tests for allow/deny/approval. | Locks the policy. |
-| `redaction.spec.ts` | Unit tests proving secrets are masked. | — |
+## How it works
 
-**Relationships:** consumed by `workers/execution.worker.ts` (builds the gate) and referenced by
-`evaluation` (redacts command output). Pairs with `approvals` for the human-in-the-loop.
+- **Tool permissions** (`governance.service.ts`), from the employee's `governance_json`:
+  - `deniedTools` → always denied;
+  - `allowedTools` set → anything not in it is denied (default-deny is opt-in);
+  - `approvalRequiredTools` → paused for a person's decision (see `approvals`);
+  - otherwise allowed.
+- **Path confinement** (`path-confinement.ts`): tools that take a file path (Claude Code's built-ins
+  and the custom runtime's `write_file`) may only touch files inside the run's workspace. Symlinks and
+  junctions are resolved first, so they can't be used to escape. Shell commands are contained by the
+  command sandbox instead (see `runtimes`).
+- **Redaction** (`redaction.ts`): secret-shaped text (API keys, GitHub and Slack tokens, AWS keys,
+  bearer tokens, private keys, `password=`-style assignments) is masked before any transcript, log or
+  check output is stored.
+
+## Files
+
+| File | Purpose |
+| --- | --- |
+| `governance.service.ts` | Allow, deny or needs-approval per tool. |
+| `path-confinement.ts` | The workspace boundary for path-taking tools. |
+| `redaction.ts` | Secret masking. |
+| `governance.module.ts` | Wiring; exports `GovernanceService`. |
+
+## Tests
+
+`governance.service.spec.ts`, `governance.edge.spec.ts`, `path-confinement.spec.ts`,
+`redaction.spec.ts`, `redaction.edge.spec.ts`.
+
+## Related
+
+`workers` (builds the permission check for each run), `approvals`, `runtimes` (Claude Code's
+`canUseTool`, the command sandbox), `evaluation` (redacts check output).

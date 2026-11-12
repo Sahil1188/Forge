@@ -1,13 +1,42 @@
-# `modules/observability/` — read-side views + dashboard UI
+# `modules/observability/` — serving the console and run views
 
-The console layer (spec §23): human-readable views over runs/employees, plus a minimal web dashboard.
+Serves the web console (the plain ES-module app in `public/`, no build step) and a few read-only views
+of employees and runs.
 
-| File | What it does | Significance |
-| --- | --- | --- |
-| `observability.service.ts` | Builds the company overview (each employee's status, model, latest run) and run/history summaries. | Aggregates data for the UI without exposing raw internals. |
-| `observability.controller.ts` | `GET /companies/:id/overview`, `GET /work-items/:id/runs`, `GET /agent-runs/:id`. | The read API the dashboard calls. |
-| `ui.controller.ts` | Serves `GET /ui` — a dependency-free HTML/JS dashboard: employee status cards + per-employee profile. | The human-facing console; open `http://localhost:3000/ui`. |
-| `observability.module.ts` | Wires the above; imports companies/employees/runtimes. | — |
+## How it works
 
-**Relationships:** read-only; consumes `companies`, `employees`, `runtimes` (agent runs) and the
-`performance` profile endpoint from the browser.
+- `GET /` and `GET /ui` return `public/index.html`. The console is a single-page app that calls the
+  JSON API (mostly `console`).
+- `GET /assets/:file` serves files from `public/assets/`. Only flat, allowlisted names are accepted:
+  no paths, no traversal, no dotfiles. Responses carry `nosniff` and `no-cache`.
+- The overview and run endpoints summarise employees' status, model and latest run without exposing
+  raw internals.
+
+## HTTP API
+
+| Method | Path | Role | What it does |
+| --- | --- | --- | --- |
+| GET | `/` , `/ui` | public | The console. |
+| GET | `/assets/:file` | public | Console scripts, styles and fonts. |
+| GET | `/companies/:id/overview` | viewer | Each employee's status, model and latest run. |
+| GET | `/work-items/:id/runs` | viewer | A step's runs. |
+| GET | `/agent-runs/:id` | viewer | One run's summary. |
+
+## Files
+
+| File | Purpose |
+| --- | --- |
+| `ui.controller.ts` | Serves the console and its assets. |
+| `observability.service.ts` | Overview and run summaries. |
+| `observability.controller.ts` | The read endpoints above. |
+| `observability.module.ts` | Wiring. |
+
+## Tests
+
+`ui.controller.spec.ts` (asset name allowlist), `console-lib.spec.ts` (console helpers);
+`test/console-api.e2e-spec.ts`.
+
+## Related
+
+`public/` (the console itself, following `public/DESIGN.md`), `console` (most of its data),
+`infrastructure/security` (headers and host checks on every response).

@@ -7,7 +7,7 @@ Grouped here by their role in the pipeline (see [`docs/FLOW.md`](../../docs/FLOW
 | Module | Role |
 | --- | --- |
 | [`companies/`](companies/README.md) | Companies + users (the org root). |
-| [`employees/`](employees/README.md) | The workforce records (identity, runtime config, skills, governance). |
+| [`employees/`](employees/README.md) | The workforce: identity, runtime, skills, permissions and editable briefs. |
 | [`goals/`](goals/README.md) | Human objectives; starting one kicks off autonomy. |
 | [`projects/`](projects/README.md) | Groups of work items under a goal. |
 | [`work/`](work/README.md) | Work items + dependencies + the status state machine. |
@@ -26,18 +26,21 @@ Grouped here by their role in the pipeline (see [`docs/FLOW.md`](../../docs/FLOW
 | [`governance/`](governance/README.md) | The tool-permission gate + secret redaction. |
 | [`approvals/`](approvals/README.md) | Human-in-the-loop pause/resume. |
 | [`budgets/`](budgets/README.md) | Cost ledger + budget circuit breaker. |
+| [`auth/`](auth/README.md) | Accounts, roles per company, and the access guard on every route. |
 
 **Results & learning**
 | Module | Role |
 | --- | --- |
-| [`evaluation/`](evaluation/README.md) | Objective build/test/lint verification. |
+| [`evaluation/`](evaluation/README.md) | Objective checks (project, acceptance, regression, visual) before work merges. |
 | [`performance/`](performance/README.md) | Performance records + computed reputation/specialization + skill growth. |
 | [`memory/`](memory/README.md) | Long-term per-employee memory: lessons written from evaluations, recalled into future runs. |
 
 **Platform**
 | Module | Role |
 | --- | --- |
-| [`observability/`](observability/README.md) | Read-side views + the `/ui` dashboard. |
+| [`console/`](console/README.md) | The console's API: dashboard, goal board, live activity, files, change requests, Ask Forge. |
+| [`observability/`](observability/README.md) | Serves the console and read-only run views. |
+| [`brands/`](brands/README.md) | The brand systems every UI follows. |
 | [`health/`](health/README.md) | Liveness/readiness. |
 
 The background orchestration that drives these lives in [`../workers/`](../workers/README.md).

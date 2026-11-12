@@ -1,23 +1,41 @@
-# `modules/performance/` — performance, reputation, specialization, skill growth
+# `modules/performance/` — measured capability: reputation, skills, specialisation
 
-Turns objective evaluation results into a persistent, measurable capability profile — and computes
-reputation/specialization on read (spec §13–§16). The other core differentiator vs Paperclip.
+Turns evaluation results into a profile of what each employee is actually good at. Raw measurements
+are stored; reputation and specialisation are computed when read, so the formulas can change without
+a migration.
 
-Key principle: **store raw measurements, never a precomputed rank.** Reputation is calculated, so the
-formula can change without a migration.
+## How it works
 
-| File | What it does | Significance |
-| --- | --- | --- |
-| `performance.schema.ts` | The `performance_records` table (quality/correctness/reliability/tests/security/eval scores, cost, duration, approval, retries). | The measurement history everything is computed from. |
-| `reputation-math.ts` | **Pure** `computeReputation(scores, decay)` (recency-weighted) + `mean`. | The formula, unit-tested; changeable without schema change. |
-| `skill-math.ts` | **Pure** `computeSkillDelta(level, score, complexity)` (non-uniform: trivial ≈0, hard high-quality >0, failures decrement, diminishing near 100) + `complexityOf(taskType, priority)`. | Makes skill growth meaningful, not an XP counter. |
-| `performance.service.ts` | Derives measurements from an evaluation + run and stores them; queries history. | The only writer of performance data. |
-| `reputation.service.ts` | Computed read-model: overall + per-task-type reputation. | What routing/UI read. |
-| `specialization.service.ts` | Infers specialties from history (task types with enough high-scoring samples). | Dynamic specialization, not manual labels. |
-| `skill-progression.service.ts` | Applies `computeSkillDelta` to the employee's skills after an evaluation. | Grows the capability model. |
-| `profile.controller.ts` | `GET /employees/:id/profile` — identity + skills + reputation + specialization + recent performance. | The capability view the UI shows. |
-| `performance.module.ts` | Wires + exports the services. | Imported by evaluation + routing. |
-| `performance-math.spec.ts` | Unit tests for reputation recency + non-uniform skill growth. | Locks the learning behavior. |
+- After each scored evaluation, a **performance record** stores the scores (overall, correctness,
+  tests, reliability…), cost, duration, retries and approvals for that step.
+- **Reputation** is a recency-weighted average of those scores, overall and per task type.
+- **Skills** move after each evaluation, non-uniformly: high-quality work on hard steps raises them
+  most, trivial work barely moves them, failures lower them, and growth slows near 100.
+- **Specialisation** is inferred from history: task types with enough high-scoring samples.
+- The profile endpoint combines identity, skills, reputation, specialisation and recent records.
 
-**Relationships:** written by `evaluation`; read by `routing/workforce` (reputation input) and the UI.
-Closes the learning loop.
+## HTTP API
+
+| Method | Path | Role | What it does |
+| --- | --- | --- | --- |
+| GET | `/employees/:id/profile` | viewer | The employee's capability profile. |
+
+## Files
+
+| File | Purpose |
+| --- | --- |
+| `performance.schema.ts` | The `performance_records` table. |
+| `performance.service.ts` | Derives and stores a record from an evaluation and its run. |
+| `reputation-math.ts` / `reputation.service.ts` | Recency-weighted reputation. |
+| `skill-math.ts` / `skill-progression.service.ts` | Non-uniform skill change. |
+| `specialization.service.ts` | Specialisation from history. |
+| `profile.controller.ts` | The endpoint above. |
+| `performance.module.ts` | Wiring; exports the services. |
+
+## Tests
+
+`performance-math.spec.ts`, `performance-math.edge.spec.ts` (unit); `test/performance.e2e-spec.ts`.
+
+## Related
+
+Written by `evaluation`; read by the console (Profile tab). Reputation is wired into `routing` with a weight of 0 for now, so it does not yet change who gets work.

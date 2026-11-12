@@ -1,15 +1,43 @@
-# `modules/budgets/` — cost tracking + budget circuit breaker
+# `modules/budgets/` — spending limits per employee
 
-Every run reports cost; each employee has a budget. Enforced, not just tracked (spec §21).
+Every run reports its cost, and each employee can have a budget. Limits are enforced by the platform,
+not left to the model.
 
-| File | What it does | Significance |
-| --- | --- | --- |
-| `budgets.schema.ts` | Tables `budgets` (per-employee soft/hard limits, period) and `cost_events` (the granular cost ledger). | The ledger is the **source of truth** for spend. |
-| `budget-evaluation.ts` | **Pure** `evaluateBudget(spend, soft, hard) → ok | soft_exceeded | hard_exceeded`. | The decision, unit-testable; hard beats soft. |
-| `budgets.service.ts` | `setBudget`, `recordCost` (append to ledger), `spend` (sum over the period), `check` (state vs limits). | What the worker consults before/ during a run. |
-| `budgets.controller.ts` | `PUT/GET /employees/:id/budget`. | Configure/read limits. |
-| `budgets.module.ts` | Wires + exports `BudgetsService`. | — |
-| `budget-evaluation.spec.ts` | Unit tests for block/kill thresholds. | Locks the enforcement rule. |
+## How it works
 
-**Relationships:** `workers/execution.worker.ts` calls `check()` before a run (**soft → block new**)
-and on each `usage` event (**hard → kill mid-run**), and appends `cost_events`.
+- A budget has a **soft** and a **hard** limit in USD, per day or for all time.
+- Over the soft limit, new runs for that employee wait. At the hard limit, a running run is stopped.
+  The hard limit wins when both apply.
+- Spend is the sum of the cost ledger over the period. Every usage report from a run appends to it.
+- No budget set means no limit.
+
+Runs on the Claude subscription report estimated cost; it is shown for comparison and drives limits
+the same way.
+
+## HTTP API
+
+| Method | Path | Role | What it does |
+| --- | --- | --- | --- |
+| GET | `/employees/:employeeId/budget` | viewer | Limits, period and current spend. |
+| PUT | `/employees/:employeeId/budget` | admin | `{ softLimitUsd?, hardLimitUsd?, period? }`. |
+
+## Files
+
+| File | Purpose |
+| --- | --- |
+| `budgets.schema.ts` | `budgets` (limits per employee) and `cost_events` (the ledger). |
+| `budget-evaluation.ts` | Pure decision: ok, soft exceeded or hard exceeded. |
+| `budgets.service.ts` | Set limits, record cost, sum spend, check. |
+| `budgets.controller.ts` | The endpoints above. |
+| `dto/set-budget.dto.ts` | Request validation. |
+| `budgets.module.ts` | Wiring; exports `BudgetsService`. |
+
+## Tests
+
+`budget-evaluation.spec.ts` (unit); `test/circuit-breakers.e2e-spec.ts` (block before a run, stop
+during one).
+
+## Related
+
+`workers` (checks before and during each run), `heartbeats` (checks the planner's budget), `console`
+(the Budget tab).

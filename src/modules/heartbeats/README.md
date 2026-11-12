@@ -1,15 +1,65 @@
-# `modules/heartbeats/` — waking the CEO + planning
+# `modules/heartbeats/` — turning a goal into a plan
 
-The autonomous entry point: starting a goal wakes the CEO, who breaks it into work and delegates
-(spec §11, §27 steps 4–6).
+When a goal starts, the executive who owns its domain wakes up and plans it: one project, a short list
+of steps with owners, dependencies and acceptance checks, and a brand for the UI. Forge then creates
+the work and routes every step to the best-fit employee.
 
-| File | What it does | Significance |
+## How it works
+
+1. **Who plans:** the executive heading the department that owns the goal's domain (a finance model
+   goes to the CFO, a security review to the CISO), else the CEO. Only executives plan.
+2. **The planning run** happens in its own workspace, with the executive's brief and the planning
+   rules. It writes `PLAN.json`. If Claude is at its usage limit, planning uses the fallback endpoint.
+3. **Planning rules** (in the prompt): usefulness first (a real user's job, end to end); one small
+   contract step first (at most 15 minutes: skeleton, shared types, schema, API contract), then
+   features in parallel; no dependency chain longer than 3 before the final review; each step says
+   which folders it owns so parallel steps don't overlap; at most `FORGE_MAX_PLAN_ITEMS` steps.
+4. **Shaping** (`plan-shaping.ts`): the model's output is sanitised (titles, task types, checks),
+   capped, and its dependencies resolved to earlier steps only. The goal's own acceptance checks are
+   attached to the last step.
+5. **Hiring:** the plan may ask for specialists the company lacks (up to `FORGE_MAX_HIRES_PER_GOAL`);
+   they are created reporting to the planner.
+6. **Brand:** applied to the goal and committed to the project as `BRAND.md` (see `brands`).
+7. **Production review:** unless the plan already ends with a review, a final independent review step
+   is added. The reviewer is never the builder.
+8. If the plan cannot be read, Forge still creates one "Deliver" step, so a goal never stalls.
+
+## HTTP API
+
+| Method | Path | Role | What it does |
+| --- | --- | --- | --- |
+| POST | `/goals/:id/plan` | member | Plans a goal now (also happens automatically on start). |
+
+## Settings
+
+| Variable | Default | Effect |
 | --- | --- | --- |
-| `heartbeats.schema.ts` | The `heartbeats` table (a scheduled/fired wake-up for an employee, tied to a goal). | Records the trigger; foundation for richer scheduling later. |
-| `ceo-planner.service.ts` | Finds the CEO, runs it via its runtime as a **goal-level run** (writes `PLAN.json`), parses the plan, creates a project + work items, and **routes each via the Workforce Router**. Resilient: falls back to one default item if no plan. | Turns a human goal into assigned, routable work — the heart of autonomy. |
-| `heartbeat.worker.ts` | `onGoalStarted()` — records a fired heartbeat and invokes the planner. Prod-subscribes to `goal.started`. | The trigger glue. |
-| `heartbeats.controller.ts` | `POST /goals/:id/plan` — explicit trigger (also fired automatically). | Lets the UI/tools kick off planning. |
-| `heartbeats.module.ts` | Wires everything; imports goals/employees/projects/work/runtimes/workspaces/routing. | — |
+| `FORGE_MAX_PLAN_ITEMS` | `12` | Most steps a plan may have. |
+| `FORGE_MAX_HIRES_PER_GOAL` | `2` | Specialists a planner may hire per goal (`0` disables hiring). |
+| `FORGE_PRODUCTION_REVIEW` | on | `0` skips the final independent review step. |
+| `FORGE_MANUAL_DRIVE` | unset | Set to stop planning automatically on `goal.started`. |
 
-**Relationships:** the most "central" orchestrator besides the execution worker — it touches goals,
-runtimes, workspaces, work, and routing to go from *goal started* to *work assigned*.
+## Events
+
+Subscribes to `goal.started`.
+
+## Files
+
+| File | Purpose |
+| --- | --- |
+| `ceo-planner.service.ts` | Choosing the planner, the planning run and prompt, creating work, hiring, brand, review step. |
+| `plan-shaping.ts` | Pure sanitising, capping and dependency resolution of a plan. |
+| `heartbeat.worker.ts` | Records the wake-up and runs the planner on `goal.started`; recovers crashed planning. |
+| `heartbeats.schema.ts` | The `heartbeats` table. |
+| `heartbeats.controller.ts` | The endpoint above. |
+| `heartbeats.module.ts` | Wiring. |
+
+## Tests
+
+`plan-shaping.spec.ts` (unit); `test/planner.e2e-spec.ts`, `test/heartbeat.e2e-spec.ts`,
+`test/brands.e2e-spec.ts`.
+
+## Related
+
+`goals`, `projects`, `work`, `routing` (assigns each step), `runtimes` and `workspaces` (the planning
+run), `employees` (briefs, hiring), `brands`.
