@@ -12,6 +12,7 @@ import {
 } from './employees.schema';
 import { CreateEmployeeDto, EmployeeSkillDto, UpdateEmployeeDto } from './dto/create-employee.dto';
 import { workItems } from '../work/work.schema';
+import { BriefContent, EmployeeBrief, briefForEmployee, defaultBriefFor } from './employee-briefs';
 
 @Injectable()
 export class EmployeesService {
@@ -206,6 +207,36 @@ export class EmployeesService {
       .select()
       .from(employees)
       .where(and(eq(employees.companyId, companyId), isNull(employees.deletedAt)));
+  }
+
+  /** The brief this employee works under, whether it was edited, and the built-in one to compare or reset to. */
+  async getBrief(id: string): Promise<{ brief: EmployeeBrief | null; custom: boolean; builtIn: EmployeeBrief | null }> {
+    const employee = await this.findOne(id);
+    return { brief: briefForEmployee(employee), custom: Boolean(employee.brief), builtIn: defaultBriefFor(employee) };
+  }
+
+  /** Saves an edited brief; it is used from the employee's next task on. */
+  async setBrief(id: string, brief: BriefContent): Promise<{ brief: EmployeeBrief | null; custom: boolean; builtIn: EmployeeBrief | null }> {
+    await this.findOne(id);
+    const clean = (lines: string[]) => lines.map((l) => l.trim()).filter(Boolean);
+    const content: BriefContent = {
+      mission: brief.mission.trim(),
+      standards: clean(brief.standards),
+      workflow: clean(brief.workflow),
+      definitionOfDone: clean(brief.definitionOfDone),
+      never: clean(brief.never),
+      escalateWhen: clean(brief.escalateWhen),
+      deliverable: brief.deliverable.trim(),
+    };
+    await this.db.update(employees).set({ brief: content }).where(eq(employees.id, id));
+    return this.getBrief(id);
+  }
+
+  /** Drops the edited brief, so the built-in one applies again. */
+  async resetBrief(id: string): Promise<{ brief: EmployeeBrief | null; custom: boolean; builtIn: EmployeeBrief | null }> {
+    await this.findOne(id);
+    await this.db.update(employees).set({ brief: null }).where(eq(employees.id, id));
+    return this.getBrief(id);
   }
 
   async findOne(id: string): Promise<EmployeeWithRelations> {

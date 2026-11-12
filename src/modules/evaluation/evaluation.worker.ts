@@ -203,7 +203,8 @@ export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
             .where(eq(workItems.id, item.id));
           this.logger.warn(`Work item ${item.id} passed but could not be merged: ${merged.conflict}`);
         } else if ((item.artifacts as { conflict?: string } | null)?.conflict) {
-          const { conflict: _resolved, ...rest } = item.artifacts as Record<string, unknown>;
+          const rest = { ...(item.artifacts as Record<string, unknown>) };
+          delete rest.conflict; // resolved by this merge
           await this.db.update(workItems).set({ artifacts: rest }).where(eq(workItems.id, item.id));
         }
       }

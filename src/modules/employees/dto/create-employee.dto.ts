@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsIn,
   IsInt,
@@ -11,6 +12,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -147,4 +149,49 @@ export class SetSkillsDto {
   @ValidateNested({ each: true })
   @Type(() => EmployeeSkillDto)
   skills!: EmployeeSkillDto[];
+}
+
+/** One edited brief. Every list holds short lines; empty lists are allowed except standards and workflow. */
+export class EmployeeBriefDto {
+  @IsString()
+  @MinLength(10)
+  @MaxLength(600)
+  mission!: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(25)
+  @IsString({ each: true })
+  @MaxLength(400, { each: true })
+  standards!: string[];
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(25)
+  @IsString({ each: true })
+  @MaxLength(400, { each: true })
+  workflow!: string[];
+
+  @IsArray()
+  @ArrayMaxSize(25)
+  @IsString({ each: true })
+  @MaxLength(400, { each: true })
+  definitionOfDone!: string[];
+
+  @IsArray()
+  @ArrayMaxSize(25)
+  @IsString({ each: true })
+  @MaxLength(400, { each: true })
+  never!: string[];
+
+  @IsArray()
+  @ArrayMaxSize(25)
+  @IsString({ each: true })
+  @MaxLength(400, { each: true })
+  escalateWhen!: string[];
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(600)
+  deliverable!: string;
 }

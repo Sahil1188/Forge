@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put } from '@nestjs/common';
 import { EmployeesService } from './employees.service';
-import { CreateEmployeeDto, SetSkillsDto, UpdateEmployeeDto } from './dto/create-employee.dto';
+import { CreateEmployeeDto, EmployeeBriefDto, SetSkillsDto, UpdateEmployeeDto } from './dto/create-employee.dto';
 
 @Controller()
 export class EmployeesController {
@@ -32,6 +32,21 @@ export class EmployeesController {
   @Put('employees/:id/skills')
   setSkills(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SetSkillsDto) {
     return this.employees.setSkills(id, dto.skills);
+  }
+
+  @Get('employees/:id/brief')
+  getBrief(@Param('id', ParseUUIDPipe) id: string) {
+    return this.employees.getBrief(id);
+  }
+
+  @Put('employees/:id/brief')
+  setBrief(@Param('id', ParseUUIDPipe) id: string, @Body() dto: EmployeeBriefDto) {
+    return this.employees.setBrief(id, dto);
+  }
+
+  @Delete('employees/:id/brief')
+  resetBrief(@Param('id', ParseUUIDPipe) id: string) {
+    return this.employees.resetBrief(id);
   }
 
   @Delete('employees/:id')

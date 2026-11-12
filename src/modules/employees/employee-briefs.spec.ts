@@ -39,4 +39,22 @@ describe('employee briefs', () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(() => systemPromptFor('nobody')).toThrow('Unknown employee');
   });
+
+  it('an edited brief replaces the built-in text but keeps the model tier and the person', () => {
+    const edited = {
+      mission: 'Ship the billing service.',
+      standards: ['Money is integer pence.'],
+      workflow: ['Read the ledger code first.'],
+      definitionOfDone: [],
+      never: [],
+      escalateWhen: [],
+      deliverable: 'A merged change.',
+    };
+    const b = briefForEmployee({ name: 'Grace', role: 'Senior Backend Engineer', brief: edited })!;
+    expect(b.mission).toBe('Ship the billing service.');
+    expect(b.model).toEqual(BRIEFS.find((x) => x.id === 'grace')!.model);
+    expect(renderBrief(b)).toContain('# You are Grace, Senior Backend Engineer');
+    // A person with no built-in brief can still be given one.
+    expect(briefForEmployee({ name: 'Zed', role: 'Astronaut', brief: edited })?.mission).toBe('Ship the billing service.');
+  });
 });

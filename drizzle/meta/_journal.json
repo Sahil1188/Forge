@@ -99,6 +99,13 @@
       "when": 1793267330852,
       "tag": "0013_brainy_enchantress",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794463989401,
+      "tag": "0014_daily_bruce_banner",
+      "breakpoints": true
     }
   ]
 }

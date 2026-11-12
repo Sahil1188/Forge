@@ -755,6 +755,28 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       await cancel(w.workItemId);
     });
 
+    it('a brief edited in the console is what the employee works under on their next task', async () => {
+      const w = await world(() => events(completes()));
+      await request(app.getHttpServer())
+        .put(`/employees/${w.employeeId}/brief`)
+        .send({
+          mission: 'Reconcile bank payments to invoices, to the penny.',
+          standards: ['Money is integer pence, never floats.'],
+          workflow: ['Read the matching engine first.'],
+          definitionOfDone: ['Every amount reconciles.'],
+          never: ['Never round money.'],
+          escalateWhen: ['The ledger does not balance.'],
+          deliverable: 'A tested change.',
+        })
+        .expect(200);
+      await worker().runOnce();
+      const prompt = w.runtime.contexts[0].systemPromptAppend ?? '';
+      expect(prompt).toContain('# You are Worker, Engineer');
+      expect(prompt).toContain('Reconcile bank payments to invoices, to the penny.');
+      expect(prompt).toContain('Never round money.');
+      await cancel(w.workItemId);
+    });
+
     it('an employee with a written brief works under it, in cache order, with no skill numbers', async () => {
       const key = `brief-${randomUUID().slice(0, 6)}`;
       const runtime = new ScriptedRuntime(key, () => events(completes()));

@@ -36,6 +36,11 @@ export interface EmployeeBrief {
   deliverable: string;
 }
 
+/** The parts of a brief a person can edit in the console (name, role and model live on the employee). */
+export type BriefContent = Pick<EmployeeBrief, 'mission' | 'standards' | 'workflow' | 'definitionOfDone' | 'never' | 'escalateWhen' | 'deliverable'>;
+
+export const BRIEF_FIELDS = ['mission', 'standards', 'workflow', 'definitionOfDone', 'never', 'escalateWhen', 'deliverable'] as const;
+
 /* ------------------------------------------------------------------ */
 /* Shared rules — every employee, every task                           */
 /* ------------------------------------------------------------------ */
@@ -908,13 +913,30 @@ export function systemPromptFor(
 }
 
 /**
- * The brief for an employee record: matched by name first (the default organisation), then by an
- * exact role (a renamed or hired person in a known role). Null for roles with no brief yet.
+ * The built-in brief for an employee record: matched by name first (the default organisation), then
+ * by an exact role (a renamed or hired person in a known role). Null for roles with no brief yet.
  */
-export function briefForEmployee(employee: { name: string; role: string }): EmployeeBrief | null {
+export function defaultBriefFor(employee: { name: string; role: string }): EmployeeBrief | null {
   const name = employee.name.trim().toLowerCase();
   const role = employee.role.trim().toLowerCase();
   return (
     BRIEFS.find((b) => b.id === name) ?? BRIEFS.find((b) => b.role.toLowerCase() === role) ?? null
   );
+}
+
+/**
+ * The brief an employee works under: the one edited in the console when there is one, otherwise the
+ * built-in brief. An edited brief keeps the built-in model tier; a person with no built-in brief gets
+ * one built from their own record.
+ */
+export function briefForEmployee(employee: { name: string; role: string; brief?: BriefContent | null }): EmployeeBrief | null {
+  const builtIn = defaultBriefFor(employee);
+  if (!employee.brief) return builtIn;
+  return {
+    id: builtIn?.id ?? employee.name.trim().toLowerCase(),
+    model: builtIn?.model ?? { default: 'sonnet' },
+    ...employee.brief,
+    name: employee.name,
+    role: employee.role,
+  };
 }

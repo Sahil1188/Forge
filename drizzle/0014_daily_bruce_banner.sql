@@ -1,0 +1,1 @@
+ALTER TABLE "employees" ADD COLUMN "brief_json" jsonb;

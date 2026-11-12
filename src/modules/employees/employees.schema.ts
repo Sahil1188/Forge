@@ -8,6 +8,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { companies } from '../companies/companies.schema';
+import type { BriefContent } from './employee-briefs';
 
 /** Model routing policy stored per runtime config (consumed by the Omni Router). */
 export interface ModelPolicy {
@@ -45,6 +46,8 @@ export const employees = pgTable('employees', {
   status: text('status').$type<EmployeeStatus>().notNull().default('idle'),
   autonomy: jsonb('autonomy_json').$type<Record<string, unknown>>().notNull().default({}),
   governance: jsonb('governance_json').$type<Record<string, unknown>>().notNull().default({}),
+  /** A brief edited in the console; null means the built-in brief for the name or role applies. */
+  brief: jsonb('brief_json').$type<BriefContent | null>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
