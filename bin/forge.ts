@@ -51,31 +51,45 @@ async function bootContext() {
   });
 }
 
+/** Where Forge itself is installed (this repository, or node_modules/forge). */
+const PKG_ROOT = require('node:path').resolve(__dirname, '..');
+const dist = (...parts: string[]) => require('node:path').join(PKG_ROOT, 'dist', ...parts);
+
+/** Runs a compiled Forge script with this Node, in the user's folder (where .env and workspaces live). */
+function node(script: string): number {
+  return spawnSync(process.execPath, [script], { stdio: 'inherit' }).status ?? 1;
+}
+
+function needsBuild(): boolean {
+  if (require('node:fs').existsSync(dist('main.js'))) return false;
+  console.error('Forge is not built. In a clone, run `npm run build` first.');
+  return true;
+}
+
 const commands: Record<string, Cmd> = {
   up() {
-    console.log('▶ forge up — building, bringing up Postgres, migrations, and seed data\n');
-    let code = sh('npm', ['run', 'build']);
+    console.log('▶ forge up — PostgreSQL, migrations and demo data\n');
+    if (needsBuild()) return 1;
+    const compose = require('node:path').join(PKG_ROOT, 'docker-compose.yml');
+    let code = sh('docker', ['compose', '-f', `"${compose}"`, 'up', '-d', '--wait']);
     if (code !== 0) return code;
-    code = sh('docker', ['compose', 'up', '-d']);
+    code = node(dist('infrastructure', 'database', 'migrate.js'));
     if (code !== 0) return code;
-    console.log('\n⏳ waiting for Postgres to accept connections…');
-    // Give the container a moment; migrate retries via its own connection.
-    code = sh('npm', ['run', 'db:generate']);
-    if (code !== 0) return code;
-    code = sh('npm', ['run', 'db:migrate']);
-    if (code !== 0) return code;
-    code = sh('npm', ['run', 'db:seed']);
-    if (code === 0) console.log('\n✅ Forge is up. Try:  forge goal "Build a Node/Express hello API with a test"');
+    code = node(dist('infrastructure', 'database', 'seed.js'));
+    if (code === 0)
+      console.log('\n✅ Forge is up. Run `forge serve` and open http://127.0.0.1:3000');
     return code;
   },
 
   seed() {
-    return sh('npm', ['run', 'db:seed']);
+    if (needsBuild()) return 1;
+    return node(dist('infrastructure', 'database', 'seed.js'));
   },
 
   serve() {
-    console.log('▶ forge serve — starting the HTTP server + /ui dashboard');
-    return sh('npm', ['run', 'start:dev']);
+    if (needsBuild()) return 1;
+    console.log('▶ forge serve — http://127.0.0.1:' + (process.env.PORT ?? '3000'));
+    return node(dist('main.js'));
   },
 
   async status() {
@@ -85,7 +99,9 @@ const commands: Record<string, Cmd> = {
       const { EmployeesService } = await import('../dist/modules/employees/employees.service.js');
       const companies = await app.get(CompaniesService).findAll();
       if (companies.length === 0) {
-        console.log('No companies yet. Run `forge up` (or `forge seed`) to create the demo company.');
+        console.log(
+          'No companies yet. Run `forge up` (or `forge seed`) to create the demo company.',
+        );
         return 0;
       }
       const employeesSvc = app.get(EmployeesService);
@@ -125,9 +141,7 @@ const commands: Record<string, Cmd> = {
       const { EvaluationWorker } = await import('../dist/modules/evaluation/evaluation.worker.js');
 
       const companies = await app.get(CompaniesService).findAll();
-      const company = companyFlag
-        ? companies.find((c) => c.id === companyFlag)
-        : companies[0];
+      const company = companyFlag ? companies.find((c) => c.id === companyFlag) : companies[0];
       if (!company) {
         console.error('No company found. Run `forge up` (or `forge seed`) first.');
         return 1;
@@ -150,21 +164,29 @@ const commands: Record<string, Cmd> = {
       const plan = await app.get(CeoPlanner).plan(goal.id);
       console.log(`   → project ${plan.projectId} with ${plan.workItems.length} work item(s):`);
       for (const wi of plan.workItems) {
-        console.log(`     - ${wi.title}  →  ${wi.assignedTo ? `assigned ${wi.assignedTo}` : 'UNASSIGNED (nobody can run it)'}  [${wi.workItemId}]`);
+        console.log(
+          `     - ${wi.title}  →  ${wi.assignedTo ? `assigned ${wi.assignedTo}` : 'UNASSIGNED (nobody can run it)'}  [${wi.workItemId}]`,
+        );
       }
 
       const exec = app.get(ExecutionWorker);
       const evaluate = app.get(EvaluationWorker);
 
       const outcomes = new Map<string, GoalItemOutcome>(
-        plan.workItems.map((w) => [w.workItemId, { workItemId: w.workItemId, finalStatus: 'created' }]),
+        plan.workItems.map((w) => [
+          w.workItemId,
+          { workItemId: w.workItemId, finalStatus: 'created' },
+        ]),
       );
 
       console.log('\n⚙️  Executing work items…');
       for (let i = 0; i < 50; i += 1) {
         const summary = await exec.runOnce();
         if (!summary) break;
-        const outcome = outcomes.get(summary.workItemId) ?? { workItemId: summary.workItemId, finalStatus: 'created' };
+        const outcome = outcomes.get(summary.workItemId) ?? {
+          workItemId: summary.workItemId,
+          finalStatus: 'created',
+        };
         outcomes.set(summary.workItemId, outcome);
         outcome.execution = summary.status;
         console.log(
@@ -172,17 +194,23 @@ const commands: Record<string, Cmd> = {
             `(${summary.runtimeKey}/${summary.model}, ${summary.filesChanged.length} files, $${summary.estimatedCostUsd.toFixed(4)})`,
         );
         if (summary.status === 'paused') {
-          console.log(`     ⏸  needs approval ${summary.approvalId}. Approve via /ui or the API, then re-run.`);
+          console.log(
+            `     ⏸  needs approval ${summary.approvalId}. Approve via /ui or the API, then re-run.`,
+          );
           continue; // other independent items can still run
         }
         if (summary.status === 'completed') {
           const ev = await evaluate.evaluate(summary.workItemId);
           outcome.evaluation = ev.status;
-          console.log(`     ✓ evaluated: ${ev.status} (score ${ev.overallScore ?? 'n/a'}) → ${ev.routedTo}`);
+          console.log(
+            `     ✓ evaluated: ${ev.status} (score ${ev.overallScore ?? 'n/a'}) → ${ev.routedTo}`,
+          );
           if (ev.routedTo === 'rework') {
             // Same as the server's auto-chain: retry with the lesson learned, up to the limit.
             const next = await evaluate.retryOrFail(summary.workItemId);
-            console.log(`     ↻ ${next === 'retried' ? 'retrying with the failure in memory' : 'giving up after max attempts'}`);
+            console.log(
+              `     ↻ ${next === 'retried' ? 'retrying with the failure in memory' : 'giving up after max attempts'}`,
+            );
           }
         }
       }
@@ -193,13 +221,18 @@ const commands: Record<string, Cmd> = {
       }
       const result = summarizeGoal([...outcomes.values()]);
       console.log(`\n${result.ok ? '✅' : '⚠️ '} ${result.lines.join('\n')}`);
-      const { LocalWorktreeWorkspace } = await import('../dist/modules/workspaces/local-worktree.workspace.js');
-      console.log(`   Deliverable (project main): ${app.get(LocalWorktreeWorkspace).projectPath(plan.projectId)}`);
+      const { LocalWorktreeWorkspace } =
+        await import('../dist/modules/workspaces/local-worktree.workspace.js');
+      console.log(
+        `   Deliverable (project main): ${app.get(LocalWorktreeWorkspace).projectPath(plan.projectId)}`,
+      );
       return result.exitCode;
     } catch (err) {
       console.error(`\n✗ ${(err as Error).message}`);
       if (/oauth|auth|credential|401|forbidden/i.test((err as Error).message)) {
-        console.error('   This looks like an auth issue. Run `claude setup-token` and export CLAUDE_CODE_OAUTH_TOKEN.');
+        console.error(
+          '   This looks like an auth issue. Run `claude setup-token` and export CLAUDE_CODE_OAUTH_TOKEN.',
+        );
       }
       return 1;
     } finally {

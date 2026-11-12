@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import * as path from 'node:path';
 import { existsSync } from 'node:fs';
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
@@ -14,7 +15,9 @@ async function main(): Promise<void> {
     throw new Error('DATABASE_URL is not set');
   }
 
-  if (!existsSync('./drizzle/meta/_journal.json')) {
+  // Next to the code, not the working directory: works from a clone and from an installed package.
+  const migrationsFolder = path.resolve(__dirname, '..', '..', '..', 'drizzle');
+  if (!existsSync(path.join(migrationsFolder, 'meta', '_journal.json'))) {
     console.log(
       '[migrate] no migrations to apply yet (run `npm run db:generate` after adding tables)',
     );
@@ -26,7 +29,7 @@ async function main(): Promise<void> {
   const client = postgres(url, { max: 1, onnotice: () => {} });
   try {
     const db = drizzle(client);
-    await migrate(db, { migrationsFolder: './drizzle' });
+    await migrate(db, { migrationsFolder });
     console.log('[migrate] migrations applied');
   } finally {
     await client.end();

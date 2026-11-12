@@ -12,14 +12,18 @@
     "forge": "bin/forge.cjs"
   },
   "files": [
+    "dist",
     "src",
     "public",
     "bin",
+    "brands",
     "drizzle",
     "docker-compose.yml",
     "drizzle.config.ts",
     "tsconfig.json",
-    ".env.example"
+    ".env.example",
+    "LICENSE",
+    "README.md"
   ],
   "scripts": {
     "build": "nest build",
@@ -38,7 +42,8 @@
     "db:down": "docker compose down",
     "start:prod": "node dist/main.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\""
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.220",

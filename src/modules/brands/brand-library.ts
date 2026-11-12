@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises';
 import * as path from 'node:path';
 
@@ -22,7 +23,11 @@ export interface Brand extends BrandSummary {
 const SLUG = /^[a-z0-9][a-z0-9-]{1,48}$/;
 
 export function brandsDir(env: NodeJS.ProcessEnv = process.env): string {
-  return env.FORGE_BRANDS_DIR?.trim() || path.join(process.cwd(), 'brands');
+  const configured = env.FORGE_BRANDS_DIR?.trim();
+  if (configured) return configured;
+  // A brands/ folder where Forge is run wins; otherwise the brands shipped with Forge.
+  const local = path.join(process.cwd(), 'brands');
+  return existsSync(local) ? local : path.resolve(__dirname, '..', '..', '..', 'brands');
 }
 
 /** Reads the descriptive fields out of a brand file (tolerant: missing fields are empty). */
