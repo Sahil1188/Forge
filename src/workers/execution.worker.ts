@@ -16,13 +16,21 @@ import { EventTypes } from '../infrastructure/events/event-types';
 import { RuntimeRegistry } from '../modules/runtimes/runtime-registry';
 import { AgentRunsService } from '../modules/runtimes/agent-runs.service';
 import { AgentRun } from '../modules/runtimes/agent-runs.schema';
-import { WORKSPACE_PORT, WorkspacePort, WorkspaceHandle } from '../modules/workspaces/workspace.port';
+import {
+  WORKSPACE_PORT,
+  WorkspacePort,
+  WorkspaceHandle,
+} from '../modules/workspaces/workspace.port';
 import { workspaces } from '../modules/workspaces/workspaces.schema';
 import { EmployeesService } from '../modules/employees/employees.service';
 import { EmployeeWithRelations } from '../modules/employees/employees.schema';
 import { WorkService } from '../modules/work/work.service';
 import { workItems, WorkItem } from '../modules/work/work.schema';
-import { PermissionCallback, RuntimeEvent, RuntimeRunContext } from '../modules/runtimes/runtime.port';
+import {
+  PermissionCallback,
+  RuntimeEvent,
+  RuntimeRunContext,
+} from '../modules/runtimes/runtime.port';
 import { GovernanceService } from '../modules/governance/governance.service';
 import { findPathViolation } from '../modules/governance/path-confinement';
 import { ApprovalsService } from '../modules/approvals/approvals.service';
@@ -30,7 +38,11 @@ import { BudgetsService } from '../modules/budgets/budgets.service';
 import { redactSecrets } from '../modules/governance/redaction';
 import { OMNI_ROUTER, OmniRouterPort } from '../modules/routing/omni/omni-router.port';
 import { MemoryService } from '../modules/memory/memory.service';
-import { UsageLimits, fallbackSelection, looksLikeUsageLimit } from '../modules/runtimes/usage-limits';
+import {
+  UsageLimits,
+  fallbackSelection,
+  looksLikeUsageLimit,
+} from '../modules/runtimes/usage-limits';
 import { stopProcessesIn } from './process-cleanup';
 import { evaluations } from '../modules/evaluation/evaluation.schema';
 import { agentRuns } from '../modules/runtimes/agent-runs.schema';
@@ -121,7 +133,8 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
   onModuleInit(): void {
     // Cancelling a work item stops its running agent at once (always on, also under tests/CLI).
     this.bus.subscribe(EventTypes.WorkStatusChanged, (event) => {
-      if ((event.payload as { to?: string }).to === 'cancelled') this.aborts.get(event.aggregateId)?.abort();
+      if ((event.payload as { to?: string }).to === 'cancelled')
+        this.aborts.get(event.aggregateId)?.abort();
     });
     // Tests drive runOnce() directly; the CLI drives it in-process too. Skip prod
     // auto-triggers under the runner or when manual drive is requested.
@@ -160,7 +173,9 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
   onApplicationBootstrap(): void {
     if (process.env.VITEST || process.env.FORGE_MANUAL_DRIVE) return;
     void this.recoverInterrupted()
-      .catch((err) => this.logger.error(`Recovering interrupted runs failed: ${(err as Error).message}`))
+      .catch((err) =>
+        this.logger.error(`Recovering interrupted runs failed: ${(err as Error).message}`),
+      )
       .finally(() => this.kick());
   }
 
@@ -170,7 +185,10 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
    * the queue so the next attempt continues from that work.
    */
   async recoverInterrupted(): Promise<number> {
-    const orphans = await this.db.select().from(agentRuns).where(and(eq(agentRuns.status, 'running'), isNotNull(agentRuns.workItemId)));
+    const orphans = await this.db
+      .select()
+      .from(agentRuns)
+      .where(and(eq(agentRuns.status, 'running'), isNotNull(agentRuns.workItemId)));
     for (const run of orphans) {
       try {
         let artifacts: Record<string, unknown> | undefined;
@@ -178,12 +196,25 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
           const handle = await this.loadWorkspace(run.workspaceId);
           await stopProcessesIn(handle.rootPath);
           const collected = await this.workspace.collect(handle);
-          artifacts = { branch: collected.branch, filesChanged: collected.filesChanged, agentRunId: run.id };
+          artifacts = {
+            branch: collected.branch,
+            filesChanged: collected.filesChanged,
+            agentRunId: run.id,
+          };
         }
-        await this.agentRuns.finish(run.id, { status: 'rate_limited', error: 'Interrupted: Forge stopped while this run was working; continuing from its saved work' });
-        if (artifacts) await this.db.update(workItems).set({ artifacts }).where(eq(workItems.id, run.workItemId!));
+        await this.agentRuns.finish(run.id, {
+          status: 'rate_limited',
+          error:
+            'Interrupted: Forge stopped while this run was working; continuing from its saved work',
+        });
+        if (artifacts)
+          await this.db
+            .update(workItems)
+            .set({ artifacts })
+            .where(eq(workItems.id, run.workItemId!));
         const item = await this.getWorkItem(run.workItemId!);
-        if (item.status === 'in_progress') await this.work.changeStatus(item.id, { status: 'assigned' });
+        if (item.status === 'in_progress')
+          await this.work.changeStatus(item.id, { status: 'assigned' });
         this.logger.log(`Recovered interrupted run ${run.id}; work item ${item.id} requeued`);
       } catch (err) {
         this.logger.warn(`Could not recover run ${run.id}: ${(err as Error).message}`);
@@ -197,7 +228,9 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
   }
 
   private kick(): void {
-    void this.drain().catch((err) => this.logger.error(`Auto-run failed: ${(err as Error).message}`));
+    void this.drain().catch((err) =>
+      this.logger.error(`Auto-run failed: ${(err as Error).message}`),
+    );
   }
 
   private wakeTimer?: NodeJS.Timeout;
@@ -246,13 +279,18 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
   private async drainLoop(): Promise<ExecutionSummary[]> {
     const summaries: ExecutionSummary[] = [];
     const skipped = new Set<string>();
-    const concurrency = Math.max(1, Number(process.env.FORGE_CONCURRENCY ?? DEFAULT_CONCURRENCY) || 1);
+    const concurrency = Math.max(
+      1,
+      Number(process.env.FORGE_CONCURRENCY ?? DEFAULT_CONCURRENCY) || 1,
+    );
     const running = new Map<string, Promise<{ id: string; summary: ExecutionSummary | null }>>();
     const busyEmployees = new Map<string, string>(); // workItemId -> employeeId
     do {
       this.drainAgain = false;
       // Spread one person's queued, independent steps across same-role teammates before starting.
-      await this.spreadQueued().catch((err) => this.logger.warn(`Spreading queued work failed: ${(err as Error).message}`));
+      await this.spreadQueued().catch((err) =>
+        this.logger.warn(`Spreading queued work failed: ${(err as Error).message}`),
+      );
       for (;;) {
         while (running.size < concurrency) {
           const taken = new Set([...skipped, ...running.keys()]);
@@ -265,7 +303,9 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
             item.id,
             this.startRun(item)
               .catch((err) => {
-                this.logger.error(`Run for work item ${item.id} crashed: ${(err as Error).message}`);
+                this.logger.error(
+                  `Run for work item ${item.id} crashed: ${(err as Error).message}`,
+                );
                 return null;
               })
               .then((summary) => ({ id: item.id, summary })),
@@ -329,7 +369,9 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
    */
   pauseIntake(paused: boolean): void {
     this.intakePaused = paused;
-    this.logger.log(paused ? 'Intake paused: finishing current work, starting nothing new' : 'Intake resumed');
+    this.logger.log(
+      paused ? 'Intake paused: finishing current work, starting nothing new' : 'Intake resumed',
+    );
     if (!paused) this.kick();
   }
 
@@ -354,8 +396,12 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
    * FORGE_MAX_PER_ROLE people per role, so independent work runs side by side instead of queueing.
    * Executives are never cloned; FORGE_AUTOSTAFF=0 turns this off.
    */
-  private async staffUp(skip: ReadonlySet<string>, busyEmployees: string[]): Promise<WorkItem | undefined> {
-    if (process.env.FORGE_AUTOSTAFF === '0' || busyEmployees.length === 0 || this.intakePaused) return undefined;
+  private async staffUp(
+    skip: ReadonlySet<string>,
+    busyEmployees: string[],
+  ): Promise<WorkItem | undefined> {
+    if (process.env.FORGE_AUTOSTAFF === '0' || busyEmployees.length === 0 || this.intakePaused)
+      return undefined;
     const blockedByDependency = sql`exists (
       select 1 from work_dependencies d
       join work_items dep on dep.id = d.depends_on_work_item_id
@@ -374,18 +420,29 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       )
       .orderBy(desc(workItems.priority), asc(workItems.createdAt))
       .limit(5);
-    const maxPerRole = Math.max(1, Number(process.env.FORGE_MAX_PER_ROLE ?? DEFAULT_MAX_PER_ROLE) || 1);
+    const maxPerRole = Math.max(
+      1,
+      Number(process.env.FORGE_MAX_PER_ROLE ?? DEFAULT_MAX_PER_ROLE) || 1,
+    );
     for (const item of waiting) {
       const owner = await this.employees.findOne(item.assignedEmployeeId!);
       if (isExecutiveRole(owner.role)) continue;
       const sameRole = (await this.employees.findByCompany(owner.companyId)).filter(
         (e) => e.role.toLowerCase() === owner.role.toLowerCase(),
       );
-      let helper: { id: string; name: string } | undefined = sameRole.find((e) => e.id !== owner.id && !busyEmployees.includes(e.id));
-      if (!helper && sameRole.length < maxPerRole) helper = await this.addTeammate(owner, sameRole.map((e) => e.name));
+      let helper: { id: string; name: string } | undefined = sameRole.find(
+        (e) => e.id !== owner.id && !busyEmployees.includes(e.id),
+      );
+      if (!helper && sameRole.length < maxPerRole)
+        helper = await this.addTeammate(
+          owner,
+          sameRole.map((e) => e.name),
+        );
       if (!helper) continue;
       const reassigned = await this.work.reassign(item.id, helper.id, `auto_staff:${owner.name}`);
-      this.logger.log(`Parallel staffing: "${item.title}" goes to ${helper.name} (${owner.role}) while ${owner.name} is busy`);
+      this.logger.log(
+        `Parallel staffing: "${item.title}" goes to ${helper.name} (${owner.role}) while ${owner.name} is busy`,
+      );
       return reassigned;
     }
     return undefined;
@@ -405,8 +462,15 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       .where(and(eq(workItems.status, 'assigned'), isNotNull(workItems.assignedEmployeeId)))
       .orderBy(asc(workItems.createdAt));
     const byOwner = new Map<string, WorkItem[]>();
-    for (const item of queued) byOwner.set(item.assignedEmployeeId!, [...(byOwner.get(item.assignedEmployeeId!) ?? []), item]);
-    const maxPerRole = Math.max(1, Number(process.env.FORGE_MAX_PER_ROLE ?? DEFAULT_MAX_PER_ROLE) || 1);
+    for (const item of queued)
+      byOwner.set(item.assignedEmployeeId!, [
+        ...(byOwner.get(item.assignedEmployeeId!) ?? []),
+        item,
+      ]);
+    const maxPerRole = Math.max(
+      1,
+      Number(process.env.FORGE_MAX_PER_ROLE ?? DEFAULT_MAX_PER_ROLE) || 1,
+    );
     let moved = 0;
     for (const [ownerId, items] of byOwner) {
       if (items.length < 2) continue;
@@ -421,7 +485,12 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       for (const e of sameRole) if (pool.length < target && !byOwner.has(e.id)) pool.push(e);
       let roleSize = 1 + sameRole.length;
       while (pool.length < target && roleSize < maxPerRole) {
-        pool.push(await this.addTeammate(owner, pool.map((x) => x.name)));
+        pool.push(
+          await this.addTeammate(
+            owner,
+            pool.map((x) => x.name),
+          ),
+        );
         roleSize += 1;
       }
       if (pool.length < 2) continue;
@@ -430,16 +499,25 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
         if (to.id === ownerId) continue;
         await this.work.reassign(item.id, to.id, `auto_staff:${owner.name}`);
         moved += 1;
-        this.logger.log(`Parallel staffing: "${item.title}" goes to ${to.name} (${owner.role}) so it can run alongside ${owner.name}'s work`);
+        this.logger.log(
+          `Parallel staffing: "${item.title}" goes to ${to.name} (${owner.role}) so it can run alongside ${owner.name}'s work`,
+        );
       }
     }
     return moved;
   }
 
   /** A new teammate with the same role, skills, brief and model as `owner`, reporting to the same manager. */
-  private async addTeammate(owner: EmployeeWithRelations, taken: string[]): Promise<{ id: string; name: string }> {
-    const roster = (await this.employees.findByCompany(owner.companyId)).map((e) => e.name.toLowerCase());
-    const name = TEAMMATE_NAMES.find((n) => !roster.includes(n.toLowerCase()) && !taken.includes(n)) ?? `${owner.name} ${taken.length + 1}`;
+  private async addTeammate(
+    owner: EmployeeWithRelations,
+    taken: string[],
+  ): Promise<{ id: string; name: string }> {
+    const roster = (await this.employees.findByCompany(owner.companyId)).map((e) =>
+      e.name.toLowerCase(),
+    );
+    const name =
+      TEAMMATE_NAMES.find((n) => !roster.includes(n.toLowerCase()) && !taken.includes(n)) ??
+      `${owner.name} ${taken.length + 1}`;
     const rc = owner.runtimeConfig;
     const hired = await this.employees.create(owner.companyId, {
       name,
@@ -448,7 +526,12 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       description: owner.description ?? undefined,
       managerEmployeeId: owner.managerEmployeeId ?? undefined,
       runtimeConfig: rc
-        ? { runtimeKey: rc.runtimeKey, provider: rc.provider ?? undefined, modelPolicy: rc.modelPolicy as Record<string, unknown>, settings: rc.settings as Record<string, unknown> }
+        ? {
+            runtimeKey: rc.runtimeKey,
+            provider: rc.provider ?? undefined,
+            modelPolicy: rc.modelPolicy as Record<string, unknown>,
+            settings: rc.settings as Record<string, unknown>,
+          }
         : undefined,
       skills: owner.skills.map((s) => ({ skillKey: s.skillKey, level: s.level })),
       governance: owner.governance as never,
@@ -457,7 +540,10 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     return { id: hired.id, name };
   }
 
-  private async nextAssigned(skip: ReadonlySet<string> = new Set(), busyEmployees: string[] = []): Promise<WorkItem | undefined> {
+  private async nextAssigned(
+    skip: ReadonlySet<string> = new Set(),
+    busyEmployees: string[] = [],
+  ): Promise<WorkItem | undefined> {
     if (this.intakePaused) return undefined;
     // An item is runnable only once everything it depends on is `done`; anything
     // upstream still in flight, failed or cancelled keeps it parked.
@@ -475,7 +561,9 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
           not(blockedByDependency),
           skip.size > 0 ? notInArray(workItems.id, [...skip]) : undefined,
           // One task per person at a time: someone already working is not free.
-          busyEmployees.length > 0 ? notInArray(workItems.assignedEmployeeId, busyEmployees) : undefined,
+          busyEmployees.length > 0
+            ? notInArray(workItems.assignedEmployeeId, busyEmployees)
+            : undefined,
         ),
       )
       .orderBy(desc(workItems.priority), asc(workItems.createdAt))
@@ -500,15 +588,31 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       // A step the fallback already tried several times waits for Claude instead (observed live: weaker
       // fallback models looped on the same build errors until the step ran out of attempts).
       const fallbackTries = fallback
-        ? (await this.agentRuns.findByWorkItem(item.id)).filter((r) => r.runtimeKey === fallback.runtimeKey && r.status !== 'rate_limited').length
+        ? (await this.agentRuns.findByWorkItem(item.id)).filter(
+            (r) => r.runtimeKey === fallback.runtimeKey && r.status !== 'rate_limited',
+          ).length
         : 0;
-      if (fallback && this.usageLimits.blockedUntil(fallback.runtimeKey) === null && fallbackTries < MAX_FALLBACK_TRIES) {
-        this.logger.log(`${selection.runtimeKey} is at its usage limit; running work item ${item.id} on ${fallback.provider}:${fallback.model}`);
+      if (
+        fallback &&
+        this.usageLimits.blockedUntil(fallback.runtimeKey) === null &&
+        fallbackTries < MAX_FALLBACK_TRIES
+      ) {
+        this.logger.log(
+          `${selection.runtimeKey} is at its usage limit; running work item ${item.id} on ${fallback.provider}:${fallback.model}`,
+        );
         selection = fallback;
         fallbackUntil = heldUntil;
       } else {
         this.wakeAt(heldUntil);
-        return { agentRunId: '', workItemId: item.id, status: 'blocked', model: selection.model, runtimeKey: selection.runtimeKey, filesChanged: [], estimatedCostUsd: 0 };
+        return {
+          agentRunId: '',
+          workItemId: item.id,
+          status: 'blocked',
+          model: selection.model,
+          runtimeKey: selection.runtimeKey,
+          filesChanged: [],
+          estimatedCostUsd: 0,
+        };
       }
     }
     const runtimeKey = selection.runtimeKey;
@@ -558,7 +662,15 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       // Cancelled while the workspace was being prepared: stop before an agent ever starts.
       if ((await this.getWorkItem(item.id)).status === 'cancelled') {
         await this.agentRuns.finish(run.id, { status: 'failed', error: 'Cancelled' });
-        return { agentRunId: run.id, workItemId: item.id, status: 'failed', model, runtimeKey, filesChanged: [], estimatedCostUsd: 0 };
+        return {
+          agentRunId: run.id,
+          workItemId: item.id,
+          status: 'failed',
+          model,
+          runtimeKey,
+          filesChanged: [],
+          estimatedCostUsd: 0,
+        };
       }
       await this.work.changeStatus(item.id, { status: 'in_progress' });
 
@@ -577,9 +689,26 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
         memoryBlock,
       );
       const iterable = this.registry.get(runtimeKey).run(ctx);
-      return await this.drive(run.id, item.id, employee.id, model, runtimeKey, handle, iterable, limits);
+      return await this.drive(
+        run.id,
+        item.id,
+        employee.id,
+        model,
+        runtimeKey,
+        handle,
+        iterable,
+        limits,
+      );
     } catch (err) {
-      if (fallbackUntil !== null) return this.fallbackUnavailable(run, item.id, model, runtimeKey, fallbackUntil, (err as Error).message);
+      if (fallbackUntil !== null)
+        return this.fallbackUnavailable(
+          run,
+          item.id,
+          model,
+          runtimeKey,
+          fallbackUntil,
+          (err as Error).message,
+        );
       return this.fail(run, model, runtimeKey, (err as Error).message);
     }
   }
@@ -600,13 +729,31 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
   ): Promise<ExecutionSummary> {
     // Try the fallback again soon (its providers recover), and in any case when Claude resets.
     const retryAt = Math.min(resumeAt, Date.now() + FALLBACK_RETRY_MS);
-    this.logger.warn(`Fallback ${runtimeKey}:${model} unavailable (${message.slice(0, 160)}); holding work item ${workItemId}, retrying the fallback at ${new Date(retryAt).toISOString()}`);
-    this.usageLimits.record(runtimeKey, { status: 'rejected', resetsAt: retryAt, limitType: 'fallback_unavailable' });
-    await this.agentRuns.finish(run.id, { status: 'rate_limited', error: `Fallback unavailable: ${message.slice(0, 300)}. Retrying it shortly; Claude takes over again when its limit resets.` });
+    this.logger.warn(
+      `Fallback ${runtimeKey}:${model} unavailable (${message.slice(0, 160)}); holding work item ${workItemId}, retrying the fallback at ${new Date(retryAt).toISOString()}`,
+    );
+    this.usageLimits.record(runtimeKey, {
+      status: 'rejected',
+      resetsAt: retryAt,
+      limitType: 'fallback_unavailable',
+    });
+    await this.agentRuns.finish(run.id, {
+      status: 'rate_limited',
+      error: `Fallback unavailable: ${message.slice(0, 300)}. Retrying it shortly; Claude takes over again when its limit resets.`,
+    });
     const item = await this.getWorkItem(workItemId);
-    if (item.status === 'in_progress') await this.work.changeStatus(workItemId, { status: 'assigned' });
+    if (item.status === 'in_progress')
+      await this.work.changeStatus(workItemId, { status: 'assigned' });
     this.wakeAt(retryAt);
-    return { agentRunId: run.id, workItemId, status: 'blocked', model, runtimeKey, filesChanged: [], estimatedCostUsd: 0 };
+    return {
+      agentRunId: run.id,
+      workItemId,
+      status: 'blocked',
+      model,
+      runtimeKey,
+      filesChanged: [],
+      estimatedCostUsd: 0,
+    };
   }
 
   private async resumeRun(run: AgentRun): Promise<ExecutionSummary> {
@@ -638,7 +785,16 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       );
       const iterable = this.registry.get(runtimeKey).resume(run.sessionId, ctx);
       this.logger.log(`Resuming run ${run.id} after approval`);
-      return await this.drive(run.id, item.id, employee.id, model, runtimeKey, handle, iterable, limits);
+      return await this.drive(
+        run.id,
+        item.id,
+        employee.id,
+        model,
+        runtimeKey,
+        handle,
+        iterable,
+        limits,
+      );
     } catch (err) {
       return this.fail(run, model, runtimeKey, (err as Error).message);
     }
@@ -679,7 +835,9 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       const gap = now - lastTick - 5_000;
       if (gap > 20_000) {
         deadline += gap;
-        this.logger.log(`Run ${runId}: clock jumped ${Math.round(gap / 1000)}s (sleep?); time budget extended`);
+        this.logger.log(
+          `Run ${runId}: clock jumped ${Math.round(gap / 1000)}s (sleep?); time budget extended`,
+        );
       }
       lastTick = now;
     }, 5_000);
@@ -733,11 +891,17 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
         const event = next.value;
         transcript.push(event);
         live.write(event);
-        if ((event.kind === 'tool_use' || event.kind === 'usage') && Date.now() - lastProgressAt > 3_000) {
+        if (
+          (event.kind === 'tool_use' || event.kind === 'usage') &&
+          Date.now() - lastProgressAt > 3_000
+        ) {
           lastProgressAt = Date.now();
           void this.db
             .update(agentRuns)
-            .set({ toolCallCount: toolCalls + (event.kind === 'tool_use' ? 1 : 0), estimatedCostUsd: costUsd })
+            .set({
+              toolCallCount: toolCalls + (event.kind === 'tool_use' ? 1 : 0),
+              estimatedCostUsd: costUsd,
+            })
             .where(eq(agentRuns.id, runId))
             .catch(() => undefined);
         }
@@ -796,7 +960,10 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       clearInterval(watch);
       clearInterval(sleepGuard);
       if (cancelled || killed || limited || pausedApprovalId) abort?.abort();
-      await Promise.race([iterator.return?.(), new Promise((r) => setTimeout(r, 15_000).unref?.())]);
+      await Promise.race([
+        iterator.return?.(),
+        new Promise((r) => setTimeout(r, 15_000).unref?.()),
+      ]);
       this.aborts.delete(workItemId);
       // Nothing started inside this run's folder may outlive it (e.g. a LibreOffice a script opened).
       if (!pausedApprovalId) await stopProcessesIn(handle.rootPath);
@@ -829,7 +996,16 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     if (!completed && ranOutOfTurns(failedError)) {
       return this.finalizeKilled(runId, workItemId, model, runtimeKey, handle, 'turns', usage);
     }
-    return this.finalizeDone(runId, workItemId, model, runtimeKey, handle, completed, failedError, usage);
+    return this.finalizeDone(
+      runId,
+      workItemId,
+      model,
+      runtimeKey,
+      handle,
+      completed,
+      failedError,
+      usage,
+    );
   }
 
   /** The work item was cancelled while its agent was running: keep what was written, stop, record it. */
@@ -853,7 +1029,15 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       error: 'Cancelled',
     });
     this.logger.log(`Run ${runId} stopped: work item ${workItemId} was cancelled`);
-    return { agentRunId: runId, workItemId, status: 'failed', model, runtimeKey, filesChanged: collected.filesChanged, estimatedCostUsd: usage.costUsd };
+    return {
+      agentRunId: runId,
+      workItemId,
+      status: 'failed',
+      model,
+      runtimeKey,
+      filesChanged: collected.filesChanged,
+      estimatedCostUsd: usage.costUsd,
+    };
   }
 
   private async raceNext(
@@ -896,7 +1080,13 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     // Remember the branch so a retry continues from what was written, rather than starting over.
     await this.db
       .update(workItems)
-      .set({ artifacts: { branch: collected.branch, filesChanged: collected.filesChanged, agentRunId: runId } })
+      .set({
+        artifacts: {
+          branch: collected.branch,
+          filesChanged: collected.filesChanged,
+          agentRunId: runId,
+        },
+      })
       .where(eq(workItems.id, workItemId));
     await this.safeFail(workItemId);
     this.logger.warn(`Run ${runId} killed (${reason})`);
@@ -957,10 +1147,15 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     if (reason === 'budget') return;
     const item = await this.getWorkItem(workItemId);
     if (item.status !== 'failed' || !item.assignedEmployeeId) return;
-    const { attempts, continuations } = countAttempts(await this.agentRuns.findByWorkItem(workItemId));
+    const { attempts, continuations } = countAttempts(
+      await this.agentRuns.findByWorkItem(workItemId),
+    );
     const max = Number(process.env.FORGE_MAX_ATTEMPTS ?? DEFAULT_MAX_ATTEMPTS);
     if (attempts >= max) return;
-    await this.work.assign(workItemId, { employeeId: item.assignedEmployeeId, assignedBy: `auto_retry_${reason}` });
+    await this.work.assign(workItemId, {
+      employeeId: item.assignedEmployeeId,
+      assignedBy: `auto_retry_${reason}`,
+    });
     this.logger.log(
       `Work item ${workItemId} hit its ${reason} limit; continues from its branch (attempt ${attempts + 1}/${max}, ${continuations} continuation(s) so far)`,
     );
@@ -993,12 +1188,26 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     });
     await this.db
       .update(workItems)
-      .set({ artifacts: { branch: collected.branch, filesChanged: collected.filesChanged, agentRunId: runId } })
+      .set({
+        artifacts: {
+          branch: collected.branch,
+          filesChanged: collected.filesChanged,
+          agentRunId: runId,
+        },
+      })
       .where(eq(workItems.id, workItemId));
     await this.work.changeStatus(workItemId, { status: 'assigned' });
     const until = this.usageLimits.blockedUntil(runtimeKey);
     if (until !== null) this.wakeAt(until);
-    return { agentRunId: runId, workItemId, status: 'rate_limited', model, runtimeKey, filesChanged: collected.filesChanged, estimatedCostUsd: usage.costUsd };
+    return {
+      agentRunId: runId,
+      workItemId,
+      status: 'rate_limited',
+      model,
+      runtimeKey,
+      filesChanged: collected.filesChanged,
+      estimatedCostUsd: usage.costUsd,
+    };
   }
 
   private async finalizeDone(
@@ -1028,7 +1237,11 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
     await this.db
       .update(workItems)
       .set({
-        artifacts: { branch: collected.branch, filesChanged: collected.filesChanged, agentRunId: runId },
+        artifacts: {
+          branch: collected.branch,
+          filesChanged: collected.filesChanged,
+          agentRunId: runId,
+        },
       })
       .where(eq(workItems.id, workItemId));
 
@@ -1110,7 +1323,10 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       // run (observed live: LibreOffice's export showed a "waiting for printer" dialog).
       const desktop = desktopAppLaunch(toolName, input);
       if (desktop) {
-        return { behavior: 'deny', message: `${desktop} is not available here: generate and check documents with a library instead.` };
+        return {
+          behavior: 'deny',
+          message: `${desktop} is not available here: generate and check documents with a library instead.`,
+        };
       }
       const decision = this.governance.evaluate(employee.governance, toolName);
       if (decision === 'deny') {
@@ -1129,11 +1345,19 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
         toolName,
         input,
       });
-      return { behavior: 'pause', message: `Approval required for ${toolName}`, approvalId: approval.id };
+      return {
+        behavior: 'pause',
+        message: `Approval required for ${toolName}`,
+        approvalId: approval.id,
+      };
     };
   }
 
-  private async emitBudgetExceeded(employeeId: string, spend: number, state: string): Promise<void> {
+  private async emitBudgetExceeded(
+    employeeId: string,
+    spend: number,
+    state: string,
+  ): Promise<void> {
     await this.outbox.record(this.db, {
       type: EventTypes.BudgetExceeded,
       aggregateType: 'employee',
@@ -1174,7 +1398,9 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
   }
 
   /** Appends events to the run's transcript file in order, as they arrive; failures never stop the run. */
-  private async openLiveTranscript(runId: string): Promise<{ write(e: RuntimeEvent): void; close(): Promise<boolean> }> {
+  private async openLiveTranscript(
+    runId: string,
+  ): Promise<{ write(e: RuntimeEvent): void; close(): Promise<boolean> }> {
     const file = path.join(this.transcriptDir, `${runId}.jsonl`);
     let ok = true;
     const fail = (e: unknown) => {
@@ -1234,12 +1460,27 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
   }
 
   /** Saves the "## Lessons" an employee wrote at the end of a task as their own memories. */
-  private async harvestReflection(employeeId: string, workItemId: string, runId: string, resultText: string): Promise<void> {
+  private async harvestReflection(
+    employeeId: string,
+    workItemId: string,
+    runId: string,
+    resultText: string,
+  ): Promise<void> {
     const lessons = extractLessons(resultText);
     if (!lessons.length) return;
-    const [item] = await this.db.select({ taskType: workItems.taskType }).from(workItems).where(eq(workItems.id, workItemId));
+    const [item] = await this.db
+      .select({ taskType: workItems.taskType })
+      .from(workItems)
+      .where(eq(workItems.id, workItemId));
     for (const lesson of lessons) {
-      await this.memory.remember({ employeeId, kind: 'lesson', taskType: item?.taskType ?? null, sourceRunId: runId, salience: 65, content: `Reflection: ${lesson}` });
+      await this.memory.remember({
+        employeeId,
+        kind: 'lesson',
+        taskType: item?.taskType ?? null,
+        sourceRunId: runId,
+        salience: 65,
+        content: `Reflection: ${lesson}`,
+      });
     }
   }
 
@@ -1251,7 +1492,10 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       .where(eq(evaluations.workItemId, workItemId))
       .orderBy(desc(evaluations.createdAt))
       .limit(1);
-    const [own] = await this.db.select({ artifacts: workItems.artifacts }).from(workItems).where(eq(workItems.id, workItemId));
+    const [own] = await this.db
+      .select({ artifacts: workItems.artifacts })
+      .from(workItems)
+      .where(eq(workItems.id, workItemId));
     const conflict = (own?.artifacts as { conflict?: string } | null)?.conflict;
     if (conflict) {
       return [
@@ -1263,12 +1507,20 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
       ].join('\n');
     }
     if (!latest || latest.status !== 'failed') return null;
-    const dims = (latest.detail as { dimensions?: Record<string, { exitCode?: number; command?: string; output?: string }> }).dimensions ?? {};
+    const dims =
+      (
+        latest.detail as {
+          dimensions?: Record<string, { exitCode?: number; command?: string; output?: string }>;
+        }
+      ).dimensions ?? {};
     const failing = Object.entries(dims).filter(([, d]) => d.exitCode !== 0);
     if (!failing.length) return null;
     return [
       '## Your previous attempt was rejected — fix these before anything else',
-      ...failing.map(([name, d]) => `### ${name === 'visual' ? 'Design review' : name}: ${d.command ?? ''}\n${String(d.output ?? '').slice(-2500)}`),
+      ...failing.map(
+        ([name, d]) =>
+          `### ${name === 'visual' ? 'Design review' : name}: ${d.command ?? ''}\n${String(d.output ?? '').slice(-2500)}`,
+      ),
     ].join('\n\n');
   }
 
@@ -1297,7 +1549,12 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
    * The employee's system prompt, most stable first so the prefix is prompt-cached across tasks:
    * shared rules → Forge platform rules → this employee's brief → brand → lessons → this task.
    */
-  private buildClaudeMd(employee: EmployeeWithRelations, item: WorkItem, memoryBlock = '', rootPath?: string): string {
+  private buildClaudeMd(
+    employee: EmployeeWithRelations,
+    item: WorkItem,
+    memoryBlock = '',
+    rootPath?: string,
+  ): string {
     const brief = briefForEmployee(employee);
     const brand = rootPath ? projectBrandName(rootPath) : null;
     const minutes = Math.round(this.buildLimits(employee).maxDurationMs / 60000);
@@ -1335,7 +1592,8 @@ interface RunUsage {
   toolCalls: number;
 }
 
-const DESKTOP_APPS = /\b(soffice|libreoffice|scalc|swriter|simpress|excel(\.exe)?|winword|powerpnt|mspaint|notepad|explorer\.exe|invoke-item|start-process)\b|(^|[;&|]\s*)start\s+["'\w]|os\.startfile|xdg-open|\bopen\s+-a\b/i;
+const DESKTOP_APPS =
+  /\b(soffice|libreoffice|scalc|swriter|simpress|excel(\.exe)?|winword|powerpnt|mspaint|notepad|explorer\.exe|invoke-item|start-process)\b|(^|[;&|]\s*)start\s+["'\w]|os\.startfile|xdg-open|\bopen\s+-a\b/i;
 
 /** Names the desktop app a shell command would launch, or null. */
 export function desktopAppLaunch(toolName: string, input: unknown): string | null {
@@ -1347,7 +1605,9 @@ export function desktopAppLaunch(toolName: string, input: unknown): string | nul
 
 /** The bullet points under a "## Lessons" heading in an agent's final message (at most 3). */
 export function extractLessons(text: string): string[] {
-  const m = String(text ?? '').match(/^#{1,4}\s*Lessons[^\n]*\n([\s\S]*?)(?=^#{1,4}\s|\s*$(?![\s\S]))/im);
+  const m = String(text ?? '').match(
+    /^#{1,4}\s*Lessons[^\n]*\n([\s\S]*?)(?=^#{1,4}\s|\s*$(?![\s\S]))/im,
+  );
   if (!m) return [];
   return m[1]
     .split('\n')
@@ -1395,7 +1655,7 @@ export const FORGE_RULES = [
   '  PDF: reportlab/pdfkit, slides: python-pptx) and check by reading them back with the same library. Never open',
   '  them with LibreOffice, Office, a browser or any desktop app (blocked).',
   '- After the hand-off, end with a "## Lessons" section: 1-3 short, specific, reusable lessons from this task.',
-  '  They become your memory and your team\'s playbook.',
+  "  They become your memory and your team's playbook.",
 ].join('\n');
 
 /** Identity for an employee with no written brief (a custom hire in a new role). */
@@ -1420,7 +1680,24 @@ const DEFAULT_CONCURRENCY = 5;
 /** How many people may share one role when parallel work needs them (the original included). */
 const DEFAULT_MAX_PER_ROLE = 3;
 /** Names for teammates added for parallel work. */
-const TEAMMATE_NAMES = ['Iris', 'Theo', 'Nadia', 'Arjun', 'Lena', 'Felix', 'Maya', 'Yusuf', 'Clara', 'Hugo', 'Aisha', 'Mateo', 'Sana', 'Eli', 'Rhea', 'Jonas'];
+const TEAMMATE_NAMES = [
+  'Iris',
+  'Theo',
+  'Nadia',
+  'Arjun',
+  'Lena',
+  'Felix',
+  'Maya',
+  'Yusuf',
+  'Clara',
+  'Hugo',
+  'Aisha',
+  'Mateo',
+  'Sana',
+  'Eli',
+  'Rhea',
+  'Jonas',
+];
 
 function isExecutiveRole(role: string): boolean {
   return /\b(chief|ceo|cto|cfo|cpo|ciso|cdo|coo|head of|vp)\b/i.test(role);

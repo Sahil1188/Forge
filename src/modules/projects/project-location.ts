@@ -44,10 +44,12 @@ export function resolveRepoPath(input: {
 
 /** Why a folder cannot hold Forge projects, or null when it is fine. */
 export function folderProblem(dir: string, opts: { mustBeEmpty: boolean }): string | null {
-  if (!path.isAbsolute(dir)) return 'Use a full path, for example C:\\Users\\you\\Projects\\my-app.';
+  if (!path.isAbsolute(dir))
+    return 'Use a full path, for example C:\\Users\\you\\Projects\\my-app.';
   const resolved = path.resolve(dir);
   if (path.parse(resolved).root === resolved) return 'Choose a folder, not the root of a drive.';
-  if (resolved.toLowerCase() === path.resolve(os.homedir()).toLowerCase()) return 'Choose a folder inside your home folder, not the home folder itself.';
+  if (resolved.toLowerCase() === path.resolve(os.homedir()).toLowerCase())
+    return 'Choose a folder inside your home folder, not the home folder itself.';
   if (!existsSync(resolved)) return null;
   if (!statSync(resolved).isDirectory()) return 'That path is a file. Choose a folder.';
   if (opts.mustBeEmpty && readdirSync(resolved).length > 0) {

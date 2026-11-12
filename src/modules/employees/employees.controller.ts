@@ -1,16 +1,29 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Put,
+} from '@nestjs/common';
 import { EmployeesService } from './employees.service';
-import { CreateEmployeeDto, EmployeeBriefDto, SetSkillsDto, UpdateEmployeeDto } from './dto/create-employee.dto';
+import {
+  CreateEmployeeDto,
+  EmployeeBriefDto,
+  SetSkillsDto,
+  UpdateEmployeeDto,
+} from './dto/create-employee.dto';
 
 @Controller()
 export class EmployeesController {
   constructor(private readonly employees: EmployeesService) {}
 
   @Post('companies/:companyId/employees')
-  create(
-    @Param('companyId', ParseUUIDPipe) companyId: string,
-    @Body() dto: CreateEmployeeDto,
-  ) {
+  create(@Param('companyId', ParseUUIDPipe) companyId: string, @Body() dto: CreateEmployeeDto) {
     return this.employees.create(companyId, dto);
   }
 

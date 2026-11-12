@@ -9,7 +9,11 @@ import { RuntimeRegistry } from '../src/modules/runtimes/runtime-registry';
 import { ExecutionWorker } from '../src/workers/execution.worker';
 import { EvaluationWorker } from '../src/modules/evaluation/evaluation.worker';
 import { MemoryService } from '../src/modules/memory/memory.service';
-import { AgentRuntime, RuntimeEvent, RuntimeRunContext } from '../src/modules/runtimes/runtime.port';
+import {
+  AgentRuntime,
+  RuntimeEvent,
+  RuntimeRunContext,
+} from '../src/modules/runtimes/runtime.port';
 
 /** A runtime that produces a passing repo (like the perf mock). */
 class MemMockRuntime implements AgentRuntime {

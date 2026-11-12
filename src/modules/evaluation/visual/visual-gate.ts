@@ -53,12 +53,17 @@ export class VisualGate {
     private readonly employees: EmployeesService,
   ) {}
 
-  async check(rootPath: string, opts: { companyId: string; goalId: string; title: string }): Promise<DimensionResult | null> {
+  async check(
+    rootPath: string,
+    opts: { companyId: string; goalId: string; title: string },
+  ): Promise<DimensionResult | null> {
     if (process.env.FORGE_VISUAL_GATE === '0') return null;
     if (!(await hasWebUi(rootPath))) return null;
     const browser = findBrowser();
     if (!browser) {
-      this.logger.warn('Visual gate skipped: no Chrome/Edge/Chromium found (set FORGE_BROWSER_PATH)');
+      this.logger.warn(
+        'Visual gate skipped: no Chrome/Edge/Chromium found (set FORGE_BROWSER_PATH)',
+      );
       return null;
     }
     const reviewer = await this.pickReviewer(opts.companyId);
@@ -70,15 +75,30 @@ export class VisualGate {
       app = await launchApp(rootPath);
     } catch (err) {
       // A UI that does not even start is a failure of the work, not of the gate.
-      return this.result(false, 0, `The app could not be started the way a user would (install, build, start):\n${(err as Error).message}`, started);
+      return this.result(
+        false,
+        0,
+        `The app could not be started the way a user would (install, build, start):\n${(err as Error).message}`,
+        started,
+      );
     }
 
     const dir = path.join(process.cwd(), 'workspaces', 'visual', randomUUID());
     try {
       await mkdir(dir, { recursive: true });
-      await writeFile(path.join(dir, 'shoot.cjs'), shootScript(require.resolve('playwright-core'), browser, app.url), 'utf8');
+      await writeFile(
+        path.join(dir, 'shoot.cjs'),
+        shootScript(require.resolve('playwright-core'), browser, app.url),
+        'utf8',
+      );
       const model = process.env.FORGE_VISUAL_MODEL ?? 'opus';
-      const run = await this.agentRuns.create({ goalId: opts.goalId, employeeId: reviewer.id, runtimeKey: 'claude_code', provider: 'anthropic', model });
+      const run = await this.agentRuns.create({
+        goalId: opts.goalId,
+        employeeId: reviewer.id,
+        runtimeKey: 'claude_code',
+        provider: 'anthropic',
+        model,
+      });
       let costUsd = 0;
       let completed = false;
       for await (const event of this.registry.get('claude_code').run({
@@ -93,20 +113,40 @@ export class VisualGate {
       })) {
         if (event.kind === 'usage') {
           costUsd += event.costUsd;
-          await this.budgets.recordCost(run.id, reviewer.id, { inputTokens: event.inputTokens, outputTokens: event.outputTokens, costUsd: event.costUsd });
+          await this.budgets.recordCost(run.id, reviewer.id, {
+            inputTokens: event.inputTokens,
+            outputTokens: event.outputTokens,
+            costUsd: event.costUsd,
+          });
         } else if (event.kind === 'completed') completed = true;
       }
-      await this.agentRuns.finish(run.id, { status: completed ? 'completed' : 'failed', estimatedCostUsd: costUsd, error: completed ? undefined : 'visual review did not finish' });
+      await this.agentRuns.finish(run.id, {
+        status: completed ? 'completed' : 'failed',
+        estimatedCostUsd: costUsd,
+        error: completed ? undefined : 'visual review did not finish',
+      });
 
       const review = await this.readReview(dir);
-      if (!review) return this.result(false, 0, 'The design review produced no verdict (VISUAL_REVIEW.json missing); treat the UI as unverified.', started);
+      if (!review)
+        return this.result(
+          false,
+          0,
+          'The design review produced no verdict (VISUAL_REVIEW.json missing); treat the UI as unverified.',
+          started,
+        );
       const issues = review.issues ?? [];
       const serious = issues.filter((i) => i.severity === 'critical' || i.severity === 'major');
       const score = Math.max(0, Math.min(100, Math.round(review.score ?? 0)));
-      const pass = review.pass === true && score >= Number(process.env.FORGE_VISUAL_MIN_SCORE ?? 85) && serious.length === 0;
+      const pass =
+        review.pass === true &&
+        score >= Number(process.env.FORGE_VISUAL_MIN_SCORE ?? 85) &&
+        serious.length === 0;
       const lines = [
         `Design review: ${score}/100 — ${pass ? 'passed' : 'not good enough to ship'}.${review.summary ? ` ${review.summary}` : ''}`,
-        ...issues.map((i) => `- [${i.severity}]${i.screen ? ` (${i.screen})` : ''} ${i.problem}${i.fix ? ` → Fix: ${i.fix}` : ''}`),
+        ...issues.map(
+          (i) =>
+            `- [${i.severity}]${i.screen ? ` (${i.screen})` : ''} ${i.problem}${i.fix ? ` → Fix: ${i.fix}` : ''}`,
+        ),
         `Screenshots: ${dir}`,
       ];
       return this.result(pass, score, lines.join('\n'), started);
@@ -124,7 +164,9 @@ export class VisualGate {
       'Steps are JSON like [{"do":"click","selector":"#add"},{"do":"fill","selector":"#amount","value":"42.50"},{"do":"wait","ms":400}].',
       '',
       '1. Screenshot the first screen as-is (empty state).',
-      '2. Find the main forms/buttons (read the page source with: node -e "fetch(\'' + url + '\').then(r=>r.text()).then(console.log)") and add 5-8 realistic records through the UI, then screenshot the filled state.',
+      '2. Find the main forms/buttons (read the page source with: node -e "fetch(\'' +
+        url +
+        '\').then(r=>r.text()).then(console.log)") and add 5-8 realistic records through the UI, then screenshot the filled state.',
       '3. Screenshot any important dialog or secondary view.',
       '',
       'Grade strictly against this rubric:',
@@ -139,7 +181,9 @@ export class VisualGate {
 
   private async readReview(dir: string): Promise<VisualReview | null> {
     try {
-      return JSON.parse(await readFile(path.join(dir, 'VISUAL_REVIEW.json'), 'utf8')) as VisualReview;
+      return JSON.parse(
+        await readFile(path.join(dir, 'VISUAL_REVIEW.json'), 'utf8'),
+      ) as VisualReview;
     } catch {
       return null;
     }
@@ -148,12 +192,22 @@ export class VisualGate {
   /** The company's designer, else the principal reviewer, else anyone. */
   private async pickReviewer(companyId: string) {
     const roster = await this.employees.findByCompany(companyId);
-    const base = roster.find((e) => /designer|ux/i.test(e.role)) ?? roster.find((e) => /review/i.test(e.role)) ?? roster[0];
+    const base =
+      roster.find((e) => /designer|ux/i.test(e.role)) ??
+      roster.find((e) => /review/i.test(e.role)) ??
+      roster[0];
     return base ? this.employees.findOne(base.id) : null;
   }
 
   private result(pass: boolean, score: number, output: string, started: number): DimensionResult {
-    return { score: pass ? 100 : 0, ran: true, exitCode: pass ? 0 : 1, command: `visual design review (${score}/100)`, output: output.slice(0, 4000), durationMs: Date.now() - started };
+    return {
+      score: pass ? 100 : 0,
+      ran: true,
+      exitCode: pass ? 0 : 1,
+      command: `visual design review (${score}/100)`,
+      output: output.slice(0, 4000),
+      durationMs: Date.now() - started,
+    };
   }
 }
 
@@ -172,6 +226,8 @@ export async function brandRules(rootPath: string): Promise<string[]> {
   const checklist = brandChecklist(content, 'platform');
   return [
     `- Brand: the product must follow the ${name} brand in BRAND.md (open it). Any screen using colours, fonts, radii or components that are not the brand's, any dark mode or dark section, or a generic default look is a major issue.`,
-    ...(checklist.length ? [`- ${name} checklist, every screen:`, ...checklist.map((c) => `  - ${c}`)] : []),
+    ...(checklist.length
+      ? [`- ${name} checklist, every screen:`, ...checklist.map((c) => `  - ${c}`)]
+      : []),
   ];
 }

@@ -39,7 +39,12 @@ describe('WorkforceRouter scoring', () => {
     const newcomer = scoreCandidate('coding', { ...backendDev, reputation: null });
     expect(proven.score).toBeGreaterThan(newcomer.score);
     expect(newcomer.score).toBeGreaterThan(struggling.score);
-    expect(selectBest('coding', [{ ...backendDev, id: 'b', reputation: 30 }, { ...backendDev, id: 'a', reputation: 95 }])?.employeeId).toBe('a');
+    expect(
+      selectBest('coding', [
+        { ...backendDev, id: 'b', reputation: 30 },
+        { ...backendDev, id: 'a', reputation: 95 },
+      ])?.employeeId,
+    ).toBe('a');
   });
 
   it('returns null with no candidates', () => {
@@ -83,7 +88,10 @@ describe('DynamicOmniRouter', () => {
   });
 
   it('carries the provider for custom-runtime employees', () => {
-    const emp = employee({ default: 'qwen2.5-coder' }, { runtimeKey: 'custom', provider: 'ollama' });
+    const emp = employee(
+      { default: 'qwen2.5-coder' },
+      { runtimeKey: 'custom', provider: 'ollama' },
+    );
     const selection = router.selectModel({ taskType: 'coding' }, emp);
     expect(selection.runtimeKey).toBe('custom');
     expect(selection.provider).toBe('ollama');

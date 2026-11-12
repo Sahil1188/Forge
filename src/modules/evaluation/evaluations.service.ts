@@ -22,7 +22,11 @@ export class EvaluationsService {
         agentRunId: input.agentRunId ?? null,
         status: input.result.status,
         overallScore: input.result.overallScore,
-        detail: { dimensions: input.result.dimensions, note: input.result.note, brokenChecks: input.result.brokenChecks },
+        detail: {
+          dimensions: input.result.dimensions,
+          note: input.result.note,
+          brokenChecks: input.result.brokenChecks,
+        },
       })
       .returning();
     return row;

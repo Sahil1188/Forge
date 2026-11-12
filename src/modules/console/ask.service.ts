@@ -24,7 +24,10 @@ export function readOnlyGate(cwd: string): PermissionCallback {
   const confine = confinementGate(cwd);
   return async (toolName, input) => {
     if (!READ_ONLY_TOOLS.includes(toolName)) {
-      return { behavior: 'deny', message: `${toolName} is not available when answering questions (read-only).` };
+      return {
+        behavior: 'deny',
+        message: `${toolName} is not available when answering questions (read-only).`,
+      };
     }
     return confine(toolName, input);
   };
@@ -53,7 +56,12 @@ export class AskService {
     return this.db
       .select()
       .from(askMessages)
-      .where(and(eq(askMessages.companyId, companyId), goalId ? eq(askMessages.goalId, goalId) : isNull(askMessages.goalId)))
+      .where(
+        and(
+          eq(askMessages.companyId, companyId),
+          goalId ? eq(askMessages.goalId, goalId) : isNull(askMessages.goalId),
+        ),
+      )
       .orderBy(asc(askMessages.createdAt))
       .limit(200);
   }
@@ -61,7 +69,8 @@ export class AskService {
   async ask(companyId: string, input: { question: string; goalId?: string | null }) {
     const question = String(input.question ?? '').trim();
     if (!question) throw new BadRequestException('Ask a question');
-    if (question.length > MAX_QUESTION) throw new BadRequestException(`Keep the question under ${MAX_QUESTION} characters`);
+    if (question.length > MAX_QUESTION)
+      throw new BadRequestException(`Keep the question under ${MAX_QUESTION} characters`);
     const goalId = input.goalId || null;
 
     let briefing: string;
@@ -77,7 +86,9 @@ export class AskService {
     }
     const earlier = (await this.history(companyId, goalId)).slice(-HISTORY_TURNS * 2);
 
-    await this.db.insert(askMessages).values({ companyId, goalId, role: 'user', content: question });
+    await this.db
+      .insert(askMessages)
+      .values({ companyId, goalId, role: 'user', content: question });
     const { answer, costUsd } = await this.answer(prompt(briefing, earlier, question, cwd), cwd);
     const [saved] = await this.db
       .insert(askMessages)
@@ -87,11 +98,18 @@ export class AskService {
   }
 
   private async answer(task: string, cwd: string): Promise<{ answer: string; costUsd: number }> {
-    let selection: { runtimeKey: string; provider?: string; model: string } = { runtimeKey: 'claude_code', model: 'sonnet' };
+    let selection: { runtimeKey: string; provider?: string; model: string } = {
+      runtimeKey: 'claude_code',
+      model: 'sonnet',
+    };
     if (this.usageLimits.blockedUntil('claude_code') !== null) {
       const fallback = fallbackSelection('claude_code');
       if (!fallback) {
-        return { answer: 'Claude is at its usage limit right now and no fallback is configured, so I cannot answer until it resets.', costUsd: 0 };
+        return {
+          answer:
+            'Claude is at its usage limit right now and no fallback is configured, so I cannot answer until it resets.',
+          costUsd: 0,
+        };
       }
       selection = fallback;
     }
@@ -111,7 +129,16 @@ export class AskService {
         model: selection.model,
         provider: selection.provider,
         allowedTools: READ_ONLY_TOOLS,
-        disallowedTools: ['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'WebFetch', 'WebSearch', 'Task'],
+        disallowedTools: [
+          'Write',
+          'Edit',
+          'MultiEdit',
+          'NotebookEdit',
+          'Bash',
+          'WebFetch',
+          'WebSearch',
+          'Task',
+        ],
         limits: { maxTurns: 15 },
         abortSignal: abort.signal,
         canUseTool: readOnlyGate(cwd),
@@ -140,7 +167,8 @@ export class AskService {
 
   private async goalInCompany(companyId: string, goalId: string) {
     const goal = await this.goals.findOne(goalId);
-    if (goal.companyId !== companyId) throw new BadRequestException('That goal belongs to another company');
+    if (goal.companyId !== companyId)
+      throw new BadRequestException('That goal belongs to another company');
     return goal;
   }
 }
@@ -157,9 +185,14 @@ async function firstExisting(paths: (string | undefined)[]): Promise<string> {
   return tmpdir();
 }
 
-function prompt(briefing: string, earlier: { role: string; content: string }[], question: string, cwd: string): string {
+function prompt(
+  briefing: string,
+  earlier: { role: string; content: string }[],
+  question: string,
+  cwd: string,
+): string {
   return [
-    'You are Forge\'s project assistant. The person asking runs this AI company from a web dashboard and',
+    "You are Forge's project assistant. The person asking runs this AI company from a web dashboard and",
     'wants straight answers about their work: where a project has reached, what is left, who is doing',
     'what, why something failed or is slow, what was built and how to run it.',
     '',
@@ -175,7 +208,12 @@ function prompt(briefing: string, earlier: { role: string; content: string }[], 
     briefing,
     '</live_briefing>',
     ...(earlier.length
-      ? ['', '<conversation_so_far>', ...earlier.map((m) => `${m.role === 'user' ? 'Q' : 'A'}: ${m.content.slice(0, 2000)}`), '</conversation_so_far>']
+      ? [
+          '',
+          '<conversation_so_far>',
+          ...earlier.map((m) => `${m.role === 'user' ? 'Q' : 'A'}: ${m.content.slice(0, 2000)}`),
+          '</conversation_so_far>',
+        ]
       : []),
     '',
     `Question: ${question}`,

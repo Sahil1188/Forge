@@ -7,7 +7,11 @@ import { RuntimeRegistry } from '../src/modules/runtimes/runtime-registry';
 import { AgentRunsService } from '../src/modules/runtimes/agent-runs.service';
 import { BudgetsService } from '../src/modules/budgets/budgets.service';
 import { ExecutionWorker } from '../src/workers/execution.worker';
-import { AgentRuntime, RuntimeEvent, RuntimeRunContext } from '../src/modules/runtimes/runtime.port';
+import {
+  AgentRuntime,
+  RuntimeEvent,
+  RuntimeRunContext,
+} from '../src/modules/runtimes/runtime.port';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -116,7 +120,10 @@ describe('Circuit breakers (e2e)', () => {
     // A time-limit stop is retried automatically (continuing from its branch), within the attempt budget.
     const wi = await request(app.getHttpServer()).get(`/work-items/${workId}`).expect(200);
     expect(wi.body.status).toBe('assigned');
-    await request(app.getHttpServer()).post(`/work-items/${workId}/status`).send({ status: 'cancelled' }).expect(201);
+    await request(app.getHttpServer())
+      .post(`/work-items/${workId}/status`)
+      .send({ status: 'cancelled' })
+      .expect(201);
   });
 
   it('blocks a new run when the budget is already exceeded', async () => {

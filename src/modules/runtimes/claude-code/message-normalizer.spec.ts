@@ -32,7 +32,9 @@ describe('normalizeSdkMessage', () => {
   it('maps tool results from user messages', () => {
     const events = normalizeSdkMessage({
       type: 'user',
-      message: { content: [{ type: 'tool_result', tool_use_id: 'tu-1', is_error: false, content: 'ok' }] },
+      message: {
+        content: [{ type: 'tool_result', tool_use_id: 'tu-1', is_error: false, content: 'ok' }],
+      },
     });
     expect(events).toEqual([
       { kind: 'tool_result', toolUseId: 'tu-1', isError: false, content: 'ok' },
@@ -62,8 +64,14 @@ describe('normalizeSdkMessage', () => {
   it('normalizes a full session transcript in order', () => {
     const events = normalizeAll([
       { type: 'system', subtype: 'init', session_id: 's' },
-      { type: 'assistant', message: { content: [{ type: 'tool_use', id: 't', name: 'Write', input: {} }] } },
-      { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't', content: 'ok' }] } },
+      {
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id: 't', name: 'Write', input: {} }] },
+      },
+      {
+        type: 'user',
+        message: { content: [{ type: 'tool_result', tool_use_id: 't', content: 'ok' }] },
+      },
       { type: 'result', subtype: 'success', total_cost_usd: 0.1, result: 'ok', session_id: 's' },
     ]);
     expect(events.map((e) => e.kind)).toEqual([
@@ -76,8 +84,26 @@ describe('normalizeSdkMessage', () => {
   });
   it('translates subscription rate-limit events (resetsAt seconds → ms)', () => {
     expect(
-      normalizeSdkMessage({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected', resetsAt: 1761140000, rateLimitType: 'five_hour', utilization: 1 } }),
-    ).toEqual([{ kind: 'rate_limit', status: 'rejected', resetsAt: 1761140000000, limitType: 'five_hour', utilization: 1 }]);
-    expect(normalizeSdkMessage({ type: 'rate_limit_event', rate_limit_info: { status: 'bogus' } })).toEqual([]);
+      normalizeSdkMessage({
+        type: 'rate_limit_event',
+        rate_limit_info: {
+          status: 'rejected',
+          resetsAt: 1761140000,
+          rateLimitType: 'five_hour',
+          utilization: 1,
+        },
+      }),
+    ).toEqual([
+      {
+        kind: 'rate_limit',
+        status: 'rejected',
+        resetsAt: 1761140000000,
+        limitType: 'five_hour',
+        utilization: 1,
+      },
+    ]);
+    expect(
+      normalizeSdkMessage({ type: 'rate_limit_event', rate_limit_info: { status: 'bogus' } }),
+    ).toEqual([]);
   });
 });

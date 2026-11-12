@@ -31,10 +31,7 @@ export class EventBus {
   }
 
   async publish(event: DomainEvent): Promise<void> {
-    const targets = [
-      ...(this.handlers.get(event.type) ?? []),
-      ...(this.handlers.get('*') ?? []),
-    ];
+    const targets = [...(this.handlers.get(event.type) ?? []), ...(this.handlers.get('*') ?? [])];
     for (const handler of targets) {
       try {
         await handler(event);

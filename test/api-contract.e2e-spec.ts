@@ -4,7 +4,16 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { goals } from '../src/modules/goals/goals.schema';
-import { assign, bootApp, createCompany, createEmployee, createProject, createWorkItem, db, getWorkItem } from './helpers';
+import {
+  assign,
+  bootApp,
+  createCompany,
+  createEmployee,
+  createProject,
+  createWorkItem,
+  db,
+  getWorkItem,
+} from './helpers';
 
 describe('HTTP API contract — validation, 404s, and org hierarchy', () => {
   let app: INestApplication;
@@ -33,7 +42,10 @@ describe('HTTP API contract — validation, 404s, and org hierarchy', () => {
     });
 
     it('strips unknown properties instead of persisting them', async () => {
-      const res = await request(server).post('/companies').send({ name: 'Strip Co', id: randomUUID(), evil: true }).expect(201);
+      const res = await request(server)
+        .post('/companies')
+        .send({ name: 'Strip Co', id: randomUUID(), evil: true })
+        .expect(201);
       expect(res.body.evil).toBeUndefined();
     });
 
@@ -63,7 +75,10 @@ describe('HTTP API contract — validation, 404s, and org hierarchy', () => {
           name: 'Grace',
           role: 'Backend Engineer',
           department: 'Eng',
-          runtimeConfig: { runtimeKey: 'claude_code', modelPolicy: { default: 'claude-sonnet-4-6' } },
+          runtimeConfig: {
+            runtimeKey: 'claude_code',
+            modelPolicy: { default: 'claude-sonnet-4-6' },
+          },
           skills: [{ skillKey: 'node', level: 90 }],
         })
         .expect(201);
@@ -74,7 +89,10 @@ describe('HTTP API contract — validation, 404s, and org hierarchy', () => {
 
     it('validates required fields and ranges', async () => {
       const companyId = await createCompany(app);
-      const post = (body: unknown) => request(server).post(`/companies/${companyId}/employees`).send(body as object);
+      const post = (body: unknown) =>
+        request(server)
+          .post(`/companies/${companyId}/employees`)
+          .send(body as object);
       await post({ role: 'x' }).expect(400); // no name
       await post({ name: 'x' }).expect(400); // no role
       await post({ name: 'x', role: 'y', skills: [{ skillKey: 'a', level: 101 }] }).expect(400);
@@ -85,16 +103,28 @@ describe('HTTP API contract — validation, 404s, and org hierarchy', () => {
     });
 
     it('404s when the company does not exist', async () => {
-      await request(server).post(`/companies/${randomUUID()}/employees`).send({ name: 'a', role: 'b' }).expect(404);
+      await request(server)
+        .post(`/companies/${randomUUID()}/employees`)
+        .send({ name: 'a', role: 'b' })
+        .expect(404);
     });
 
     it('records the reporting line and lists the roster', async () => {
       const companyId = await createCompany(app);
       const ceo = await createEmployee(app, companyId, { name: 'Ada', role: 'CEO' });
-      const lead = await createEmployee(app, companyId, { name: 'Linus', role: 'Tech Lead', managerEmployeeId: ceo });
-      const dev = await createEmployee(app, companyId, { name: 'Grace', role: 'Engineer', managerEmployeeId: lead });
+      const lead = await createEmployee(app, companyId, {
+        name: 'Linus',
+        role: 'Tech Lead',
+        managerEmployeeId: ceo,
+      });
+      const dev = await createEmployee(app, companyId, {
+        name: 'Grace',
+        role: 'Engineer',
+        managerEmployeeId: lead,
+      });
 
-      const roster = (await request(server).get(`/companies/${companyId}/employees`).expect(200)).body as Array<{
+      const roster = (await request(server).get(`/companies/${companyId}/employees`).expect(200))
+        .body as Array<{
         id: string;
         managerEmployeeId: string | null;
       }>;
@@ -109,7 +139,9 @@ describe('HTTP API contract — validation, 404s, and org hierarchy', () => {
       const b = await createCompany(app, 'B');
       const ea = await createEmployee(app, a, { name: 'ea', role: 'x' });
       const eb = await createEmployee(app, b, { name: 'eb', role: 'x' });
-      const ra = (await request(server).get(`/companies/${a}/employees`).expect(200)).body.map((e: { id: string }) => e.id);
+      const ra = (await request(server).get(`/companies/${a}/employees`).expect(200)).body.map(
+        (e: { id: string }) => e.id,
+      );
       expect(ra).toContain(ea);
       expect(ra).not.toContain(eb);
     });
@@ -143,14 +175,23 @@ describe('HTTP API contract — validation, 404s, and org hierarchy', () => {
     it('validates goal input and 404s unknown parents', async () => {
       const companyId = await createCompany(app);
       await request(server).post(`/companies/${companyId}/goals`).send({}).expect(400);
-      await request(server).post(`/companies/${randomUUID()}/goals`).send({ title: 'x' }).expect(404);
+      await request(server)
+        .post(`/companies/${randomUUID()}/goals`)
+        .send({ title: 'x' })
+        .expect(404);
       await request(server).post(`/goals/${randomUUID()}/projects`).send({ name: 'x' }).expect(404);
-      await request(server).post(`/projects/${randomUUID()}/work-items`).send({ title: 'x' }).expect(404);
+      await request(server)
+        .post(`/projects/${randomUUID()}/work-items`)
+        .send({ title: 'x' })
+        .expect(404);
     });
 
     it('a started goal becomes active; completed/cancelled goals cannot be restarted', async () => {
       const companyId = await createCompany(app);
-      const goal = await request(server).post(`/companies/${companyId}/goals`).send({ title: 'G' }).expect(201);
+      const goal = await request(server)
+        .post(`/companies/${companyId}/goals`)
+        .send({ title: 'G' })
+        .expect(201);
       expect(goal.body.status).toBe('draft');
       const started = await request(server).post(`/goals/${goal.body.id}/start`).expect(201);
       expect(started.body.status).toBe('active');
@@ -163,7 +204,10 @@ describe('HTTP API contract — validation, 404s, and org hierarchy', () => {
 
     it('validates work-item fields', async () => {
       const { projectId } = await createProject(app, await createCompany(app));
-      const post = (body: unknown) => request(server).post(`/projects/${projectId}/work-items`).send(body as object);
+      const post = (body: unknown) =>
+        request(server)
+          .post(`/projects/${projectId}/work-items`)
+          .send(body as object);
       await post({}).expect(400);
       await post({ title: 'x'.repeat(301) }).expect(400);
       await post({ title: 'x', taskType: 'sorcery' }).expect(400);
@@ -205,16 +249,28 @@ describe('HTTP API contract — validation, 404s, and org hierarchy', () => {
       const item = await getWorkItem(app, wi);
       expect(item.status).toBe('assigned');
       expect(item.assignedEmployeeId).toBe(emp);
-      await request(server).post(`/work-items/${wi}/status`).send({ status: 'cancelled' }).expect(201); // keep the queue clean
+      await request(server)
+        .post(`/work-items/${wi}/status`)
+        .send({ status: 'cancelled' })
+        .expect(201); // keep the queue clean
     });
 
     it('rejects assigning to an unknown employee, an invalid uuid, or an unknown work item', async () => {
       const companyId = await createCompany(app);
       const { projectId } = await createProject(app, companyId);
       const wi = await createWorkItem(app, projectId);
-      await request(server).post(`/work-items/${wi}/assign`).send({ employeeId: randomUUID() }).expect(404);
-      await request(server).post(`/work-items/${wi}/assign`).send({ employeeId: 'nope' }).expect(400);
-      await request(server).post(`/work-items/${randomUUID()}/assign`).send({ employeeId: randomUUID() }).expect(404);
+      await request(server)
+        .post(`/work-items/${wi}/assign`)
+        .send({ employeeId: randomUUID() })
+        .expect(404);
+      await request(server)
+        .post(`/work-items/${wi}/assign`)
+        .send({ employeeId: 'nope' })
+        .expect(400);
+      await request(server)
+        .post(`/work-items/${randomUUID()}/assign`)
+        .send({ employeeId: randomUUID() })
+        .expect(404);
     });
 
     it('does not let a company’s work be assigned to another company’s employee (tenant isolation)', async () => {
@@ -223,7 +279,9 @@ describe('HTTP API contract — validation, 404s, and org hierarchy', () => {
       const outsider = await createEmployee(app, b, { name: 'outsider', role: 'Engineer' });
       const { projectId } = await createProject(app, a);
       const wi = await createWorkItem(app, projectId);
-      const res = await request(server).post(`/work-items/${wi}/assign`).send({ employeeId: outsider });
+      const res = await request(server)
+        .post(`/work-items/${wi}/assign`)
+        .send({ employeeId: outsider });
       expect(res.status).toBeGreaterThanOrEqual(400);
       expect(res.status).toBeLessThan(500);
       expect((await getWorkItem(app, wi)).status).toBe('created');
@@ -232,7 +290,10 @@ describe('HTTP API contract — validation, 404s, and org hierarchy', () => {
     it('rejects illegal status transitions with a 400 that names the edge', async () => {
       const { projectId } = await createProject(app, await createCompany(app));
       const wi = await createWorkItem(app, projectId);
-      const res = await request(server).post(`/work-items/${wi}/status`).send({ status: 'done' }).expect(400);
+      const res = await request(server)
+        .post(`/work-items/${wi}/status`)
+        .send({ status: 'done' })
+        .expect(400);
       expect(JSON.stringify(res.body)).toContain('created -> done');
       expect((await getWorkItem(app, wi)).status).toBe('created');
     });
@@ -240,14 +301,23 @@ describe('HTTP API contract — validation, 404s, and org hierarchy', () => {
     it('rejects an unknown status value', async () => {
       const { projectId } = await createProject(app, await createCompany(app));
       const wi = await createWorkItem(app, projectId);
-      await request(server).post(`/work-items/${wi}/status`).send({ status: 'teleported' }).expect(400);
+      await request(server)
+        .post(`/work-items/${wi}/status`)
+        .send({ status: 'teleported' })
+        .expect(400);
     });
 
     it('cancelled is terminal over HTTP too', async () => {
       const { projectId } = await createProject(app, await createCompany(app));
       const wi = await createWorkItem(app, projectId);
-      await request(server).post(`/work-items/${wi}/status`).send({ status: 'cancelled' }).expect(201);
-      await request(server).post(`/work-items/${wi}/status`).send({ status: 'assigned' }).expect(400);
+      await request(server)
+        .post(`/work-items/${wi}/status`)
+        .send({ status: 'cancelled' })
+        .expect(201);
+      await request(server)
+        .post(`/work-items/${wi}/status`)
+        .send({ status: 'assigned' })
+        .expect(400);
     });
 
     it('a done item cannot be re-assigned', async () => {
@@ -266,35 +336,63 @@ describe('HTTP API contract — validation, 404s, and org hierarchy', () => {
   describe('dependencies', () => {
     async function twoItems() {
       const { projectId } = await createProject(app, await createCompany(app));
-      return [await createWorkItem(app, projectId, { title: 'A' }), await createWorkItem(app, projectId, { title: 'B' })];
+      return [
+        await createWorkItem(app, projectId, { title: 'A' }),
+        await createWorkItem(app, projectId, { title: 'B' }),
+      ];
     }
 
     it('records a dependency and exposes it on the work item', async () => {
       const [a, b] = await twoItems();
-      await request(server).post(`/work-items/${b}/dependencies`).send({ dependsOnWorkItemId: a }).expect(201);
+      await request(server)
+        .post(`/work-items/${b}/dependencies`)
+        .send({ dependsOnWorkItemId: a })
+        .expect(201);
       const wi = (await request(server).get(`/work-items/${b}`).expect(200)).body;
-      expect(wi.dependencies.map((d: { dependsOnWorkItemId: string }) => d.dependsOnWorkItemId)).toEqual([a]);
+      expect(
+        wi.dependencies.map((d: { dependsOnWorkItemId: string }) => d.dependsOnWorkItemId),
+      ).toEqual([a]);
     });
 
     it('is idempotent for the same edge', async () => {
       const [a, b] = await twoItems();
-      await request(server).post(`/work-items/${b}/dependencies`).send({ dependsOnWorkItemId: a }).expect(201);
-      await request(server).post(`/work-items/${b}/dependencies`).send({ dependsOnWorkItemId: a }).expect(201);
+      await request(server)
+        .post(`/work-items/${b}/dependencies`)
+        .send({ dependsOnWorkItemId: a })
+        .expect(201);
+      await request(server)
+        .post(`/work-items/${b}/dependencies`)
+        .send({ dependsOnWorkItemId: a })
+        .expect(201);
       const wi = (await request(server).get(`/work-items/${b}`).expect(200)).body;
       expect(wi.dependencies).toHaveLength(1);
     });
 
     it('rejects self-dependency, unknown targets, and bad uuids', async () => {
       const [a] = await twoItems();
-      await request(server).post(`/work-items/${a}/dependencies`).send({ dependsOnWorkItemId: a }).expect(400);
-      await request(server).post(`/work-items/${a}/dependencies`).send({ dependsOnWorkItemId: randomUUID() }).expect(404);
-      await request(server).post(`/work-items/${a}/dependencies`).send({ dependsOnWorkItemId: 'x' }).expect(400);
+      await request(server)
+        .post(`/work-items/${a}/dependencies`)
+        .send({ dependsOnWorkItemId: a })
+        .expect(400);
+      await request(server)
+        .post(`/work-items/${a}/dependencies`)
+        .send({ dependsOnWorkItemId: randomUUID() })
+        .expect(404);
+      await request(server)
+        .post(`/work-items/${a}/dependencies`)
+        .send({ dependsOnWorkItemId: 'x' })
+        .expect(400);
     });
 
     it('rejects a dependency cycle (A→B→A would deadlock the graph)', async () => {
       const [a, b] = await twoItems();
-      await request(server).post(`/work-items/${b}/dependencies`).send({ dependsOnWorkItemId: a }).expect(201);
-      const res = await request(server).post(`/work-items/${a}/dependencies`).send({ dependsOnWorkItemId: b });
+      await request(server)
+        .post(`/work-items/${b}/dependencies`)
+        .send({ dependsOnWorkItemId: a })
+        .expect(201);
+      const res = await request(server)
+        .post(`/work-items/${a}/dependencies`)
+        .send({ dependsOnWorkItemId: b });
       expect(res.status).toBe(400);
     });
 
@@ -305,9 +403,18 @@ describe('HTTP API contract — validation, 404s, and org hierarchy', () => {
         await createWorkItem(app, projectId, { title: 'B' }),
         await createWorkItem(app, projectId, { title: 'C' }),
       ];
-      await request(server).post(`/work-items/${a}/dependencies`).send({ dependsOnWorkItemId: b }).expect(201);
-      await request(server).post(`/work-items/${b}/dependencies`).send({ dependsOnWorkItemId: c }).expect(201);
-      await request(server).post(`/work-items/${c}/dependencies`).send({ dependsOnWorkItemId: a }).expect(400);
+      await request(server)
+        .post(`/work-items/${a}/dependencies`)
+        .send({ dependsOnWorkItemId: b })
+        .expect(201);
+      await request(server)
+        .post(`/work-items/${b}/dependencies`)
+        .send({ dependsOnWorkItemId: c })
+        .expect(201);
+      await request(server)
+        .post(`/work-items/${c}/dependencies`)
+        .send({ dependsOnWorkItemId: a })
+        .expect(400);
     });
   });
 
@@ -315,30 +422,46 @@ describe('HTTP API contract — validation, 404s, and org hierarchy', () => {
     it('sets and reads a budget, and validates it', async () => {
       const companyId = await createCompany(app);
       const emp = await createEmployee(app, companyId, { name: 'e', role: 'x' });
-      await request(server).put(`/employees/${emp}/budget`).send({ softLimitUsd: 1, hardLimitUsd: 2, period: 'day' }).expect(200);
+      await request(server)
+        .put(`/employees/${emp}/budget`)
+        .send({ softLimitUsd: 1, hardLimitUsd: 2, period: 'day' })
+        .expect(200);
       // GET reports the live evaluation against the stored limits.
       const got = await request(server).get(`/employees/${emp}/budget`).expect(200);
       expect(got.body).toMatchObject({ state: 'ok', spend: 0, softLimit: 1, hardLimit: 2 });
-      await request(server).put(`/employees/${randomUUID()}/budget`).send({ hardLimitUsd: 1 }).expect(404);
+      await request(server)
+        .put(`/employees/${randomUUID()}/budget`)
+        .send({ hardLimitUsd: 1 })
+        .expect(404);
       await request(server).put(`/employees/${emp}/budget`).send({ softLimitUsd: -1 }).expect(400);
       await request(server).put(`/employees/${emp}/budget`).send({ period: 'century' }).expect(400);
     });
 
     it('rejects a budget whose soft limit exceeds the hard limit (the soft alarm could never fire first)', async () => {
       const emp = await createEmployee(app, await createCompany(app), { name: 'e', role: 'x' });
-      const res = await request(server).put(`/employees/${emp}/budget`).send({ softLimitUsd: 5, hardLimitUsd: 1 });
+      const res = await request(server)
+        .put(`/employees/${emp}/budget`)
+        .send({ softLimitUsd: 5, hardLimitUsd: 1 });
       expect(res.status).toBe(400);
     });
 
     it('404s unknown approvals and validates decisions', async () => {
       await request(server).get(`/approvals/${randomUUID()}`).expect(404);
-      await request(server).post(`/approvals/${randomUUID()}/decision`).send({ decision: 'approved' }).expect(404);
-      await request(server).post(`/approvals/${randomUUID()}/decision`).send({ decision: 'maybe' }).expect(400);
+      await request(server)
+        .post(`/approvals/${randomUUID()}/decision`)
+        .send({ decision: 'approved' })
+        .expect(404);
+      await request(server)
+        .post(`/approvals/${randomUUID()}/decision`)
+        .send({ decision: 'maybe' })
+        .expect(400);
     });
 
     it('a new employee has no memories and an empty profile', async () => {
       const emp = await createEmployee(app, await createCompany(app), { name: 'fresh', role: 'x' });
-      expect((await request(server).get(`/employees/${emp}/memories`).expect(200)).body).toEqual([]);
+      expect((await request(server).get(`/employees/${emp}/memories`).expect(200)).body).toEqual(
+        [],
+      );
       const profile = (await request(server).get(`/employees/${emp}/profile`).expect(200)).body;
       expect(profile.reputation.overall).toBeNull();
       expect(profile.recentPerformance).toEqual([]);

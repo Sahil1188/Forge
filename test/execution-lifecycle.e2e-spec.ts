@@ -15,7 +15,10 @@ import { ApprovalsService } from '../src/modules/approvals/approvals.service';
 import { MemoryService } from '../src/modules/memory/memory.service';
 import { ExecutionWorker } from '../src/workers/execution.worker';
 import { UsageLimits } from '../src/modules/runtimes/usage-limits';
-import { EvaluationWorker, NotAwaitingEvaluationError } from '../src/modules/evaluation/evaluation.worker';
+import {
+  EvaluationWorker,
+  NotAwaitingEvaluationError,
+} from '../src/modules/evaluation/evaluation.worker';
 import { workspaces } from '../src/modules/workspaces/workspaces.schema';
 import { RuntimeEvent, RuntimeRunContext } from '../src/modules/runtimes/runtime.port';
 import {
@@ -73,25 +76,31 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       settings: opts.settings,
     });
     const { projectId } = await createProject(app, companyId);
-    const workItemId = await createWorkItem(app, projectId, { taskType: opts.taskType, priority: opts.priority });
+    const workItemId = await createWorkItem(app, projectId, {
+      taskType: opts.taskType,
+      priority: opts.priority,
+    });
     await assign(app, workItemId, employeeId);
     return { key, runtime, companyId, employeeId, projectId, workItemId };
   }
 
-  const cancel = (id: string) => request(server).post(`/work-items/${id}/status`).send({ status: 'cancelled' });
+  const cancel = (id: string) =>
+    request(server).post(`/work-items/${id}/status`).send({ status: 'cancelled' });
 
   it('different employees work at the same time; one person never runs two tasks at once', async () => {
     // Each script waits until the other has started: they can only finish if they run in parallel.
     const started = new Set<string>();
     let maxConcurrentForGrace = 0;
     let graceActive = 0;
-    const both = (who: string) => async function* () {
-      yield { kind: 'session', sessionId: who } as RuntimeEvent;
-      started.add(who);
-      for (let i = 0; i < 100 && !(started.has('A') && started.has('B')); i += 1) await new Promise((r) => setTimeout(r, 50));
-      if (!(started.has('A') && started.has('B'))) throw new Error('ran alone: no parallelism');
-      yield { kind: 'completed', result: 'ok', sessionId: who } as RuntimeEvent;
-    };
+    const both = (who: string) =>
+      async function* () {
+        yield { kind: 'session', sessionId: who } as RuntimeEvent;
+        started.add(who);
+        for (let i = 0; i < 100 && !(started.has('A') && started.has('B')); i += 1)
+          await new Promise((r) => setTimeout(r, 50));
+        if (!(started.has('A') && started.has('B'))) throw new Error('ran alone: no parallelism');
+        yield { kind: 'completed', result: 'ok', sessionId: who } as RuntimeEvent;
+      };
     const a = await world(both('A'));
     const b = await world(both('B'));
     // Two tasks for the same person (B's employee): must not overlap.
@@ -129,14 +138,20 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       new ScriptedRuntime(key, (ctx) =>
         (async function* () {
           ranBy.set(ctx.workItemId, ctx.employeeId);
-          for (let i = 0; i < 100 && ranBy.size < 3; i += 1) await new Promise((r) => setTimeout(r, 50));
+          for (let i = 0; i < 100 && ranBy.size < 3; i += 1)
+            await new Promise((r) => setTimeout(r, 50));
           if (ranBy.size < 3) throw new Error('not enough parallel staff');
           yield { kind: 'completed', result: 'ok' } as RuntimeEvent;
         })(),
       ),
     );
     const companyId = await createCompany(app, `Staff Co ${key}`);
-    const mira = await createEmployee(app, companyId, { name: 'Mira', role: 'Frontend Engineer', runtimeKey: key, skills: [{ skillKey: 'react', level: 94 }] });
+    const mira = await createEmployee(app, companyId, {
+      name: 'Mira',
+      role: 'Frontend Engineer',
+      runtimeKey: key,
+      skills: [{ skillKey: 'react', level: 94 }],
+    });
     const { projectId } = await createProject(app, companyId);
     const items: string[] = [];
     for (const title of ['Import screen', 'Ledger screen', 'Dashboard screen']) {
@@ -146,13 +161,19 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
     }
     try {
       const summaries = await worker().drain();
-      for (const id of items) expect(summaries.find((x) => x.workItemId === id)?.status).toBe('completed');
+      for (const id of items)
+        expect(summaries.find((x) => x.workItemId === id)?.status).toBe('completed');
       expect(new Set(ranBy.values()).size).toBe(3);
       // Two teammates joined with the same role and skills; the original kept one of the items.
-      const team = (await app.get(EmployeesService).findByCompany(companyId)).filter((e) => e.role === 'Frontend Engineer');
+      const team = (await app.get(EmployeesService).findByCompany(companyId)).filter(
+        (e) => e.role === 'Frontend Engineer',
+      );
       expect(team).toHaveLength(3);
       expect([...ranBy.values()]).toContain(mira);
-      for (const e of team) expect((await app.get(EmployeesService).findOne(e.id)).skills).toEqual([expect.objectContaining({ skillKey: 'react', level: 94 })]);
+      for (const e of team)
+        expect((await app.get(EmployeesService).findOne(e.id)).skills).toEqual([
+          expect.objectContaining({ skillKey: 'react', level: 94 }),
+        ]);
     } finally {
       process.env.FORGE_AUTOSTAFF = '0';
       delete process.env.FORGE_MAX_PER_ROLE;
@@ -166,24 +187,36 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
     const key = `spread-${randomUUID().slice(0, 6)}`;
     app.get(RuntimeRegistry).register(new ScriptedRuntime(key, () => events(completes())));
     const companyId = await createCompany(app, `Spread Co ${key}`);
-    const grace = await createEmployee(app, companyId, { name: 'Grace', role: 'Backend Engineer', runtimeKey: key, skills: [{ skillKey: 'node', level: 95 }] });
+    const grace = await createEmployee(app, companyId, {
+      name: 'Grace',
+      role: 'Backend Engineer',
+      runtimeKey: key,
+      skills: [{ skillKey: 'node', level: 95 }],
+    });
     const { projectId } = await createProject(app, companyId);
     // A foundation step everyone waits for, so nothing starts while we look at the board.
     const foundation = await createWorkItem(app, projectId, { title: 'Foundation' });
     const steps: string[] = [];
     for (const title of ['Import', 'Matching', 'Exceptions', 'Receivables', 'Reporting']) {
       const id = await createWorkItem(app, projectId, { title });
-      await request(server).post(`/work-items/${id}/dependencies`).send({ dependsOnWorkItemId: foundation }).expect(201);
+      await request(server)
+        .post(`/work-items/${id}/dependencies`)
+        .send({ dependsOnWorkItemId: foundation })
+        .expect(201);
       await assign(app, id, grace);
       steps.push(id);
     }
     try {
       expect(await worker().spreadQueued()).toBe(3);
-      const owners = await Promise.all(steps.map(async (id) => (await getWorkItem(app, id)).assignedEmployeeId));
+      const owners = await Promise.all(
+        steps.map(async (id) => (await getWorkItem(app, id)).assignedEmployeeId),
+      );
       expect(new Set(owners).size).toBe(3); // three people, round-robin
       expect(owners[0]).toBe(grace);
       expect(owners[3]).toBe(grace);
-      const team = (await app.get(EmployeesService).findByCompany(companyId)).filter((e) => e.role === 'Backend Engineer');
+      const team = (await app.get(EmployeesService).findByCompany(companyId)).filter(
+        (e) => e.role === 'Backend Engineer',
+      );
       expect(team).toHaveLength(3); // never more than the cap
       expect(await worker().spreadQueued()).toBe(0); // already spread: stable
     } finally {
@@ -208,12 +241,20 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
     );
     const running = worker().runOnce();
     // Cancel once the agent is actually running.
-    for (let i = 0; i < 100 && (await getWorkItem(app, w.workItemId)).status !== 'in_progress'; i += 1) await new Promise((r) => setTimeout(r, 100));
+    for (
+      let i = 0;
+      i < 100 && (await getWorkItem(app, w.workItemId)).status !== 'in_progress';
+      i += 1
+    )
+      await new Promise((r) => setTimeout(r, 100));
     await cancel(w.workItemId).expect(201);
     const summary = await running;
     expect(aborted).toBe(true);
     expect(summary?.status).toBe('failed');
-    expect((await runs().findByWorkItem(w.workItemId))[0]).toMatchObject({ status: 'failed', errorJson: { message: 'Cancelled' } });
+    expect((await runs().findByWorkItem(w.workItemId))[0]).toMatchObject({
+      status: 'failed',
+      errorJson: { message: 'Cancelled' },
+    });
     expect((await getWorkItem(app, w.workItemId)).status).toBe('cancelled');
   });
 
@@ -222,7 +263,16 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       const resetsAt = Date.now() + 3_600_000;
       const w = await world((_ctx, n) =>
         n === 1
-          ? events([{ kind: 'session', sessionId: 's1' }, { kind: 'rate_limit', status: 'rejected', resetsAt, limitType: 'five_hour', utilization: 1 }])
+          ? events([
+              { kind: 'session', sessionId: 's1' },
+              {
+                kind: 'rate_limit',
+                status: 'rejected',
+                resetsAt,
+                limitType: 'five_hour',
+                utilization: 1,
+              },
+            ])
           : events([{ kind: 'completed', result: 'ok' }]),
       );
       const first = await worker().runOnce();
@@ -234,7 +284,16 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       const held = await worker().runOnce();
       expect(held).toMatchObject({ status: 'blocked', agentRunId: '' });
       const sys = await request(server).get('/system').expect(200);
-      expect(sys.body.usage).toEqual(expect.arrayContaining([expect.objectContaining({ runtimeKey: w.key, status: 'rejected', resetsAt, limitType: 'five_hour' })]));
+      expect(sys.body.usage).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            runtimeKey: w.key,
+            status: 'rejected',
+            resetsAt,
+            limitType: 'five_hour',
+          }),
+        ]),
+      );
 
       // The limit resets → the work runs and completes.
       app.get(UsageLimits).record(w.key, { status: 'allowed' });
@@ -245,21 +304,47 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
 
     it('with a fallback endpoint configured (OmniRoute/OpenRouter), work switches to it instead of waiting', async () => {
       const saved = { ...process.env };
-      Object.assign(process.env, { FORGE_FALLBACK_BASE_URL: 'https://gateway.test/v1', FORGE_FALLBACK_API_KEY: 'k', FORGE_FALLBACK_MODEL: 'openrouter/auto' });
-      const fetchMock = vi
-        .spyOn(globalThis, 'fetch')
-        .mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: 'Done.' }, finish_reason: 'stop' }], usage: { prompt_tokens: 5, completion_tokens: 2, cost: 0.0001 } }), { status: 200 }));
+      Object.assign(process.env, {
+        FORGE_FALLBACK_BASE_URL: 'https://gateway.test/v1',
+        FORGE_FALLBACK_API_KEY: 'k',
+        FORGE_FALLBACK_MODEL: 'openrouter/auto',
+      });
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: 'Done.' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 5, completion_tokens: 2, cost: 0.0001 },
+          }),
+          { status: 200 },
+        ),
+      );
       try {
         const companyId = await createCompany(app, 'Fallback Co');
-        const employeeId = await createEmployee(app, companyId, { name: 'Grace', role: 'Engineer', runtimeKey: 'claude_code', modelPolicy: { default: 'sonnet' } });
+        const employeeId = await createEmployee(app, companyId, {
+          name: 'Grace',
+          role: 'Engineer',
+          runtimeKey: 'claude_code',
+          modelPolicy: { default: 'sonnet' },
+        });
         const { projectId } = await createProject(app, companyId);
         const workItemId = await createWorkItem(app, projectId, {});
         await assign(app, workItemId, employeeId);
-        app.get(UsageLimits).record('claude_code', { status: 'rejected', resetsAt: Date.now() + 3_600_000 });
+        app
+          .get(UsageLimits)
+          .record('claude_code', { status: 'rejected', resetsAt: Date.now() + 3_600_000 });
 
         const summary = await worker().runOnce();
-        expect(summary).toMatchObject({ status: 'completed', runtimeKey: 'custom', model: 'openrouter/auto' });
-        expect((await runs().findByWorkItem(workItemId))[0]).toMatchObject({ runtimeKey: 'custom', provider: 'openai', model: 'openrouter/auto', status: 'completed' });
+        expect(summary).toMatchObject({
+          status: 'completed',
+          runtimeKey: 'custom',
+          model: 'openrouter/auto',
+        });
+        expect((await runs().findByWorkItem(workItemId))[0]).toMatchObject({
+          runtimeKey: 'custom',
+          provider: 'openai',
+          model: 'openrouter/auto',
+          status: 'completed',
+        });
         expect(String(fetchMock.mock.calls[0][0])).toBe('https://gateway.test/v1/chat/completions');
         await cancel(workItemId);
       } finally {
@@ -271,20 +356,37 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
 
     it('a step the fallback already tried 3 times waits for Claude instead of looping on the fallback', async () => {
       const saved = { ...process.env };
-      Object.assign(process.env, { FORGE_FALLBACK_BASE_URL: 'https://gateway.test/v1', FORGE_FALLBACK_API_KEY: 'k', FORGE_FALLBACK_MODEL: 'auto/coding' });
+      Object.assign(process.env, {
+        FORGE_FALLBACK_BASE_URL: 'https://gateway.test/v1',
+        FORGE_FALLBACK_API_KEY: 'k',
+        FORGE_FALLBACK_MODEL: 'auto/coding',
+      });
       const fetchMock = vi.spyOn(globalThis, 'fetch');
       try {
         const companyId = await createCompany(app, 'Fallback Tries Co');
-        const employeeId = await createEmployee(app, companyId, { name: 'Grace', role: 'Engineer', runtimeKey: 'claude_code', modelPolicy: { default: 'sonnet' } });
+        const employeeId = await createEmployee(app, companyId, {
+          name: 'Grace',
+          role: 'Engineer',
+          runtimeKey: 'claude_code',
+          modelPolicy: { default: 'sonnet' },
+        });
         const { projectId } = await createProject(app, companyId);
         const workItemId = await createWorkItem(app, projectId, {});
         // Three earlier runs on the fallback that did not get the step through its checks.
         for (let i = 0; i < 3; i += 1) {
-          const r = await runs().create({ workItemId, employeeId, runtimeKey: 'custom', provider: 'openai', model: 'auto/coding' });
+          const r = await runs().create({
+            workItemId,
+            employeeId,
+            runtimeKey: 'custom',
+            provider: 'openai',
+            model: 'auto/coding',
+          });
           await runs().finish(r.id, { status: 'completed' });
         }
         await assign(app, workItemId, employeeId);
-        app.get(UsageLimits).record('claude_code', { status: 'rejected', resetsAt: Date.now() + 3_600_000 });
+        app
+          .get(UsageLimits)
+          .record('claude_code', { status: 'rejected', resetsAt: Date.now() + 3_600_000 });
         expect(await worker().runOnce()).toMatchObject({ status: 'blocked', agentRunId: '' });
         expect(fetchMock).not.toHaveBeenCalled();
         expect((await getWorkItem(app, workItemId)).status).toBe('assigned'); // waits for Claude, not failed
@@ -298,12 +400,25 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
 
     it('when the fallback cannot answer either, the work is held until the reset — never failed', async () => {
       const saved = { ...process.env };
-      Object.assign(process.env, { FORGE_FALLBACK_BASE_URL: 'https://gateway.test/v1', FORGE_FALLBACK_API_KEY: 'k', FORGE_FALLBACK_MODEL: 'auto/coding' });
+      Object.assign(process.env, {
+        FORGE_FALLBACK_BASE_URL: 'https://gateway.test/v1',
+        FORGE_FALLBACK_API_KEY: 'k',
+        FORGE_FALLBACK_MODEL: 'auto/coding',
+      });
       const resetsAt = Date.now() + 3_600_000;
-      const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: { message: 'Model is unavailable' } }), { status: 502 }));
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(JSON.stringify({ error: { message: 'Model is unavailable' } }), {
+          status: 502,
+        }),
+      );
       try {
         const companyId = await createCompany(app, 'Fallback Down Co');
-        const employeeId = await createEmployee(app, companyId, { name: 'Grace', role: 'Engineer', runtimeKey: 'claude_code', modelPolicy: { default: 'sonnet' } });
+        const employeeId = await createEmployee(app, companyId, {
+          name: 'Grace',
+          role: 'Engineer',
+          runtimeKey: 'claude_code',
+          modelPolicy: { default: 'sonnet' },
+        });
         const { projectId } = await createProject(app, companyId);
         const workItemId = await createWorkItem(app, projectId, {});
         await assign(app, workItemId, employeeId);
@@ -312,7 +427,9 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
         const summary = await worker().runOnce();
         expect(summary).toMatchObject({ status: 'blocked', runtimeKey: 'custom' });
         expect((await getWorkItem(app, workItemId)).status).toBe('assigned'); // queued, not failed
-        expect((await runs().findByWorkItem(workItemId))[0]).toMatchObject({ status: 'rate_limited' }); // no attempt spent
+        expect((await runs().findByWorkItem(workItemId))[0]).toMatchObject({
+          status: 'rate_limited',
+        }); // no attempt spent
         // The broken fallback is not hammered: the next pick waits for the reset instead.
         const calls = fetchMock.mock.calls.length;
         expect(await worker().runOnce()).toMatchObject({ status: 'blocked', agentRunId: '' });
@@ -327,7 +444,9 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
     });
 
     it('a usage-limit error without a structured event is recognised too', async () => {
-      const w = await world(() => events([{ kind: 'failed', error: 'Claude AI usage limit reached|1761140000' }]));
+      const w = await world(() =>
+        events([{ kind: 'failed', error: 'Claude AI usage limit reached|1761140000' }]),
+      );
       const r = await worker().runOnce();
       expect(r?.status).toBe('rate_limited');
       expect((await getWorkItem(app, w.workItemId)).status).toBe('assigned');
@@ -359,7 +478,11 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
 
     it('an employee whose runtime is not registered fails cleanly with a useful message', async () => {
       const companyId = await createCompany(app);
-      const emp = await createEmployee(app, companyId, { name: 'Ghost', role: 'x', runtimeKey: 'does-not-exist' });
+      const emp = await createEmployee(app, companyId, {
+        name: 'Ghost',
+        role: 'x',
+        runtimeKey: 'does-not-exist',
+      });
       const { projectId } = await createProject(app, companyId);
       const wi = await createWorkItem(app, projectId);
       await assign(app, wi, emp);
@@ -371,7 +494,12 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
     });
 
     it('a failed event without completion marks the run and item failed and keeps the error text', async () => {
-      const w = await world(() => events([{ kind: 'session', sessionId: 's' }, { kind: 'failed', error: 'error_during_execution' }]));
+      const w = await world(() =>
+        events([
+          { kind: 'session', sessionId: 's' },
+          { kind: 'failed', error: 'error_during_execution' },
+        ]),
+      );
       expect((await worker().runOnce())?.status).toBe('failed');
       const run = (await runs().findByWorkItem(w.workItemId))[0];
       expect(run.status).toBe('failed');
@@ -380,7 +508,12 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
     });
 
     it('running out of turns (error_max_turns) is a limit to continue from, not a failure (live bug)', async () => {
-      const w = await world(() => events([{ kind: 'session', sessionId: 's' }, { kind: 'failed', error: 'error_max_turns' }]));
+      const w = await world(() =>
+        events([
+          { kind: 'session', sessionId: 's' },
+          { kind: 'failed', error: 'error_max_turns' },
+        ]),
+      );
       await worker().runOnce();
       const run = (await runs().findByWorkItem(w.workItemId))[0];
       expect(run.status).toBe('killed_tools'); // turn and tool limits share the limit status
@@ -392,7 +525,9 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       const w = await world(() =>
         (async function* (): AsyncIterable<RuntimeEvent> {
           yield { kind: 'session', sessionId: 's' };
-          throw new Error('Claude Code returned an error result: Reached maximum number of turns (100)');
+          throw new Error(
+            'Claude Code returned an error result: Reached maximum number of turns (100)',
+          );
         })(),
       );
       await worker().runOnce();
@@ -403,13 +538,20 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
     });
 
     it('a stream that ends with no terminal event is a failure, not a success', async () => {
-      const w = await world(() => events([{ kind: 'session', sessionId: 's' }, { kind: 'assistant_text', text: 'hmm' }]));
+      const w = await world(() =>
+        events([
+          { kind: 'session', sessionId: 's' },
+          { kind: 'assistant_text', text: 'hmm' },
+        ]),
+      );
       expect((await worker().runOnce())?.status).toBe('failed');
       expect((await getWorkItem(app, w.workItemId)).status).toBe('failed');
     });
 
     it('a failed item can be re-assigned and run again (failed → assigned)', async () => {
-      const w = await world((_c, n) => (n === 1 ? events([{ kind: 'failed', error: 'flaky' }]) : events(completes())));
+      const w = await world((_c, n) =>
+        n === 1 ? events([{ kind: 'failed', error: 'flaky' }]) : events(completes()),
+      );
       expect((await worker().runOnce())?.status).toBe('failed');
       await assign(app, w.workItemId, w.employeeId);
       expect((await worker().runOnce())?.status).toBe('completed');
@@ -424,7 +566,15 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
         () =>
           events([
             { kind: 'session', sessionId: 's' },
-            ...[1, 2, 3, 4].map((i) => ({ kind: 'tool_use', toolName: 'Write', toolUseId: `t${i}`, input: {} }) as RuntimeEvent),
+            ...[1, 2, 3, 4].map(
+              (i) =>
+                ({
+                  kind: 'tool_use',
+                  toolName: 'Write',
+                  toolUseId: `t${i}`,
+                  input: {},
+                }) as RuntimeEvent,
+            ),
             { kind: 'completed', result: 'never reached' },
           ]),
         { settings: { maxToolCalls: 3 } },
@@ -436,7 +586,11 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       expect((await getWorkItem(app, w.workItemId)).status).toBe('assigned');
       await worker().runOnce();
       await worker().runOnce();
-      expect((await runs().findByWorkItem(w.workItemId)).map((r) => r.status)).toEqual(['killed_tools', 'killed_tools', 'killed_tools']);
+      expect((await runs().findByWorkItem(w.workItemId)).map((r) => r.status)).toEqual([
+        'killed_tools',
+        'killed_tools',
+        'killed_tools',
+      ]);
       expect((await getWorkItem(app, w.workItemId)).status).toBe('failed');
     });
 
@@ -445,7 +599,15 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
         () =>
           events([
             { kind: 'session', sessionId: 's' },
-            ...[1, 2, 3].map((i) => ({ kind: 'tool_use', toolName: 'Write', toolUseId: `t${i}`, input: {} }) as RuntimeEvent),
+            ...[1, 2, 3].map(
+              (i) =>
+                ({
+                  kind: 'tool_use',
+                  toolName: 'Write',
+                  toolUseId: `t${i}`,
+                  input: {},
+                }) as RuntimeEvent,
+            ),
             { kind: 'completed', result: 'ok' },
           ]),
         { settings: { maxToolCalls: 3 } },
@@ -461,7 +623,12 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
           try {
             yield { kind: 'session', sessionId: 's' } as RuntimeEvent;
             for (let i = 0; i < 10; i += 1) {
-              yield { kind: 'tool_use', toolName: 'Write', toolUseId: `t${i}`, input: {} } as RuntimeEvent;
+              yield {
+                kind: 'tool_use',
+                toolName: 'Write',
+                toolUseId: `t${i}`,
+                input: {},
+              } as RuntimeEvent;
             }
           } finally {
             closed = true;
@@ -493,7 +660,10 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
 
     it('a hard-exceeded employee is blocked before any run or workspace is created', async () => {
       const w = await world(() => events(completes()));
-      await request(server).put(`/employees/${w.employeeId}/budget`).send({ hardLimitUsd: 0.5, softLimitUsd: 0.4 }).expect(200);
+      await request(server)
+        .put(`/employees/${w.employeeId}/budget`)
+        .send({ hardLimitUsd: 0.5, softLimitUsd: 0.4 })
+        .expect(200);
       await app.get(BudgetsService).recordCost(null, w.employeeId, { costUsd: 0.5 });
       const summary = await worker().runOnce();
       expect(summary?.status).toBe('blocked');
@@ -519,7 +689,11 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
         }),
       );
       const companyId = await createCompany(app);
-      const emp = await createEmployee(app, companyId, { name: 'p', role: 'Engineer', runtimeKey: key });
+      const emp = await createEmployee(app, companyId, {
+        name: 'p',
+        role: 'Engineer',
+        runtimeKey: key,
+      });
       const { projectId } = await createProject(app, companyId);
       const low = await createWorkItem(app, projectId, { title: 'low', priority: 1 });
       const high = await createWorkItem(app, projectId, { title: 'high', priority: 9 });
@@ -554,8 +728,16 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
         const runtime = new ScriptedRuntime(key, script);
         app.get(RuntimeRegistry).register(runtime);
         const companyId = await createCompany(app);
-        const a = await createEmployee(app, companyId, { name: 'A', role: 'Engineer', runtimeKey: key });
-        const b = await createEmployee(app, companyId, { name: 'B', role: 'Engineer', runtimeKey: key });
+        const a = await createEmployee(app, companyId, {
+          name: 'A',
+          role: 'Engineer',
+          runtimeKey: key,
+        });
+        const b = await createEmployee(app, companyId, {
+          name: 'B',
+          role: 'Engineer',
+          runtimeKey: key,
+        });
         const { projectId } = await createProject(app, companyId);
         return { runtime, companyId, a, b, projectId };
       }
@@ -581,7 +763,10 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
 
       it('a blocked (over-budget) item neither loops forever nor starves other employees’ work', async () => {
         const w = await twoEmployeeCompany(() => events(completes()));
-        await request(server).put(`/employees/${w.a}/budget`).send({ hardLimitUsd: 0.1, softLimitUsd: 0.05 }).expect(200);
+        await request(server)
+          .put(`/employees/${w.a}/budget`)
+          .send({ hardLimitUsd: 0.1, softLimitUsd: 0.05 })
+          .expect(200);
         await app.get(BudgetsService).recordCost(null, w.a, { costUsd: 0.2 });
         const blocked = await createWorkItem(app, w.projectId, { priority: 99 }); // would be picked first
         const ok = await createWorkItem(app, w.projectId, { priority: 1 });
@@ -634,11 +819,18 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
         }),
       );
       const companyId = await createCompany(app);
-      const emp = await createEmployee(app, companyId, { name: 'd', role: 'Engineer', runtimeKey: key });
+      const emp = await createEmployee(app, companyId, {
+        name: 'd',
+        role: 'Engineer',
+        runtimeKey: key,
+      });
       const { projectId } = await createProject(app, companyId);
       const first = await createWorkItem(app, projectId, { title: 'first', priority: 0 });
       const second = await createWorkItem(app, projectId, { title: 'second', priority: 99 }); // more urgent, but blocked
-      await request(server).post(`/work-items/${second}/dependencies`).send({ dependsOnWorkItemId: first }).expect(201);
+      await request(server)
+        .post(`/work-items/${second}/dependencies`)
+        .send({ dependsOnWorkItemId: first })
+        .expect(201);
       await assign(app, second, emp);
       await assign(app, first, emp);
 
@@ -655,13 +847,22 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
 
     it('an item whose dependency failed stays blocked rather than running on bad input', async () => {
       const key = `depfail-${randomUUID().slice(0, 6)}`;
-      app.get(RuntimeRegistry).register(new ScriptedRuntime(key, () => events([{ kind: 'failed', error: 'x' }])));
+      app
+        .get(RuntimeRegistry)
+        .register(new ScriptedRuntime(key, () => events([{ kind: 'failed', error: 'x' }])));
       const companyId = await createCompany(app);
-      const emp = await createEmployee(app, companyId, { name: 'd', role: 'Engineer', runtimeKey: key });
+      const emp = await createEmployee(app, companyId, {
+        name: 'd',
+        role: 'Engineer',
+        runtimeKey: key,
+      });
       const { projectId } = await createProject(app, companyId);
       const upstream = await createWorkItem(app, projectId, { title: 'upstream' });
       const downstream = await createWorkItem(app, projectId, { title: 'downstream' });
-      await request(server).post(`/work-items/${downstream}/dependencies`).send({ dependsOnWorkItemId: upstream }).expect(201);
+      await request(server)
+        .post(`/work-items/${downstream}/dependencies`)
+        .send({ dependsOnWorkItemId: upstream })
+        .expect(201);
       await assign(app, upstream, emp);
       await assign(app, downstream, emp);
       expect((await worker().runOnce())?.workItemId).toBe(upstream);
@@ -683,14 +884,21 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       expect(summary?.filesChanged.sort()).toEqual(['a.txt', 'b.txt']);
 
       const wi = await getWorkItem(app, w.workItemId);
-      expect(wi.artifacts).toMatchObject({ filesChanged: expect.arrayContaining(['a.txt', 'b.txt']) });
+      expect(wi.artifacts).toMatchObject({
+        filesChanged: expect.arrayContaining(['a.txt', 'b.txt']),
+      });
       expect(String(wi.artifacts?.branch)).toMatch(new RegExp(`^forge/${w.workItemId}-`)); // one branch per attempt
 
       const run = (await runs().findByWorkItem(w.workItemId))[0];
-      const [ws] = await db(app).select().from(workspaces).where(eq(workspaces.id, run.workspaceId!));
+      const [ws] = await db(app)
+        .select()
+        .from(workspaces)
+        .where(eq(workspaces.id, run.workspaceId!));
       const log = (await git('git', ['log', '--format=%s'], { cwd: ws.rootPath })).stdout;
       expect(log).toContain('feat: work output');
-      const branch = (await git('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: ws.rootPath })).stdout.trim();
+      const branch = (
+        await git('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: ws.rootPath })
+      ).stdout.trim();
       expect(branch).toBe(wi.artifacts?.branch);
       await cancel(w.workItemId);
     });
@@ -728,7 +936,12 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       const w = await world(() =>
         events([
           { kind: 'session', sessionId: 's' },
-          { kind: 'tool_result', toolUseId: 't', isError: false, content: 'AWS_SECRET=AKIAIOSFODNN7EXAMPLE password=hunter2hunter2' },
+          {
+            kind: 'tool_result',
+            toolUseId: 't',
+            isError: false,
+            content: 'AWS_SECRET=AKIAIOSFODNN7EXAMPLE password=hunter2hunter2',
+          },
           { kind: 'completed', result: 'ok', sessionId: 's' },
         ]),
       );
@@ -782,7 +995,12 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       const runtime = new ScriptedRuntime(key, () => events(completes()));
       app.get(RuntimeRegistry).register(runtime);
       const companyId = await createCompany(app, `Brief Co ${key}`);
-      const grace = await createEmployee(app, companyId, { name: 'Grace', role: 'Senior Backend Engineer', runtimeKey: key, skills: [{ skillKey: 'node', level: 95 }] });
+      const grace = await createEmployee(app, companyId, {
+        name: 'Grace',
+        role: 'Senior Backend Engineer',
+        runtimeKey: key,
+        skills: [{ skillKey: 'node', level: 95 }],
+      });
       const { projectId } = await createProject(app, companyId);
       const workItemId = await createWorkItem(app, projectId, { title: 'Build the payments API' });
       await assign(app, workItemId, grace);
@@ -813,7 +1031,11 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
         ];
         for (const [tool, input] of probes) {
           const d = await ctx.canUseTool!(tool, input);
-          results.push({ tool, behavior: d.behavior, message: 'message' in d ? d.message : undefined });
+          results.push({
+            tool,
+            behavior: d.behavior,
+            message: 'message' in d ? d.message : undefined,
+          });
         }
         yield { kind: 'completed', result: 'ok', sessionId: 's' } as RuntimeEvent;
       });
@@ -825,13 +1047,21 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
 
     it('allows everything by default except workspace escapes', async () => {
       const r = await gateWorld({});
-      expect(r.map((x) => `${x.tool}:${x.behavior}`)).toEqual(['Read:allow', 'Bash:allow', 'Write:deny', 'Write:allow']);
+      expect(r.map((x) => `${x.tool}:${x.behavior}`)).toEqual([
+        'Read:allow',
+        'Bash:allow',
+        'Write:deny',
+        'Write:allow',
+      ]);
       expect(r[2].message).toMatch(/outside the workspace/);
     });
 
     it('hands the runtime the denied and whitelisted tools for hard enforcement', async () => {
       const w = await world(() => events(completes()));
-      await setGovernance(app, w.employeeId, { deniedTools: ['Bash'], allowedTools: ['Read', 'Write'] });
+      await setGovernance(app, w.employeeId, {
+        deniedTools: ['Bash'],
+        allowedTools: ['Read', 'Write'],
+      });
       await worker().runOnce();
       expect(w.runtime.contexts[0].disallowedTools).toEqual(['Bash']);
       expect(w.runtime.contexts[0].allowedTools).toEqual(['Read', 'Write']);
@@ -870,7 +1100,12 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
         for (let i = n - 1; i < asks; i += 1) {
           const d = await ctx.canUseTool!('Deploy', { n: i });
           if (d.behavior === 'pause') {
-            yield { kind: 'needs_approval', toolName: 'Deploy', input: { n: i }, approvalRef: d.approvalId } as RuntimeEvent;
+            yield {
+              kind: 'needs_approval',
+              toolName: 'Deploy',
+              input: { n: i },
+              approvalRef: d.approvalId,
+            } as RuntimeEvent;
             return;
           }
           if (d.behavior === 'deny') {
@@ -888,10 +1123,17 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       const w = await approvalWorld();
       const paused = await worker().runOnce();
       const id = paused!.approvalId!;
-      await request(server).post(`/approvals/${id}/decision`).send({ decision: 'approved' }).expect(201);
-      const second = await request(server).post(`/approvals/${id}/decision`).send({ decision: 'denied' });
+      await request(server)
+        .post(`/approvals/${id}/decision`)
+        .send({ decision: 'approved' })
+        .expect(201);
+      const second = await request(server)
+        .post(`/approvals/${id}/decision`)
+        .send({ decision: 'denied' });
       expect(second.status).toBe(409);
-      expect((await request(server).get(`/approvals/${id}`).expect(200)).body.status).toBe('approved');
+      expect((await request(server).get(`/approvals/${id}`).expect(200)).body.status).toBe(
+        'approved',
+      );
       await cancel(w.workItemId);
     });
 
@@ -899,10 +1141,17 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       const w = await approvalWorld();
       const paused = await worker().runOnce();
       const id = paused!.approvalId!;
-      await request(server).post(`/approvals/${id}/decision`).send({ decision: 'approved' }).expect(201);
-      const again = await request(server).post(`/approvals/${id}/decision`).send({ decision: 'approved' });
+      await request(server)
+        .post(`/approvals/${id}/decision`)
+        .send({ decision: 'approved' })
+        .expect(201);
+      const again = await request(server)
+        .post(`/approvals/${id}/decision`)
+        .send({ decision: 'approved' });
       expect([200, 201, 409]).toContain(again.status);
-      expect((await request(server).get(`/approvals/${id}`).expect(200)).body.status).toBe('approved');
+      expect((await request(server).get(`/approvals/${id}`).expect(200)).body.status).toBe(
+        'approved',
+      );
       await cancel(w.workItemId);
     });
 
@@ -910,7 +1159,10 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       const w = await approvalWorld(2);
       const first = await worker().runOnce();
       expect(first?.status).toBe('paused');
-      await request(server).post(`/approvals/${first!.approvalId}/decision`).send({ decision: 'approved' }).expect(201);
+      await request(server)
+        .post(`/approvals/${first!.approvalId}/decision`)
+        .send({ decision: 'approved' })
+        .expect(201);
       const run = (await runs().findByWorkItem(w.workItemId))[0];
 
       const resumed = await worker().onApprovalDecision(run.id);
@@ -919,7 +1171,10 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       expect(resumed?.approvalId).not.toBe(first?.approvalId);
       expect(await app.get(ApprovalsService).findByRun(run.id)).toHaveLength(2);
 
-      await request(server).post(`/approvals/${resumed!.approvalId}/decision`).send({ decision: 'approved' }).expect(201);
+      await request(server)
+        .post(`/approvals/${resumed!.approvalId}/decision`)
+        .send({ decision: 'approved' })
+        .expect(201);
       expect((await worker().onApprovalDecision(run.id))?.status).toBe('completed');
       expect((await getWorkItem(app, w.workItemId)).status).toBe('evaluating');
       await cancel(w.workItemId).catch(() => undefined);
@@ -931,7 +1186,12 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
         const env = n === 1 ? 'staging' : 'prod'; // run 1 asks for staging, the resumed run asks for prod
         const d = await ctx.canUseTool!('Deploy', { env });
         if (d.behavior === 'pause') {
-          yield { kind: 'needs_approval', toolName: 'Deploy', input: { env }, approvalRef: d.approvalId } as RuntimeEvent;
+          yield {
+            kind: 'needs_approval',
+            toolName: 'Deploy',
+            input: { env },
+            approvalRef: d.approvalId,
+          } as RuntimeEvent;
           return;
         }
         yield { kind: 'completed', result: `deployed ${env}`, sessionId: 'sess' } as RuntimeEvent;
@@ -939,22 +1199,41 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       await setGovernance(app, w.employeeId, { approvalRequiredTools: ['Deploy'] });
 
       const first = await worker().runOnce();
-      await request(server).post(`/approvals/${first!.approvalId}/decision`).send({ decision: 'approved' }).expect(201);
+      await request(server)
+        .post(`/approvals/${first!.approvalId}/decision`)
+        .send({ decision: 'approved' })
+        .expect(201);
       const run = (await runs().findByWorkItem(w.workItemId))[0];
       const resumed = await worker().onApprovalDecision(run.id);
 
       expect(resumed?.status).toBe('paused'); // prod was NOT covered by the staging approval
       expect(resumed?.approvalId).not.toBe(first?.approvalId);
       const all = await app.get(ApprovalsService).findByRun(run.id);
-      expect(all.map((a) => (a.requestedAction as { input: { env: string } }).input.env).sort()).toEqual(['prod', 'staging']);
+      expect(
+        all.map((a) => (a.requestedAction as { input: { env: string } }).input.env).sort(),
+      ).toEqual(['prod', 'staging']);
     });
 
     it('two different pending requests for the same tool in one run get separate approvals', async () => {
-      const w = await world(() => events([{ kind: 'session', sessionId: 's' }, { kind: 'completed', result: 'x' }]));
+      const w = await world(() =>
+        events([
+          { kind: 'session', sessionId: 's' },
+          { kind: 'completed', result: 'x' },
+        ]),
+      );
       await setGovernance(app, w.employeeId, { approvalRequiredTools: ['Deploy'] });
-      const run = await runs().create({ workItemId: w.workItemId, employeeId: w.employeeId, runtimeKey: w.key });
+      const run = await runs().create({
+        workItemId: w.workItemId,
+        employeeId: w.employeeId,
+        runtimeKey: w.key,
+      });
       const svc = app.get(ApprovalsService);
-      const base = { agentRunId: run.id, workItemId: w.workItemId, employeeId: w.employeeId, toolName: 'Deploy' };
+      const base = {
+        agentRunId: run.id,
+        workItemId: w.workItemId,
+        employeeId: w.employeeId,
+        toolName: 'Deploy',
+      };
       const a = await svc.requestIfAbsent({ ...base, input: { env: 'staging' } });
       const a2 = await svc.requestIfAbsent({ ...base, input: { env: 'staging' } });
       const b = await svc.requestIfAbsent({ ...base, input: { env: 'prod' } });
@@ -986,7 +1265,10 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
     it('resuming after the same decision twice only resumes once', async () => {
       const w = await approvalWorld();
       const paused = await worker().runOnce();
-      await request(server).post(`/approvals/${paused!.approvalId}/decision`).send({ decision: 'approved' }).expect(201);
+      await request(server)
+        .post(`/approvals/${paused!.approvalId}/decision`)
+        .send({ decision: 'approved' })
+        .expect(201);
       const run = (await runs().findByWorkItem(w.workItemId))[0];
       expect((await worker().onApprovalDecision(run.id))?.status).toBe('completed');
       expect(await worker().onApprovalDecision(run.id)).toBeNull();
@@ -1000,7 +1282,10 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       const run = (await runs().findByWorkItem(w.workItemId))[0];
       expect(run.status).toBe('needs_approval');
       expect((await getWorkItem(app, w.workItemId)).status).toBe('needs_approval');
-      await request(server).post(`/approvals/${paused!.approvalId}/decision`).send({ decision: 'approved' }).expect(201);
+      await request(server)
+        .post(`/approvals/${paused!.approvalId}/decision`)
+        .send({ decision: 'approved' })
+        .expect(201);
       // No session to resume from: it must fail cleanly instead of hanging forever.
       const outcome = await worker().onApprovalDecision(run.id);
       expect(outcome?.status).toBe('failed');
@@ -1010,7 +1295,10 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
     it('denial fails the item and resumes nothing', async () => {
       const w = await approvalWorld();
       const paused = await worker().runOnce();
-      await request(server).post(`/approvals/${paused!.approvalId}/decision`).send({ decision: 'denied' }).expect(201);
+      await request(server)
+        .post(`/approvals/${paused!.approvalId}/decision`)
+        .send({ decision: 'denied' })
+        .expect(201);
       const run = (await runs().findByWorkItem(w.workItemId))[0];
       expect((await worker().onApprovalDecision(run.id))?.status).toBe('failed');
       expect(w.runtime.resumes).toBe(0);
@@ -1024,7 +1312,11 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
 
   describe('evaluation → rework loop (the learning cycle)', () => {
     const pkg = (passing: boolean) =>
-      JSON.stringify({ name: 'x', version: '1.0.0', scripts: { test: passing ? 'node -e "process.exit(0)"' : 'node -e "process.exit(1)"' } });
+      JSON.stringify({
+        name: 'x',
+        version: '1.0.0',
+        scripts: { test: passing ? 'node -e "process.exit(0)"' : 'node -e "process.exit(1)"' },
+      });
 
     it('fail → rework → reassign → pass → done, with performance, skills and memory updated and fed into the retry', async () => {
       const w = await world(
@@ -1047,17 +1339,22 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       expect((await worker().runOnce())?.status).toBe('completed');
       // The retry carries the lesson learned from the failure.
       // Specific, not generic: which check failed (the test script), not just "it failed".
-      expect(w.runtime.contexts[1].systemPromptAppend).toMatch(/Mistake on "[^"]+" \(\w+\):\n- test:/);
+      expect(w.runtime.contexts[1].systemPromptAppend).toMatch(
+        /Mistake on "[^"]+" \(\w+\):\n- test:/,
+      );
 
       const e2 = await evaluator.evaluate(w.workItemId);
       expect(e2).toMatchObject({ status: 'passed', routedTo: 'done', overallScore: 100 });
       expect((await getWorkItem(app, w.workItemId)).status).toBe('done');
 
       expect(await runs().findByWorkItem(w.workItemId)).toHaveLength(2);
-      const evals = (await request(server).get(`/work-items/${w.workItemId}/evaluations`).expect(200)).body;
+      const evals = (
+        await request(server).get(`/work-items/${w.workItemId}/evaluations`).expect(200)
+      ).body;
       expect(evals).toHaveLength(2);
 
-      const profile = (await request(server).get(`/employees/${w.employeeId}/profile`).expect(200)).body;
+      const profile = (await request(server).get(`/employees/${w.employeeId}/profile`).expect(200))
+        .body;
       expect(profile.recentPerformance).toHaveLength(2);
       expect(profile.reputation.samples).toBe(2);
       // Recency-weighted: a fail then a pass lands above the plain mean of 50.
@@ -1066,7 +1363,9 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       const memories = await app.get(MemoryService).findByEmployee(w.employeeId);
       // Two lessons: what went wrong, then what fixed it (the most valuable kind of memory).
       expect(memories.map((m) => m.kind)).toEqual(['lesson', 'lesson']);
-      expect(memories.map((m) => m.content).join('\n')).toMatch(/Fixed "[^"]+" \(\w+\) after 2 attempts\. The problem was — test:/);
+      expect(memories.map((m) => m.content).join('\n')).toMatch(
+        /Fixed "[^"]+" \(\w+\) after 2 attempts\. The problem was — test:/,
+      );
     });
 
     it('a repo with nothing to verify is inconclusive → done, and earns no score, skill or memory', async () => {
@@ -1074,7 +1373,8 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       await worker().runOnce();
       const e = await app.get(EvaluationWorker).evaluate(w.workItemId);
       expect(e).toMatchObject({ status: 'inconclusive', overallScore: null, routedTo: 'done' });
-      const profile = (await request(server).get(`/employees/${w.employeeId}/profile`).expect(200)).body;
+      const profile = (await request(server).get(`/employees/${w.employeeId}/profile`).expect(200))
+        .body;
       expect(profile.recentPerformance).toEqual([]);
       expect(await app.get(MemoryService).findByEmployee(w.employeeId)).toEqual([]);
     });
@@ -1082,8 +1382,12 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
     it('refuses to evaluate an item that is not awaiting evaluation, and creates no evaluation row', async () => {
       const w = await world(() => events(completes()));
       // Still `assigned`, never ran.
-      await expect(app.get(EvaluationWorker).evaluate(w.workItemId)).rejects.toBeInstanceOf(NotAwaitingEvaluationError);
-      const evals = (await request(server).get(`/work-items/${w.workItemId}/evaluations`).expect(200)).body;
+      await expect(app.get(EvaluationWorker).evaluate(w.workItemId)).rejects.toBeInstanceOf(
+        NotAwaitingEvaluationError,
+      );
+      const evals = (
+        await request(server).get(`/work-items/${w.workItemId}/evaluations`).expect(200)
+      ).body;
       expect(evals).toEqual([]);
       await cancel(w.workItemId);
     });
@@ -1093,7 +1397,9 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       await worker().runOnce();
       await app.get(EvaluationWorker).evaluate(w.workItemId);
       await expect(app.get(EvaluationWorker).evaluate(w.workItemId)).rejects.toThrow();
-      const evals = (await request(server).get(`/work-items/${w.workItemId}/evaluations`).expect(200)).body;
+      const evals = (
+        await request(server).get(`/work-items/${w.workItemId}/evaluations`).expect(200)
+      ).body;
       expect(evals).toHaveLength(1);
     });
   });

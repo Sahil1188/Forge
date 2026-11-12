@@ -36,7 +36,9 @@ describe('web console serving', () => {
   });
 
   it('serves every shipped asset with the right content type', async () => {
-    const files = readdirSync(path.join(PUBLIC_DIR, 'assets')).filter((f) => /\.(js|css|svg)$/.test(f) && !f.endsWith('.d.ts'));
+    const files = readdirSync(path.join(PUBLIC_DIR, 'assets')).filter(
+      (f) => /\.(js|css|svg)$/.test(f) && !f.endsWith('.d.ts'),
+    );
     expect(files).toEqual(expect.arrayContaining(['app.js', 'app.css', 'lib.js']));
     await request(app.getHttpServer()).get('/assets/lib.d.ts').expect(404); // typings are not served
     for (const f of files) {
@@ -47,7 +49,15 @@ describe('web console serving', () => {
   });
 
   it('refuses traversal, dotfiles, odd extensions and missing files', async () => {
-    for (const bad of ['..%2Fpackage.json', '..%5C..%5Cpackage.json', '.env', 'app.js.map', 'APP.JS', 'nope.js', '%2E%2E%2Findex.html']) {
+    for (const bad of [
+      '..%2Fpackage.json',
+      '..%5C..%5Cpackage.json',
+      '.env',
+      'app.js.map',
+      'APP.JS',
+      'nope.js',
+      '%2E%2E%2Findex.html',
+    ]) {
       await request(app.getHttpServer()).get(`/assets/${bad}`).expect(404);
     }
   });

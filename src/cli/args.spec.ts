@@ -8,7 +8,9 @@ describe('forge CLI args', () => {
     });
 
     it('keeps a single quoted argument as-is', () => {
-      expect(goalText(['Build a Node/Express hello API with a test'])).toBe('Build a Node/Express hello API with a test');
+      expect(goalText(['Build a Node/Express hello API with a test'])).toBe(
+        'Build a Node/Express hello API with a test',
+      );
     });
 
     it('does not let the --company value leak into the text (flag after)', () => {

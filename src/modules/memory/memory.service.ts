@@ -74,11 +74,25 @@ export class MemoryService {
   async recallBlock(employeeId: string, taskType?: string | null): Promise<string> {
     const memories = await this.recall(employeeId, { taskType, limit: 6 });
     // The playbook is a bonus: if it can't be read, carry on with personal memory only.
-    const team = taskType ? await this.teamPlaybook(employeeId, taskType).catch(() => [] as AgentMemory[]) : [];
+    const team = taskType
+      ? await this.teamPlaybook(employeeId, taskType).catch(() => [] as AgentMemory[])
+      : [];
     if (memories.length === 0 && team.length === 0) return '';
     return [
-      ...(memories.length ? ['## What you have learned so far', ...memories.map((m) => `- (${m.kind}) ${m.content}`), ''] : []),
-      ...(team.length ? ['## Team playbook (lessons colleagues learned on this kind of work)', ...team.map((m) => `- ${m.content}`), ''] : []),
+      ...(memories.length
+        ? [
+            '## What you have learned so far',
+            ...memories.map((m) => `- (${m.kind}) ${m.content}`),
+            '',
+          ]
+        : []),
+      ...(team.length
+        ? [
+            '## Team playbook (lessons colleagues learned on this kind of work)',
+            ...team.map((m) => `- ${m.content}`),
+            '',
+          ]
+        : []),
     ].join('\n');
   }
 
@@ -87,7 +101,10 @@ export class MemoryService {
    * mistake one person made is avoided by everyone (a shared playbook, not just personal memory).
    */
   async teamPlaybook(employeeId: string, taskType: string, limit = 4): Promise<AgentMemory[]> {
-    const [me] = await this.db.select({ companyId: employees.companyId }).from(employees).where(eq(employees.id, employeeId));
+    const [me] = await this.db
+      .select({ companyId: employees.companyId })
+      .from(employees)
+      .where(eq(employees.id, employeeId));
     if (!me) return [];
     const rows = await this.db
       .select({ m: agentMemories })

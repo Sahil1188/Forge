@@ -55,7 +55,11 @@ export function securityOptionsFromEnv(env: NodeJS.ProcessEnv = process.env): Se
     host,
     port,
     token,
-    allowedHosts: [...LOOPBACK, ...(isLoopback(host) || host === '0.0.0.0' || host === '::' ? [] : [host.toLowerCase()]), ...extra],
+    allowedHosts: [
+      ...LOOPBACK,
+      ...(isLoopback(host) || host === '0.0.0.0' || host === '::' ? [] : [host.toLowerCase()]),
+      ...extra,
+    ],
     writeLimitPerMinute: Number(env.FORGE_WRITE_LIMIT_PER_MINUTE ?? 120),
   };
 }
@@ -69,7 +73,9 @@ export function assertSafeToListen(opts: SecurityOptions): void {
     );
   }
   if (opts.token && opts.token.length < 24) {
-    throw new Error('FORGE_API_TOKEN must be at least 24 characters. Generate one with: openssl rand -hex 32');
+    throw new Error(
+      'FORGE_API_TOKEN must be at least 24 characters. Generate one with: openssl rand -hex 32',
+    );
   }
 }
 
@@ -124,14 +130,21 @@ export function securityMiddleware(opts: SecurityOptions, now: () => number = Da
     const path = req.url.split('?')[0];
     const hostHeader = header(req, 'host');
     if (!hostHeader || !opts.allowedHosts.includes(hostOnly(hostHeader))) {
-      return deny(res, 421, 'Unknown host. Add it to FORGE_ALLOWED_HOSTS if this address is intended.');
+      return deny(
+        res,
+        421,
+        'Unknown host. Add it to FORGE_ALLOWED_HOSTS if this address is intended.',
+      );
     }
 
     // Token login for the browser: /?token=... sets an HttpOnly cookie, then drops the token from the URL.
     if (opts.token && req.method === 'GET' && path === '/' && req.url.includes('token=')) {
       const given = new URLSearchParams(req.url.split('?')[1] ?? '').get('token') ?? undefined;
       if (tokenMatches(opts.token, given)) {
-        res.setHeader('Set-Cookie', `${TOKEN_COOKIE}=${encodeURIComponent(given!)}; HttpOnly; SameSite=Strict; Path=/`);
+        res.setHeader(
+          'Set-Cookie',
+          `${TOKEN_COOKIE}=${encodeURIComponent(given!)}; HttpOnly; SameSite=Strict; Path=/`,
+        );
         res.statusCode = 303;
         res.setHeader('Location', '/');
         return res.end();
@@ -149,7 +162,8 @@ export function securityMiddleware(opts: SecurityOptions, now: () => number = Da
         } catch {
           /* "null" or garbage */
         }
-        if (originHost !== hostHeader.toLowerCase()) return deny(res, 403, 'Cross-site request refused.');
+        if (originHost !== hostHeader.toLowerCase())
+          return deny(res, 403, 'Cross-site request refused.');
       }
       const length = Number(header(req, 'content-length') ?? 0);
       const chunked = Boolean(header(req, 'transfer-encoding'));
@@ -162,7 +176,8 @@ export function securityMiddleware(opts: SecurityOptions, now: () => number = Da
       const t = now();
       const b = buckets.get(client);
       if (!b || t >= b.resetAt) buckets.set(client, { count: 1, resetAt: t + 60_000 });
-      else if (++b.count > opts.writeLimitPerMinute) return deny(res, 429, 'Too many changes. Wait a minute and try again.');
+      else if (++b.count > opts.writeLimitPerMinute)
+        return deny(res, 429, 'Too many changes. Wait a minute and try again.');
     }
 
     if (opts.token && !PUBLIC_PATHS.some((re) => re.test(path))) {
@@ -170,8 +185,17 @@ export function securityMiddleware(opts: SecurityOptions, now: () => number = Da
       const bearer = auth?.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : undefined;
       // A signed-in person's session is checked by the access guard; the token is for automation.
       const hasSession = Boolean(cookie(req, 'forge_session'));
-      if (!hasSession && !path.startsWith('/auth/') && !tokenMatches(opts.token, bearer) && !tokenMatches(opts.token, cookie(req, TOKEN_COOKIE))) {
-        return deny(res, 401, 'Sign in: open /?token=<FORGE_API_TOKEN> in the browser, or send Authorization: Bearer <token>.');
+      if (
+        !hasSession &&
+        !path.startsWith('/auth/') &&
+        !tokenMatches(opts.token, bearer) &&
+        !tokenMatches(opts.token, cookie(req, TOKEN_COOKIE))
+      ) {
+        return deny(
+          res,
+          401,
+          'Sign in: open /?token=<FORGE_API_TOKEN> in the browser, or send Authorization: Bearer <token>.',
+        );
       }
     }
     next();

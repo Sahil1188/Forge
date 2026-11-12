@@ -12,7 +12,15 @@ import { HeartbeatWorker } from '../src/modules/heartbeats/heartbeat.worker';
 import { CeoPlanner } from '../src/modules/heartbeats/ceo-planner.service';
 import { agentRuns } from '../src/modules/runtimes/agent-runs.schema';
 import { RuntimeEvent, RuntimeRunContext } from '../src/modules/runtimes/runtime.port';
-import { ScriptedRuntime, bootApp, cancelStrayWork, createCompany, createEmployee, db, getWorkItem } from './helpers';
+import {
+  ScriptedRuntime,
+  bootApp,
+  cancelStrayWork,
+  createCompany,
+  createEmployee,
+  db,
+  getWorkItem,
+} from './helpers';
 
 const REQUIRE_INDEX = `node -e "require('./index.js')"`;
 
@@ -43,15 +51,26 @@ describe('Short tasks, plan size, and acceptance checks (e2e)', () => {
     const devKey = `st-dev-${randomUUID().slice(0, 6)}`;
     const ceoRuntime = new ScriptedRuntime(ceoKey, async function* (ctx) {
       yield { kind: 'session', sessionId: 'ceo' } as RuntimeEvent;
-      await writeFile(path.join(ctx.cwd, 'PLAN.json'), JSON.stringify(opts.plan ?? { workItems: [{ title: 'x' }] }));
+      await writeFile(
+        path.join(ctx.cwd, 'PLAN.json'),
+        JSON.stringify(opts.plan ?? { workItems: [{ title: 'x' }] }),
+      );
       yield { kind: 'completed', result: 'ok', sessionId: 'ceo' } as RuntimeEvent;
     });
     const devRuntime = new ScriptedRuntime(devKey, opts.dev);
     app.get(RuntimeRegistry).register(ceoRuntime);
     app.get(RuntimeRegistry).register(devRuntime);
     const companyId = await createCompany(app);
-    const ceo = await createEmployee(app, companyId, { name: 'Ceo', role: 'CEO', runtimeKey: ceoKey });
-    const dev = await createEmployee(app, companyId, { name: 'Dev', role: 'Engineer', runtimeKey: devKey });
+    const ceo = await createEmployee(app, companyId, {
+      name: 'Ceo',
+      role: 'CEO',
+      runtimeKey: ceoKey,
+    });
+    const dev = await createEmployee(app, companyId, {
+      name: 'Dev',
+      role: 'Engineer',
+      runtimeKey: devKey,
+    });
     return { companyId, ceo, dev, ceoRuntime, devRuntime };
   }
 
@@ -61,19 +80,31 @@ describe('Short tasks, plan size, and acceptance checks (e2e)', () => {
   describe('direct mode (short tasks)', () => {
     it('skips the CEO entirely: one work item, straight to the best employee, no planning run', async () => {
       const t = await team({ dev: async function* () {} });
-      const g = await goal(t.companyId, { title: 'Fix the typo in README', description: 'teh → the', mode: 'direct' });
+      const g = await goal(t.companyId, {
+        title: 'Fix the typo in README',
+        description: 'teh → the',
+        mode: 'direct',
+      });
       expect(g.mode).toBe('direct');
 
       const plan = await app.get(CeoPlanner).plan(g.id);
       expect(plan.ceoRunId).toBeNull();
       expect(plan.workItems).toHaveLength(1);
-      expect(plan.workItems[0]).toMatchObject({ title: 'Fix the typo in README', assignedTo: t.dev });
+      expect(plan.workItems[0]).toMatchObject({
+        title: 'Fix the typo in README',
+        assignedTo: t.dev,
+      });
       expect(t.ceoRuntime.runs).toBe(0);
       expect(await db(app).select().from(agentRuns).where(eq(agentRuns.goalId, g.id))).toEqual([]);
 
-      const item = (await request(server).get(`/work-items/${plan.workItems[0].workItemId}`).expect(200)).body;
+      const item = (
+        await request(server).get(`/work-items/${plan.workItems[0].workItemId}`).expect(200)
+      ).body;
       expect(item.description).toBe('teh → the');
-      await request(server).post(`/work-items/${item.id}/status`).send({ status: 'cancelled' }).expect(201);
+      await request(server)
+        .post(`/work-items/${item.id}/status`)
+        .send({ status: 'cancelled' })
+        .expect(201);
     });
 
     it('works through the normal goal-start trigger and the HTTP plan endpoint', async () => {
@@ -82,23 +113,44 @@ describe('Short tasks, plan size, and acceptance checks (e2e)', () => {
       const plan = await app.get(HeartbeatWorker).onGoalStarted(g.id);
       expect(plan?.ceoRunId).toBeNull();
       expect(plan?.workItems).toHaveLength(1);
-      await request(server).post(`/work-items/${plan!.workItems[0].workItemId}/status`).send({ status: 'cancelled' }).expect(201);
+      await request(server)
+        .post(`/work-items/${plan!.workItems[0].workItemId}/status`)
+        .send({ status: 'cancelled' })
+        .expect(201);
     });
 
     it('carries the goal’s acceptance checks onto the single item', async () => {
       const t = await team({ dev: async function* () {} });
-      const g = await goal(t.companyId, { title: 'Add index', mode: 'direct', acceptance: [REQUIRE_INDEX] });
+      const g = await goal(t.companyId, {
+        title: 'Add index',
+        mode: 'direct',
+        acceptance: [REQUIRE_INDEX],
+      });
       const plan = await app.get(CeoPlanner).plan(g.id);
-      const item = (await request(server).get(`/work-items/${plan.workItems[0].workItemId}`).expect(200)).body;
+      const item = (
+        await request(server).get(`/work-items/${plan.workItems[0].workItemId}`).expect(200)
+      ).body;
       expect(item.acceptance).toEqual([REQUIRE_INDEX]);
-      await request(server).post(`/work-items/${item.id}/status`).send({ status: 'cancelled' }).expect(201);
+      await request(server)
+        .post(`/work-items/${item.id}/status`)
+        .send({ status: 'cancelled' })
+        .expect(201);
     });
 
     it('validates mode and acceptance on goal creation', async () => {
       const companyId = await createCompany(app);
-      await request(server).post(`/companies/${companyId}/goals`).send({ title: 'x', mode: 'yolo' }).expect(400);
-      await request(server).post(`/companies/${companyId}/goals`).send({ title: 'x', acceptance: 'npm test' }).expect(400);
-      await request(server).post(`/companies/${companyId}/goals`).send({ title: 'x', acceptance: [42] }).expect(400);
+      await request(server)
+        .post(`/companies/${companyId}/goals`)
+        .send({ title: 'x', mode: 'yolo' })
+        .expect(400);
+      await request(server)
+        .post(`/companies/${companyId}/goals`)
+        .send({ title: 'x', acceptance: 'npm test' })
+        .expect(400);
+      await request(server)
+        .post(`/companies/${companyId}/goals`)
+        .send({ title: 'x', acceptance: [42] })
+        .expect(400);
       expect((await goal(companyId, { title: 'defaults' })).mode).toBe('plan');
     });
   });
@@ -112,14 +164,19 @@ describe('Short tasks, plan size, and acceptance checks (e2e)', () => {
       });
       const plan = await app.get(CeoPlanner).plan((await goal(t.companyId, { title: 'Lib' })).id);
       expect(plan.workItems.map((w) => w.title)).toEqual(titles.slice(0, 12));
-      const last = (await request(server).get(`/work-items/${plan.workItems[11].workItemId}`).expect(200)).body;
+      const last = (
+        await request(server).get(`/work-items/${plan.workItems[11].workItemId}`).expect(200)
+      ).body;
       expect(last.description).toContain('Step 13');
       expect(last.description).toContain('Step 14');
     });
 
     it('the cap is configurable', async () => {
       process.env.FORGE_MAX_PLAN_ITEMS = '1';
-      const t = await team({ plan: { workItems: [{ title: 'a' }, { title: 'b' }] }, dev: async function* () {} });
+      const t = await team({
+        plan: { workItems: [{ title: 'a' }, { title: 'b' }] },
+        dev: async function* () {},
+      });
       const plan = await app.get(CeoPlanner).plan((await goal(t.companyId, { title: 'Small' })).id);
       expect(plan.workItems).toHaveLength(1);
     });
@@ -136,9 +193,13 @@ describe('Short tasks, plan size, and acceptance checks (e2e)', () => {
         },
         dev: async function* () {},
       });
-      const plan = await app.get(CeoPlanner).plan((await goal(t.companyId, { title: 'G', acceptance: [REQUIRE_INDEX] })).id);
+      const plan = await app
+        .get(CeoPlanner)
+        .plan((await goal(t.companyId, { title: 'G', acceptance: [REQUIRE_INDEX] })).id);
       const [a, b] = await Promise.all(
-        plan.workItems.map(async (w) => (await request(server).get(`/work-items/${w.workItemId}`).expect(200)).body),
+        plan.workItems.map(
+          async (w) => (await request(server).get(`/work-items/${w.workItemId}`).expect(200)).body,
+        ),
       );
       expect(a.acceptance).toEqual([`node -e "require('./a.js')"`]);
       expect(b.acceptance).toEqual([`node -e "require('./b.js')"`, REQUIRE_INDEX]);
@@ -146,7 +207,11 @@ describe('Short tasks, plan size, and acceptance checks (e2e)', () => {
 
     it('the developer is told the checks up front', async () => {
       const t = await team({ dev: async function* () {} });
-      const g = await goal(t.companyId, { title: 'Index', mode: 'direct', acceptance: [REQUIRE_INDEX] });
+      const g = await goal(t.companyId, {
+        title: 'Index',
+        mode: 'direct',
+        acceptance: [REQUIRE_INDEX],
+      });
       await app.get(CeoPlanner).plan(g.id);
       await app.get(ExecutionWorker).runOnce();
       expect(t.devRuntime.contexts[0].task).toContain(REQUIRE_INDEX);
@@ -154,17 +219,28 @@ describe('Short tasks, plan size, and acceptance checks (e2e)', () => {
     });
 
     it('right code, wrong layout: passing tests but a failing check → rework, then the fix passes and merges', async () => {
-      const pkg = JSON.stringify({ name: 'p', version: '1.0.0', scripts: { test: 'node -e "process.exit(0)"' } });
+      const pkg = JSON.stringify({
+        name: 'p',
+        version: '1.0.0',
+        scripts: { test: 'node -e "process.exit(0)"' },
+      });
       const t = await team({
         dev: async function* (ctx, n) {
           yield { kind: 'session', sessionId: `s${n}` } as RuntimeEvent;
           await writeFile(path.join(ctx.cwd, 'package.json'), pkg);
           // Attempt 1 puts the entry point in the wrong place; attempt 2 follows the brief.
-          await writeFile(path.join(ctx.cwd, n === 1 ? 'main.js' : 'index.js'), 'module.exports = {};');
+          await writeFile(
+            path.join(ctx.cwd, n === 1 ? 'main.js' : 'index.js'),
+            'module.exports = {};',
+          );
           yield { kind: 'completed', result: 'ok', sessionId: `s${n}` } as RuntimeEvent;
         },
       });
-      const g = await goal(t.companyId, { title: 'Entry point', mode: 'direct', acceptance: [REQUIRE_INDEX] });
+      const g = await goal(t.companyId, {
+        title: 'Entry point',
+        mode: 'direct',
+        acceptance: [REQUIRE_INDEX],
+      });
       const plan = await app.get(CeoPlanner).plan(g.id);
       const id = plan.workItems[0].workItemId;
 
@@ -177,7 +253,9 @@ describe('Short tasks, plan size, and acceptance checks (e2e)', () => {
       const second = await app.get(EvaluationWorker).evaluate(id);
       expect(second).toMatchObject({ status: 'passed', routedTo: 'done', overallScore: 100 });
       expect((await getWorkItem(app, id)).status).toBe('done');
-      expect((await request(server).get(`/goals/${g.id}`).expect(200)).body.status).toBe('completed');
+      expect((await request(server).get(`/goals/${g.id}`).expect(200)).body.status).toBe(
+        'completed',
+      );
     });
 
     it('acceptance checks alone verify an item that has no package.json (no more "done but unverified")', async () => {
@@ -188,7 +266,11 @@ describe('Short tasks, plan size, and acceptance checks (e2e)', () => {
           yield { kind: 'completed', result: 'ok', sessionId: 's' } as RuntimeEvent;
         },
       });
-      const g = await goal(t.companyId, { title: 'Bare', mode: 'direct', acceptance: [REQUIRE_INDEX] });
+      const g = await goal(t.companyId, {
+        title: 'Bare',
+        mode: 'direct',
+        acceptance: [REQUIRE_INDEX],
+      });
       const plan = await app.get(CeoPlanner).plan(g.id);
       await app.get(ExecutionWorker).runOnce();
       const ev = await app.get(EvaluationWorker).evaluate(plan.workItems[0].workItemId);
@@ -198,13 +280,18 @@ describe('Short tasks, plan size, and acceptance checks (e2e)', () => {
     it('work items accept acceptance checks over the API too', async () => {
       const companyId = await createCompany(app);
       const g = await goal(companyId, { title: 'G' });
-      const project = (await request(server).post(`/goals/${g.id}/projects`).send({ name: 'P' }).expect(201)).body.id;
+      const project = (
+        await request(server).post(`/goals/${g.id}/projects`).send({ name: 'P' }).expect(201)
+      ).body.id;
       const res = await request(server)
         .post(`/projects/${project}/work-items`)
         .send({ title: 'w', acceptance: [REQUIRE_INDEX] })
         .expect(201);
       expect(res.body.acceptance).toEqual([REQUIRE_INDEX]);
-      await request(server).post(`/projects/${project}/work-items`).send({ title: 'w', acceptance: [1] }).expect(400);
+      await request(server)
+        .post(`/projects/${project}/work-items`)
+        .send({ title: 'w', acceptance: [1] })
+        .expect(400);
     });
   });
 });

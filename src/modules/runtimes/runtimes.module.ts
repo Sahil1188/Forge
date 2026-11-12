@@ -23,7 +23,11 @@ import { UsageLimits } from './usage-limits';
     {
       // Built-in provider registry, seeded with the real providers.
       provide: ProviderRegistry,
-      useFactory: (anthropic: AnthropicMessagesProvider, ollama: OllamaProvider, openai: OpenAICompatibleProvider) => {
+      useFactory: (
+        anthropic: AnthropicMessagesProvider,
+        ollama: OllamaProvider,
+        openai: OpenAICompatibleProvider,
+      ) => {
         const registry = new ProviderRegistry();
         registry.register(anthropic);
         registry.register(ollama);

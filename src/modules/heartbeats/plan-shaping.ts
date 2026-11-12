@@ -27,7 +27,9 @@ export function sanitizeItem(raw: unknown): PlannedItem[] {
       title: r.title.trim().slice(0, MAX_TITLE),
       description: typeof r.description === 'string' ? r.description : undefined,
       taskType: typeof r.taskType === 'string' ? r.taskType : undefined,
-      dependsOn: Array.isArray(r.dependsOn) ? r.dependsOn.filter((d): d is number => Number.isInteger(d)) : undefined,
+      dependsOn: Array.isArray(r.dependsOn)
+        ? r.dependsOn.filter((d): d is number => Number.isInteger(d))
+        : undefined,
       acceptance: sanitizeChecks(r.acceptance),
     },
   ];
@@ -36,7 +38,9 @@ export function sanitizeItem(raw: unknown): PlannedItem[] {
 export function sanitizeChecks(raw: unknown): string[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const checks = raw
-    .filter((c): c is string => typeof c === 'string' && c.trim().length > 0 && c.length <= MAX_CHECK_LEN)
+    .filter(
+      (c): c is string => typeof c === 'string' && c.trim().length > 0 && c.length <= MAX_CHECK_LEN,
+    )
     .map((c) => c.trim())
     .slice(0, MAX_CHECKS);
   return checks.length > 0 ? checks : undefined;
@@ -54,9 +58,7 @@ export function capPlan(items: PlannedItem[], max: number): PlannedItem[] {
   const kept = items.slice(0, cap - 1);
   const folded = items.slice(cap - 1);
   const head = folded[0];
-  const deps = folded
-    .flatMap((i) => i.dependsOn ?? [])
-    .filter((d) => d < cap - 1);
+  const deps = folded.flatMap((i) => i.dependsOn ?? []).filter((d) => d < cap - 1);
   const anyExplicit = folded.some((i) => i.dependsOn !== undefined);
   const checks = [...new Set(folded.flatMap((i) => i.acceptance ?? []))];
   const merged: PlannedItem = {
@@ -95,7 +97,9 @@ export function attachGoalAcceptance(
   const otherSinks = items.map((_, i) => i).filter((i) => i !== last && !dependedOn.has(i));
   const nextDeps = deps.map((d, i) => (i === last ? [...new Set([...d, ...otherSinks])] : d));
   const nextItems = items.map((it, i) =>
-    i === last ? { ...it, acceptance: [...new Set([...(it.acceptance ?? []), ...goalChecks])] } : it,
+    i === last
+      ? { ...it, acceptance: [...new Set([...(it.acceptance ?? []), ...goalChecks])] }
+      : it,
   );
   return { items: nextItems, deps: nextDeps };
 }
@@ -124,7 +128,14 @@ export function sanitizeHire(raw: unknown): PlannedHire[] {
           if (typeof s !== 'object' || s === null) return [];
           const k = (s as Record<string, unknown>).skillKey;
           const l = Number((s as Record<string, unknown>).level);
-          return typeof k === 'string' && k.trim() ? [{ skillKey: k.trim().slice(0, 60).toLowerCase(), level: Number.isFinite(l) ? Math.min(98, Math.max(50, Math.round(l))) : 85 }] : [];
+          return typeof k === 'string' && k.trim()
+            ? [
+                {
+                  skillKey: k.trim().slice(0, 60).toLowerCase(),
+                  level: Number.isFinite(l) ? Math.min(98, Math.max(50, Math.round(l))) : 85,
+                },
+              ]
+            : [];
         })
         .slice(0, 8)
     : [];
@@ -133,7 +144,8 @@ export function sanitizeHire(raw: unknown): PlannedHire[] {
       name,
       role,
       department: typeof r.department === 'string' ? r.department.trim().slice(0, 60) : undefined,
-      description: typeof r.description === 'string' ? r.description.trim().slice(0, 1000) : undefined,
+      description:
+        typeof r.description === 'string' ? r.description.trim().slice(0, 1000) : undefined,
       skills,
     },
   ];

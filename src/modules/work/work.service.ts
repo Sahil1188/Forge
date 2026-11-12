@@ -13,7 +13,12 @@ import {
   WorkItemWithRelations,
 } from './work.schema';
 import { assertTransition, InvalidTransitionError, WorkItemStatus } from './work-status';
-import { AddDependencyDto, AssignWorkDto, ChangeStatusDto, CreateWorkItemDto } from './dto/work.dto';
+import {
+  AddDependencyDto,
+  AssignWorkDto,
+  ChangeStatusDto,
+  CreateWorkItemDto,
+} from './dto/work.dto';
 
 @Injectable()
 export class WorkService {
@@ -167,12 +172,18 @@ export class WorkService {
    */
   async reassign(workItemId: string, employeeId: string, assignedBy: string): Promise<WorkItem> {
     const item = await this.getRaw(workItemId);
-    if (item.status !== 'assigned') throw new BadRequestException(`Work item ${workItemId} is ${item.status}, not queued`);
+    if (item.status !== 'assigned')
+      throw new BadRequestException(`Work item ${workItemId} is ${item.status}, not queued`);
     const employee = await this.employees.findOne(employeeId);
-    if (employee.companyId !== item.companyId) throw new BadRequestException('Employee belongs to a different company');
+    if (employee.companyId !== item.companyId)
+      throw new BadRequestException('Employee belongs to a different company');
     return this.db.transaction(async (tx) => {
       await tx.insert(workAssignments).values({ workItemId, employeeId, assignedBy });
-      const [updated] = await tx.update(workItems).set({ assignedEmployeeId: employeeId }).where(eq(workItems.id, workItemId)).returning();
+      const [updated] = await tx
+        .update(workItems)
+        .set({ assignedEmployeeId: employeeId })
+        .where(eq(workItems.id, workItemId))
+        .returning();
       return updated;
     });
   }

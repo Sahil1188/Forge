@@ -7,7 +7,11 @@ import { ProviderRegistry } from '../src/modules/runtimes/custom/provider-regist
 import { AgentRunsService } from '../src/modules/runtimes/agent-runs.service';
 import { ApprovalsService } from '../src/modules/approvals/approvals.service';
 import { ExecutionWorker } from '../src/workers/execution.worker';
-import { ChatRequest, ChatResponse, ModelProvider } from '../src/modules/runtimes/custom/model-provider';
+import {
+  ChatRequest,
+  ChatResponse,
+  ModelProvider,
+} from '../src/modules/runtimes/custom/model-provider';
 import { DRIZZLE, Database } from '../src/infrastructure/database/drizzle.provider';
 import { employees } from '../src/modules/employees/employees.schema';
 import { eq } from 'drizzle-orm';
@@ -21,14 +25,27 @@ class ScriptedProvider implements ModelProvider {
       return {
         text: 'scaffolding',
         toolCalls: [
-          { id: 'c1', name: 'write_file', input: { path: 'lib.js', content: 'module.exports.ok=()=>true;\n' } },
-          { id: 'c2', name: 'write_file', input: { path: 'index.js', content: 'require("./lib");\n' } },
+          {
+            id: 'c1',
+            name: 'write_file',
+            input: { path: 'lib.js', content: 'module.exports.ok=()=>true;\n' },
+          },
+          {
+            id: 'c2',
+            name: 'write_file',
+            input: { path: 'index.js', content: 'require("./lib");\n' },
+          },
         ],
         stopReason: 'tool_use',
         usage: { inputTokens: 30, outputTokens: 15, costUsd: 0.02 },
       };
     }
-    return { text: 'done', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 5, outputTokens: 3, costUsd: 0.004 } };
+    return {
+      text: 'done',
+      toolCalls: [],
+      stopReason: 'end_turn',
+      usage: { inputTokens: 5, outputTokens: 3, costUsd: 0.004 },
+    };
   }
 }
 
@@ -45,7 +62,12 @@ class SingleWriteProvider implements ModelProvider {
         usage: { inputTokens: 10, outputTokens: 5, costUsd: 0.01 },
       };
     }
-    return { text: 'done', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 4, outputTokens: 2, costUsd: 0.003 } };
+    return {
+      text: 'done',
+      toolCalls: [],
+      stopReason: 'end_turn',
+      usage: { inputTokens: 4, outputTokens: 2, costUsd: 0.003 },
+    };
   }
 }
 
@@ -94,19 +116,31 @@ describe('CustomRuntime pipeline (e2e)', () => {
 
   async function assignedWorkItem(companyId: string, employeeId: string): Promise<string> {
     const server = app.getHttpServer();
-    const goal = await request(server).post(`/companies/${companyId}/goals`).send({ title: 'G' }).expect(201);
-    const project = await request(server).post(`/goals/${goal.body.id}/projects`).send({ name: 'P' }).expect(201);
+    const goal = await request(server)
+      .post(`/companies/${companyId}/goals`)
+      .send({ title: 'G' })
+      .expect(201);
+    const project = await request(server)
+      .post(`/goals/${goal.body.id}/projects`)
+      .send({ name: 'P' })
+      .expect(201);
     const work = await request(server)
       .post(`/projects/${project.body.id}/work-items`)
       .send({ title: 'Scaffold module', taskType: 'coding' })
       .expect(201);
-    await request(server).post(`/work-items/${work.body.id}/assign`).send({ employeeId }).expect(201);
+    await request(server)
+      .post(`/work-items/${work.body.id}/assign`)
+      .send({ employeeId })
+      .expect(201);
     return work.body.id;
   }
 
   it('executes a work item via CustomRuntime with Omni-Router-selected provider+model', async () => {
     const server = app.getHttpServer();
-    const company = await request(server).post('/companies').send({ name: 'Custom Co' }).expect(201);
+    const company = await request(server)
+      .post('/companies')
+      .send({ name: 'Custom Co' })
+      .expect(201);
     const workerId = await makeCustomWorker(company.body.id);
     const workId = await assignedWorkItem(company.body.id, workerId);
 
@@ -124,7 +158,10 @@ describe('CustomRuntime pipeline (e2e)', () => {
 
   it('applies the same governance pause/resume through CustomRuntime', async () => {
     const server = app.getHttpServer();
-    const company = await request(server).post('/companies').send({ name: 'Custom Gov Co' }).expect(201);
+    const company = await request(server)
+      .post('/companies')
+      .send({ name: 'Custom Gov Co' })
+      .expect(201);
     // Gate the write_file tool behind human approval (single gated call).
     const workerId = await makeCustomWorker(
       company.body.id,

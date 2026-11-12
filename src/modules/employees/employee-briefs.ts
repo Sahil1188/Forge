@@ -37,9 +37,26 @@ export interface EmployeeBrief {
 }
 
 /** The parts of a brief a person can edit in the console (name, role and model live on the employee). */
-export type BriefContent = Pick<EmployeeBrief, 'mission' | 'standards' | 'workflow' | 'definitionOfDone' | 'never' | 'escalateWhen' | 'deliverable'>;
+export type BriefContent = Pick<
+  EmployeeBrief,
+  | 'mission'
+  | 'standards'
+  | 'workflow'
+  | 'definitionOfDone'
+  | 'never'
+  | 'escalateWhen'
+  | 'deliverable'
+>;
 
-export const BRIEF_FIELDS = ['mission', 'standards', 'workflow', 'definitionOfDone', 'never', 'escalateWhen', 'deliverable'] as const;
+export const BRIEF_FIELDS = [
+  'mission',
+  'standards',
+  'workflow',
+  'definitionOfDone',
+  'never',
+  'escalateWhen',
+  'deliverable',
+] as const;
 
 /* ------------------------------------------------------------------ */
 /* Shared rules — every employee, every task                           */
@@ -929,7 +946,11 @@ export function defaultBriefFor(employee: { name: string; role: string }): Emplo
  * built-in brief. An edited brief keeps the built-in model tier; a person with no built-in brief gets
  * one built from their own record.
  */
-export function briefForEmployee(employee: { name: string; role: string; brief?: BriefContent | null }): EmployeeBrief | null {
+export function briefForEmployee(employee: {
+  name: string;
+  role: string;
+  brief?: BriefContent | null;
+}): EmployeeBrief | null {
   const builtIn = defaultBriefFor(employee);
   if (!employee.brief) return builtIn;
   return {

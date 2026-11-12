@@ -17,8 +17,20 @@ const SERVER_ENV = {
 describe('child process environments', () => {
   it('the agent gets toolchain, proxy and subscription auth — no server secrets, no API key', () => {
     const env = agentEnv(SERVER_ENV);
-    expect(env).toMatchObject({ PATH: '/usr/bin', HOME: '/home/op', HTTPS_PROXY: 'http://proxy:8080', CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-xxx' });
-    for (const k of ['DATABASE_URL', 'ANTHROPIC_API_KEY', 'FORGE_API_TOKEN', 'OPENAI_API_KEY', 'AWS_SECRET_ACCESS_KEY', 'GITHUB_TOKEN']) {
+    expect(env).toMatchObject({
+      PATH: '/usr/bin',
+      HOME: '/home/op',
+      HTTPS_PROXY: 'http://proxy:8080',
+      CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat01-xxx',
+    });
+    for (const k of [
+      'DATABASE_URL',
+      'ANTHROPIC_API_KEY',
+      'FORGE_API_TOKEN',
+      'OPENAI_API_KEY',
+      'AWS_SECRET_ACCESS_KEY',
+      'GITHUB_TOKEN',
+    ]) {
       expect(env[k], k).toBeUndefined();
     }
   });
@@ -32,7 +44,10 @@ describe('child process environments', () => {
   });
 
   it('operators can pass extra names through, but never the secrets that matter most', () => {
-    const env = commandEnv({ ...SERVER_ENV, FORGE_CHILD_ENV_PASSTHROUGH: 'GITHUB_TOKEN, DATABASE_URL,ANTHROPIC_API_KEY' } as NodeJS.ProcessEnv);
+    const env = commandEnv({
+      ...SERVER_ENV,
+      FORGE_CHILD_ENV_PASSTHROUGH: 'GITHUB_TOKEN, DATABASE_URL,ANTHROPIC_API_KEY',
+    } as NodeJS.ProcessEnv);
     expect(env.GITHUB_TOKEN).toBe('ghp_x');
     expect(env.DATABASE_URL).toBeUndefined();
     expect(env.ANTHROPIC_API_KEY).toBeUndefined();

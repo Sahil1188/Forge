@@ -1,5 +1,8 @@
 import { Test } from '@nestjs/testing';
-import { securityMiddleware, securityOptionsFromEnv } from '../src/infrastructure/security/http-security';
+import {
+  securityMiddleware,
+  securityOptionsFromEnv,
+} from '../src/infrastructure/security/http-security';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { eq, inArray } from 'drizzle-orm';
@@ -7,7 +10,11 @@ import { AppModule } from '../src/app.module';
 import { DRIZZLE, Database } from '../src/infrastructure/database/drizzle.provider';
 import { employees } from '../src/modules/employees/employees.schema';
 import { workItems } from '../src/modules/work/work.schema';
-import { AgentRuntime, RuntimeEvent, RuntimeRunContext } from '../src/modules/runtimes/runtime.port';
+import {
+  AgentRuntime,
+  RuntimeEvent,
+  RuntimeRunContext,
+} from '../src/modules/runtimes/runtime.port';
 
 /** Boots the real AppModule exactly as production wires it (same validation pipe). */
 export async function bootApp(): Promise<INestApplication> {
@@ -15,7 +22,11 @@ export async function bootApp(): Promise<INestApplication> {
   const app = moduleRef.createNestApplication();
   // Same request hardening as production (main.ts), so every e2e test runs through it.
   // (write limit lifted: suites legitimately make hundreds of changes a minute)
-  app.use(securityMiddleware(securityOptionsFromEnv({ FORGE_WRITE_LIMIT_PER_MINUTE: '1000000' } as NodeJS.ProcessEnv)));
+  app.use(
+    securityMiddleware(
+      securityOptionsFromEnv({ FORGE_WRITE_LIMIT_PER_MINUTE: '1000000' } as NodeJS.ProcessEnv),
+    ),
+  );
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   await app.init();
   // The execution queue is global and shared across specs: start from a clean slate so
@@ -30,7 +41,10 @@ export function db(app: INestApplication): Database {
 
 /** Cancels anything still sitting in a runnable state (assigned) from earlier specs. */
 export async function cancelStrayWork(app: INestApplication): Promise<void> {
-  await db(app).update(workItems).set({ status: 'cancelled' }).where(inArray(workItems.status, ['assigned']));
+  await db(app)
+    .update(workItems)
+    .set({ status: 'cancelled' })
+    .where(inArray(workItems.status, ['assigned']));
 }
 
 export async function setGovernance(
@@ -90,8 +104,14 @@ export interface Scaffold {
 
 export async function createProject(app: INestApplication, companyId: string): Promise<Scaffold> {
   const server = app.getHttpServer();
-  const goal = await request(server).post(`/companies/${companyId}/goals`).send({ title: 'Goal' }).expect(201);
-  const project = await request(server).post(`/goals/${goal.body.id}/projects`).send({ name: 'Project' }).expect(201);
+  const goal = await request(server)
+    .post(`/companies/${companyId}/goals`)
+    .send({ title: 'Goal' })
+    .expect(201);
+  const project = await request(server)
+    .post(`/goals/${goal.body.id}/projects`)
+    .send({ name: 'Project' })
+    .expect(201);
   return { companyId, goalId: goal.body.id, projectId: project.body.id };
 }
 
@@ -107,13 +127,25 @@ export async function createWorkItem(
   return res.body.id;
 }
 
-export async function assign(app: INestApplication, workItemId: string, employeeId: string): Promise<void> {
-  await request(app.getHttpServer()).post(`/work-items/${workItemId}/assign`).send({ employeeId }).expect(201);
+export async function assign(
+  app: INestApplication,
+  workItemId: string,
+  employeeId: string,
+): Promise<void> {
+  await request(app.getHttpServer())
+    .post(`/work-items/${workItemId}/assign`)
+    .send({ employeeId })
+    .expect(201);
 }
 
 export async function getWorkItem(app: INestApplication, id: string) {
   const res = await request(app.getHttpServer()).get(`/work-items/${id}`).expect(200);
-  return res.body as { id: string; status: string; artifacts?: Record<string, unknown>; assignedEmployeeId?: string };
+  return res.body as {
+    id: string;
+    status: string;
+    artifacts?: Record<string, unknown>;
+    assignedEmployeeId?: string;
+  };
 }
 
 /** A fully scripted runtime: the script decides exactly which events each run emits. */
@@ -123,7 +155,10 @@ export class ScriptedRuntime implements AgentRuntime {
   resumes = 0;
   constructor(
     readonly key: string,
-    private readonly script: (ctx: RuntimeRunContext, runNumber: number) => AsyncIterable<RuntimeEvent>,
+    private readonly script: (
+      ctx: RuntimeRunContext,
+      runNumber: number,
+    ) => AsyncIterable<RuntimeEvent>,
   ) {}
   run(ctx: RuntimeRunContext): AsyncIterable<RuntimeEvent> {
     this.contexts.push(ctx);

@@ -3,8 +3,14 @@ import { brokenCheck } from './evaluation-engine';
 
 describe('broken acceptance checks are told apart from failing work', () => {
   it('a check whose own script does not parse, or whose program is missing, is broken', () => {
-    expect(brokenCheck('[eval]:1\nconst s=1;if(!/food[^\n                ^\n\nSyntaxError: Invalid regular expression: missing /')).toBe(true);
-    expect(brokenCheck("'pytest' is not recognized as an internal or external command,")).toBe(true);
+    expect(
+      brokenCheck(
+        '[eval]:1\nconst s=1;if(!/food[^\n                ^\n\nSyntaxError: Invalid regular expression: missing /',
+      ),
+    ).toBe(true);
+    expect(brokenCheck("'pytest' is not recognized as an internal or external command,")).toBe(
+      true,
+    );
     expect(brokenCheck('sh: 1: jq: command not found')).toBe(true);
   });
 

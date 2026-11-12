@@ -36,23 +36,51 @@ export const STANDARDS: Partial<Record<TaskType, string[]>> = {
     'Structured, levelled logging for servers; graceful shutdown; configurable port/host via environment.',
     'Unit tests for logic and integration tests for the interface (CLI commands / HTTP endpoints).',
   ],
-  qa: ['Test plan covering happy paths, edge cases, invalid input and regressions; automated where possible.', 'Tests are deterministic, isolated (temp dirs, no shared state) and fast.'],
-  design: ['When the project has BRAND.md, DESIGN.md applies it: the brand\'s tokens, type scale and components mapped to every screen, never a new palette or fonts. Without a brand: design tokens (colour, type, spacing, radius).', 'User journeys for the real jobs users do, and component specs with every state (empty, loading, error, filled).', 'Accessibility and responsive behaviour specified, not left to the developer.'],
-  devops: ['Reproducible builds with pinned versions; least-privilege CI tokens; caching; fails fast on test/lint errors.', 'Containers run as non-root with a minimal base image and a healthcheck.'],
-  cloud: ['Infrastructure as code with variables and outputs; least-privilege IAM; encryption at rest and in transit; tagging; cost awareness.'],
-  network: ['Documented addressing plan, segmentation (public/private), deny-by-default firewall rules, redundancy, and a diagram.'],
-  security: ['Map findings to OWASP / CWE with severity and evidence; fix with a test that proves the fix; never weaken other controls.'],
-  data: ['Reproducible pipelines with schema validation and data-quality checks; idempotent loads; documented lineage.'],
+  qa: [
+    'Test plan covering happy paths, edge cases, invalid input and regressions; automated where possible.',
+    'Tests are deterministic, isolated (temp dirs, no shared state) and fast.',
+  ],
+  design: [
+    "When the project has BRAND.md, DESIGN.md applies it: the brand's tokens, type scale and components mapped to every screen, never a new palette or fonts. Without a brand: design tokens (colour, type, spacing, radius).",
+    'User journeys for the real jobs users do, and component specs with every state (empty, loading, error, filled).',
+    'Accessibility and responsive behaviour specified, not left to the developer.',
+  ],
+  devops: [
+    'Reproducible builds with pinned versions; least-privilege CI tokens; caching; fails fast on test/lint errors.',
+    'Containers run as non-root with a minimal base image and a healthcheck.',
+  ],
+  cloud: [
+    'Infrastructure as code with variables and outputs; least-privilege IAM; encryption at rest and in transit; tagging; cost awareness.',
+  ],
+  network: [
+    'Documented addressing plan, segmentation (public/private), deny-by-default firewall rules, redundancy, and a diagram.',
+  ],
+  security: [
+    'Map findings to OWASP / CWE with severity and evidence; fix with a test that proves the fix; never weaken other controls.',
+  ],
+  data: [
+    'Reproducible pipelines with schema validation and data-quality checks; idempotent loads; documented lineage.',
+  ],
   finance: [
     'Driver-based model: every assumption in one clearly labelled place, never hard-coded inside formulas.',
     'Money handled exactly (integer cents or decimal), rounding stated, totals that tie out; checks that prove the maths.',
     'Workbooks use real formulas, number formats, frozen headers and a summary sheet; documents explain method and limitations.',
   ],
-  product: ['Problem, users, goals and non-goals, user stories with acceptance criteria, metrics, risks.'],
-  operations: ['Step-by-step procedures with owners, triggers, rollback/escalation paths and checklists.'],
-  marketing: ['Clear positioning and audience, benefit-led copy, a measurable plan with channels and KPIs.'],
-  legal: ['Plain-language drafts with defined terms; flag jurisdiction-specific points; note they need review by a qualified lawyer.'],
-  architecture: ['Context, constraints, options considered with trade-offs, the decision, and consequences; diagrams.'],
+  product: [
+    'Problem, users, goals and non-goals, user stories with acceptance criteria, metrics, risks.',
+  ],
+  operations: [
+    'Step-by-step procedures with owners, triggers, rollback/escalation paths and checklists.',
+  ],
+  marketing: [
+    'Clear positioning and audience, benefit-led copy, a measurable plan with channels and KPIs.',
+  ],
+  legal: [
+    'Plain-language drafts with defined terms; flag jurisdiction-specific points; note they need review by a qualified lawyer.',
+  ],
+  architecture: [
+    'Context, constraints, options considered with trade-offs, the decision, and consequences; diagrams.',
+  ],
 };
 
 export function standardsFor(taskType: string): string[] {

@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res, StreamableFile } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Res,
+  StreamableFile,
+} from '@nestjs/common';
 import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 import { ConsoleService } from './console.service';
 import { AskService } from './ask.service';
@@ -122,10 +132,17 @@ export class ConsoleController {
 
   /** Download a deliverable file as an attachment (never rendered inline, so it can't run in the console's origin). */
   @Get('projects/:id/download')
-  async download(@Param('id', ParseUUIDPipe) id: string, @Query('path') filePath: string, @Res({ passthrough: true }) res: DownloadResponse) {
+  async download(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('path') filePath: string,
+    @Res({ passthrough: true }) res: DownloadResponse,
+  ) {
     const file = await this.console.download(id, String(filePath ?? ''));
     res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${file.name.replace(/[^\w.\- ]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(file.name)}`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${file.name.replace(/[^\w.\- ]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+    );
     res.setHeader('Content-Length', String(file.size));
     res.setHeader('X-Content-Type-Options', 'nosniff');
     return new StreamableFile(file.body);

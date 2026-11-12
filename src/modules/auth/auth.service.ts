@@ -1,4 +1,11 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { and, eq, gt, sql } from 'drizzle-orm';
@@ -14,7 +21,11 @@ import { evaluations } from '../evaluation/evaluation.schema';
 import { memberships, Role, sessions } from './auth.schema';
 import { ResourceKind } from './access-policy';
 
-const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
+const scrypt = promisify(scryptCb) as (
+  password: string,
+  salt: Buffer,
+  keylen: number,
+) => Promise<Buffer>;
 const SESSION_DAYS = 14;
 export const SESSION_COOKIE = 'forge_session';
 
@@ -49,7 +60,10 @@ export class AuthService {
   /** Accounts are on once anyone can sign in; until then Forge is a single-operator local app. */
   async accountsEnabled(): Promise<boolean> {
     if (this.userCount === null) {
-      const [row] = await this.db.select({ n: sql<number>`count(*)::int` }).from(users).where(sql`${users.passwordHash} is not null`);
+      const [row] = await this.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(users)
+        .where(sql`${users.passwordHash} is not null`);
       this.userCount = row?.n ?? 0;
     }
     return this.userCount > 0;
@@ -57,7 +71,8 @@ export class AuthService {
 
   /** The first account: owner of every existing company. Only allowed while no account exists. */
   async setup(input: { email: string; name: string; password: string }): Promise<SessionUser> {
-    if (await this.accountsEnabled()) throw new ConflictException('Accounts are already set up. Sign in instead.');
+    if (await this.accountsEnabled())
+      throw new ConflictException('Accounts are already set up. Sign in instead.');
     const user = await this.createUser(input);
     const all = await this.db.select({ id: companies.id }).from(companies);
     if (all.length) {
@@ -70,8 +85,14 @@ export class AuthService {
     return user;
   }
 
-  async login(email: string, password: string): Promise<{ user: SessionUser; token: string; expiresAt: Date }> {
-    const [u] = await this.db.select().from(users).where(eq(users.email, email.trim().toLowerCase()));
+  async login(
+    email: string,
+    password: string,
+  ): Promise<{ user: SessionUser; token: string; expiresAt: Date }> {
+    const [u] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.email, email.trim().toLowerCase()));
     if (!u || !(await AuthService.verifyPassword(password, u.passwordHash))) {
       throw new UnauthorizedException('Email or password is incorrect.');
     }
@@ -96,12 +117,18 @@ export class AuthService {
   }
 
   async roleIn(userId: string, companyId: string): Promise<Role | null> {
-    const [m] = await this.db.select({ role: memberships.role }).from(memberships).where(and(eq(memberships.userId, userId), eq(memberships.companyId, companyId)));
+    const [m] = await this.db
+      .select({ role: memberships.role })
+      .from(memberships)
+      .where(and(eq(memberships.userId, userId), eq(memberships.companyId, companyId)));
     return m?.role ?? null;
   }
 
   async companiesOf(userId: string): Promise<Array<{ companyId: string; role: Role }>> {
-    return this.db.select({ companyId: memberships.companyId, role: memberships.role }).from(memberships).where(eq(memberships.userId, userId));
+    return this.db
+      .select({ companyId: memberships.companyId, role: memberships.role })
+      .from(memberships)
+      .where(eq(memberships.userId, userId));
   }
 
   async grant(companyId: string, userId: string, role: Role): Promise<void> {
@@ -120,17 +147,41 @@ export class AuthService {
       case 'goal':
         return one(this.db.select({ c: goals.companyId }).from(goals).where(eq(goals.id, id)));
       case 'employee':
-        return one(this.db.select({ c: employees.companyId }).from(employees).where(eq(employees.id, id)));
+        return one(
+          this.db.select({ c: employees.companyId }).from(employees).where(eq(employees.id, id)),
+        );
       case 'work_item':
-        return one(this.db.select({ c: workItems.companyId }).from(workItems).where(eq(workItems.id, id)));
+        return one(
+          this.db.select({ c: workItems.companyId }).from(workItems).where(eq(workItems.id, id)),
+        );
       case 'project':
-        return one(this.db.select({ c: projects.companyId }).from(projects).where(eq(projects.id, id)));
+        return one(
+          this.db.select({ c: projects.companyId }).from(projects).where(eq(projects.id, id)),
+        );
       case 'agent_run':
-        return one(this.db.select({ c: employees.companyId }).from(agentRuns).innerJoin(employees, eq(employees.id, agentRuns.employeeId)).where(eq(agentRuns.id, id)));
+        return one(
+          this.db
+            .select({ c: employees.companyId })
+            .from(agentRuns)
+            .innerJoin(employees, eq(employees.id, agentRuns.employeeId))
+            .where(eq(agentRuns.id, id)),
+        );
       case 'approval':
-        return one(this.db.select({ c: employees.companyId }).from(approvals).innerJoin(employees, eq(employees.id, approvals.employeeId)).where(eq(approvals.id, id)));
+        return one(
+          this.db
+            .select({ c: employees.companyId })
+            .from(approvals)
+            .innerJoin(employees, eq(employees.id, approvals.employeeId))
+            .where(eq(approvals.id, id)),
+        );
       case 'evaluation':
-        return one(this.db.select({ c: workItems.companyId }).from(evaluations).innerJoin(workItems, eq(workItems.id, evaluations.workItemId)).where(eq(evaluations.id, id)));
+        return one(
+          this.db
+            .select({ c: workItems.companyId })
+            .from(evaluations)
+            .innerJoin(workItems, eq(workItems.id, evaluations.workItemId))
+            .where(eq(evaluations.id, id)),
+        );
     }
   }
 
@@ -138,18 +189,30 @@ export class AuthService {
 
   async members(companyId: string) {
     return this.db
-      .select({ userId: users.id, email: users.email, name: users.name, role: memberships.role, since: memberships.createdAt })
+      .select({
+        userId: users.id,
+        email: users.email,
+        name: users.name,
+        role: memberships.role,
+        since: memberships.createdAt,
+      })
       .from(memberships)
       .innerJoin(users, eq(users.id, memberships.userId))
       .where(eq(memberships.companyId, companyId));
   }
 
   /** Adds someone to a company; creates their account if they don't have one yet. */
-  async addMember(companyId: string, input: { email: string; name: string; password?: string; role: Role }) {
+  async addMember(
+    companyId: string,
+    input: { email: string; name: string; password?: string; role: Role },
+  ) {
     const email = input.email.trim().toLowerCase();
     let [u] = await this.db.select().from(users).where(eq(users.email, email));
     if (!u || !u.passwordHash) {
-      if (!input.password) throw new BadRequestException('Set a password for this new person (at least 10 characters).');
+      if (!input.password)
+        throw new BadRequestException(
+          'Set a password for this new person (at least 10 characters).',
+        );
       const created = await this.createUser({ email, name: input.name, password: input.password });
       [u] = await this.db.select().from(users).where(eq(users.id, created.id));
     }
@@ -158,7 +221,8 @@ export class AuthService {
   }
 
   async changeRole(companyId: string, userId: string, role: Role) {
-    if ((await this.roleIn(userId, companyId)) === null) throw new NotFoundException('That person is not in this company.');
+    if ((await this.roleIn(userId, companyId)) === null)
+      throw new NotFoundException('That person is not in this company.');
     if (role !== 'owner') await this.keepAnOwner(companyId, userId);
     await this.grant(companyId, userId, role);
     return { userId, role };
@@ -166,27 +230,43 @@ export class AuthService {
 
   async removeMember(companyId: string, userId: string) {
     await this.keepAnOwner(companyId, userId);
-    await this.db.delete(memberships).where(and(eq(memberships.companyId, companyId), eq(memberships.userId, userId)));
+    await this.db
+      .delete(memberships)
+      .where(and(eq(memberships.companyId, companyId), eq(memberships.userId, userId)));
     return { removed: true };
   }
 
   private async keepAnOwner(companyId: string, leavingUserId: string) {
     const owners = (await this.members(companyId)).filter((m) => m.role === 'owner');
     if (owners.length === 1 && owners[0].userId === leavingUserId) {
-      throw new BadRequestException('A company needs at least one owner. Make someone else owner first.');
+      throw new BadRequestException(
+        'A company needs at least one owner. Make someone else owner first.',
+      );
     }
   }
 
-  private async createUser(input: { email: string; name: string; password: string }): Promise<SessionUser> {
-    if (input.password.length < 10) throw new BadRequestException('Use a password of at least 10 characters.');
+  private async createUser(input: {
+    email: string;
+    name: string;
+    password: string;
+  }): Promise<SessionUser> {
+    if (input.password.length < 10)
+      throw new BadRequestException('Use a password of at least 10 characters.');
     const email = input.email.trim().toLowerCase();
-    const [exists] = await this.db.select({ id: users.id, passwordHash: users.passwordHash }).from(users).where(eq(users.email, email));
-    if (exists?.passwordHash) throw new ConflictException('Someone with that email already has an account.');
+    const [exists] = await this.db
+      .select({ id: users.id, passwordHash: users.passwordHash })
+      .from(users)
+      .where(eq(users.email, email));
+    if (exists?.passwordHash)
+      throw new ConflictException('Someone with that email already has an account.');
     if (exists) {
       // A known person without a sign-in (e.g. recorded as a goal's creator) gets one.
       const [u] = await this.db
         .update(users)
-        .set({ name: input.name.trim(), passwordHash: await AuthService.hashPassword(input.password) })
+        .set({
+          name: input.name.trim(),
+          passwordHash: await AuthService.hashPassword(input.password),
+        })
         .where(eq(users.id, exists.id))
         .returning();
       this.userCount = null;
@@ -194,7 +274,11 @@ export class AuthService {
     }
     const [u] = await this.db
       .insert(users)
-      .values({ email, name: input.name.trim(), passwordHash: await AuthService.hashPassword(input.password) })
+      .values({
+        email,
+        name: input.name.trim(),
+        passwordHash: await AuthService.hashPassword(input.password),
+      })
       .returning();
     this.userCount = null;
     return { id: u.id, email: u.email, name: u.name };

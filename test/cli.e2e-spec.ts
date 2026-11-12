@@ -55,7 +55,12 @@ describe('forge CLI', () => {
   describe('against the real database (compiled dist/)', () => {
     beforeAll(() => {
       // The CLI boots the compiled app (tsx/esbuild cannot emit Nest's decorator metadata).
-      const build = spawnSync('npm', ['run', 'build'], { cwd: ROOT, shell: true, encoding: 'utf8', timeout: 240_000 });
+      const build = spawnSync('npm', ['run', 'build'], {
+        cwd: ROOT,
+        shell: true,
+        encoding: 'utf8',
+        timeout: 240_000,
+      });
       expect(build.status, build.stdout + build.stderr).toBe(0);
     }, 300_000);
 

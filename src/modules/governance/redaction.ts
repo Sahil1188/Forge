@@ -16,7 +16,8 @@ const PATTERNS: RegExp[] = [
 ];
 
 /** key: value / key = value shaped assignments where the key implies a secret. */
-const KEYED = /((?:api[_-]?key|secret|token|password|passwd|pwd)\s*["'`]?\s*[:=]\s*["'`]?)([^\s"'`,}]{6,})/gi;
+const KEYED =
+  /((?:api[_-]?key|secret|token|password|passwd|pwd)\s*["'`]?\s*[:=]\s*["'`]?)([^\s"'`,}]{6,})/gi;
 
 export function redactSecrets(input: string): string {
   let out = input;

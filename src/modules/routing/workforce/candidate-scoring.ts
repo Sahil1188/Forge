@@ -39,7 +39,9 @@ function relevantSkillScore(taskType: string, skills: CandidateSkill[]): number 
 /** 1 when the candidate's role fits the work or they sit in the department that owns its domain. */
 function roleAffinity(taskType: string, role: string, department?: string | null): number {
   const domain = domainOf(taskType);
-  const inDepartment = Boolean(domain.department) && (department ?? '').toLowerCase() === domain.department.toLowerCase();
+  const inDepartment =
+    Boolean(domain.department) &&
+    (department ?? '').toLowerCase() === domain.department.toLowerCase();
   const hay = `${role} ${department ?? ''}`.toLowerCase();
   const roleFits = domain.roles.some((k) => hay.includes(k));
   if (roleFits) return 1;

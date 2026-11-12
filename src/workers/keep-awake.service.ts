@@ -24,7 +24,7 @@ const DISPLAY_REQUIRED = 0x80000003;
 export function keepAwakeScript(keepDisplayOn = process.env.FORGE_KEEP_DISPLAY_ON !== '0'): string {
   const flags = keepDisplayOn ? DISPLAY_REQUIRED : SYSTEM_REQUIRED;
   return [
-    "$sig = '[DllImport(\"kernel32.dll\")] public static extern uint SetThreadExecutionState(uint esFlags);'",
+    '$sig = \'[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint esFlags);\'',
     '$k = Add-Type -MemberDefinition $sig -Name Power -Namespace Forge -PassThru',
     `while ($true) { [void]$k::SetThreadExecutionState([uint32]${String(flags)}); Start-Sleep -Seconds 60 }`,
   ].join('; ');
@@ -46,7 +46,12 @@ export class KeepAwakeService implements OnModuleInit, OnModuleDestroy {
   constructor(@Inject(DRIZZLE) private readonly db: Database) {}
 
   get enabled(): boolean {
-    return process.platform === 'win32' && process.env.FORGE_KEEP_AWAKE !== '0' && process.env.NODE_ENV !== 'test' && !process.env.VITEST;
+    return (
+      process.platform === 'win32' &&
+      process.env.FORGE_KEEP_AWAKE !== '0' &&
+      process.env.NODE_ENV !== 'test' &&
+      !process.env.VITEST
+    );
   }
 
   get holding(): boolean {
@@ -88,11 +93,17 @@ export class KeepAwakeService implements OnModuleInit, OnModuleDestroy {
   }
 
   private hold(): void {
-    this.holder = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', keepAwakeScript()], {
-      windowsHide: true,
-      stdio: 'ignore',
-    });
-    this.holder.on('error', (e) => this.logger.warn(`Could not keep the computer awake: ${e.message}`));
+    this.holder = spawn(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', keepAwakeScript()],
+      {
+        windowsHide: true,
+        stdio: 'ignore',
+      },
+    );
+    this.holder.on('error', (e) =>
+      this.logger.warn(`Could not keep the computer awake: ${e.message}`),
+    );
     this.logger.log('Work in progress: keeping the computer awake');
   }
 

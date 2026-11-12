@@ -81,7 +81,10 @@ export class HeartbeatWorker implements OnModuleInit {
 
     try {
       const result = await this.planner.plan(goalId, ceo);
-      await this.db.update(heartbeats).set({ status: 'done' }).where(eq(heartbeats.id, heartbeat.id));
+      await this.db
+        .update(heartbeats)
+        .set({ status: 'done' })
+        .where(eq(heartbeats.id, heartbeat.id));
       return result;
     } catch (err) {
       await this.db

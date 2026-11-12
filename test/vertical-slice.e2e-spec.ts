@@ -10,7 +10,11 @@ import { AgentRunsService } from '../src/modules/runtimes/agent-runs.service';
 import { ExecutionWorker } from '../src/workers/execution.worker';
 import { HeartbeatWorker } from '../src/modules/heartbeats/heartbeat.worker';
 import { EvaluationWorker } from '../src/modules/evaluation/evaluation.worker';
-import { AgentRuntime, RuntimeEvent, RuntimeRunContext } from '../src/modules/runtimes/runtime.port';
+import {
+  AgentRuntime,
+  RuntimeEvent,
+  RuntimeRunContext,
+} from '../src/modules/runtimes/runtime.port';
 
 /**
  * A stand-in for ClaudeCodeRuntime registered under the real 'claude_code' key,
@@ -33,7 +37,11 @@ class SliceClaudeCodeMock implements AgentRuntime {
       JSON.stringify({
         project: 'Website',
         workItems: [
-          { title: 'Build the Node/Express app', description: 'server + a passing test', taskType: 'coding' },
+          {
+            title: 'Build the Node/Express app',
+            description: 'server + a passing test',
+            taskType: 'coding',
+          },
         ],
       }),
       'utf8',
@@ -46,10 +54,18 @@ class SliceClaudeCodeMock implements AgentRuntime {
     // A minimal Node/Express app with a passing test (no install needed to test).
     await writeFile(
       path.join(ctx.cwd, 'package.json'),
-      JSON.stringify({ name: 'website', version: '1.0.0', scripts: { test: 'node test.js' } }, null, 2),
+      JSON.stringify(
+        { name: 'website', version: '1.0.0', scripts: { test: 'node test.js' } },
+        null,
+        2,
+      ),
       'utf8',
     );
-    await writeFile(path.join(ctx.cwd, 'lib.js'), 'module.exports.greeting = () => "hello";\n', 'utf8');
+    await writeFile(
+      path.join(ctx.cwd, 'lib.js'),
+      'module.exports.greeting = () => "hello";\n',
+      'utf8',
+    );
     await writeFile(
       path.join(ctx.cwd, 'index.js'),
       'const { greeting } = require("./lib");\n// const express = require("express"); // app entry\nconsole.log(greeting());\n',
@@ -98,7 +114,10 @@ describe('V1 vertical slice (§27) — end to end', () => {
         department: 'Executive',
         runtimeConfig: {
           runtimeKey: 'claude_code',
-          modelPolicy: { default: 'claude-opus-4-8', byTaskType: { architecture: 'claude-opus-4-8' } },
+          modelPolicy: {
+            default: 'claude-opus-4-8',
+            byTaskType: { architecture: 'claude-opus-4-8' },
+          },
         },
         skills: [{ skillKey: 'strategy', level: 85 }],
       })
@@ -113,9 +132,15 @@ describe('V1 vertical slice (§27) — end to end', () => {
         managerEmployeeId: ceo.body.id,
         runtimeConfig: {
           runtimeKey: 'claude_code',
-          modelPolicy: { default: 'claude-sonnet-4-6', byTaskType: { coding: 'claude-sonnet-4-6' } },
+          modelPolicy: {
+            default: 'claude-sonnet-4-6',
+            byTaskType: { coding: 'claude-sonnet-4-6' },
+          },
         },
-        skills: [{ skillKey: 'node', level: 90 }, { skillKey: 'sql', level: 80 }],
+        skills: [
+          { skillKey: 'node', level: 90 },
+          { skillKey: 'sql', level: 80 },
+        ],
       })
       .expect(201);
 
@@ -157,7 +182,9 @@ describe('V1 vertical slice (§27) — end to end', () => {
     const profile = await request(server).get(`/employees/${dev.body.id}/profile`).expect(200);
     expect(profile.body.reputation.overall).toBe(100);
     expect(profile.body.recentPerformance).toHaveLength(1);
-    const node = profile.body.employee.skills.find((s: { skillKey: string }) => s.skillKey === 'node');
+    const node = profile.body.employee.skills.find(
+      (s: { skillKey: string }) => s.skillKey === 'node',
+    );
     expect(node.level).toBeGreaterThan(90);
 
     // (12) UI/observability surfaces the execution history + live status.

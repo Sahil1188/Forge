@@ -12,10 +12,7 @@ export class WorkController {
   constructor(private readonly work: WorkService) {}
 
   @Post('projects/:projectId/work-items')
-  create(
-    @Param('projectId', ParseUUIDPipe) projectId: string,
-    @Body() dto: CreateWorkItemDto,
-  ) {
+  create(@Param('projectId', ParseUUIDPipe) projectId: string, @Body() dto: CreateWorkItemDto) {
     return this.work.createWorkItem(projectId, dto);
   }
 

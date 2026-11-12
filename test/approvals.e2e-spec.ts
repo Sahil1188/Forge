@@ -8,7 +8,11 @@ import { AppModule } from '../src/app.module';
 import { RuntimeRegistry } from '../src/modules/runtimes/runtime-registry';
 import { AgentRunsService } from '../src/modules/runtimes/agent-runs.service';
 import { ExecutionWorker } from '../src/workers/execution.worker';
-import { AgentRuntime, RuntimeEvent, RuntimeRunContext } from '../src/modules/runtimes/runtime.port';
+import {
+  AgentRuntime,
+  RuntimeEvent,
+  RuntimeRunContext,
+} from '../src/modules/runtimes/runtime.port';
 
 const SECRET = 'ghp_0123456789abcdef0123456789abcdef0123';
 

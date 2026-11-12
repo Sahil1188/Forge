@@ -1,4 +1,10 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { AuthService, SESSION_COOKIE, SessionUser } from './auth.service';
 import { atLeast, isPublic, requiredRole, resourceOf } from './access-policy';
@@ -40,7 +46,10 @@ export class AccessGuard implements CanActivate {
     // Automation with the service token acts with full access.
     const token = process.env.FORGE_API_TOKEN?.trim();
     const auth = req.headers.authorization;
-    const bearer = typeof auth === 'string' && auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : undefined;
+    const bearer =
+      typeof auth === 'string' && auth.toLowerCase().startsWith('bearer ')
+        ? auth.slice(7).trim()
+        : undefined;
     if (token && bearer && timingSafeEqual(digest(token), digest(bearer))) {
       req.forge = { service: true };
       return true;
@@ -60,7 +69,8 @@ export class AccessGuard implements CanActivate {
     const role = await this.auth.roleIn(user.id, companyId);
     if (!role) throw new ForbiddenException('You don’t have access to this company.');
     const need = requiredRole(method, path);
-    if (!atLeast(role, need)) throw new ForbiddenException(`This needs the ${need} role; you are a ${role} here.`);
+    if (!atLeast(role, need))
+      throw new ForbiddenException(`This needs the ${need} role; you are a ${role} here.`);
     return true;
   }
 }

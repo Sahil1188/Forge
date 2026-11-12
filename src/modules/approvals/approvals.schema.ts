@@ -19,7 +19,10 @@ export const approvals = pgTable('approvals', {
     .notNull()
     .references(() => employees.id),
   toolName: text('tool_name').notNull(),
-  requestedAction: jsonb('requested_action_json').$type<Record<string, unknown>>().notNull().default({}),
+  requestedAction: jsonb('requested_action_json')
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default({}),
   status: text('status').$type<ApprovalStatus>().notNull().default('pending'),
   consumed: boolean('consumed').notNull().default(false),
   decidedByUserId: uuid('decided_by_user_id').references(() => users.id),

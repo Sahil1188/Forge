@@ -30,7 +30,10 @@ const S = (name: string): DiscoveredScript => ({ name, command: `npm --silent ru
 
 describe('EvaluationEngine — scoring semantics', () => {
   it('all dimensions pass → passed, score 100', async () => {
-    const e = new EvaluationEngine(new FakeDiscovery([S('build'), S('test'), S('lint')]), new FakeRunner({}));
+    const e = new EvaluationEngine(
+      new FakeDiscovery([S('build'), S('test'), S('lint')]),
+      new FakeRunner({}),
+    );
     const r = await e.evaluateRepo('/x');
     expect(r.status).toBe('passed');
     expect(r.overallScore).toBe(100);
@@ -134,7 +137,9 @@ describe('ScriptDiscovery — real package.json handling', () => {
   }
 
   it('returns build, test, lint in a fixed order regardless of key order', async () => {
-    const d = await pkg(JSON.stringify({ scripts: { lint: 'x', test: 'y', build: 'z', start: 'node .' } }));
+    const d = await pkg(
+      JSON.stringify({ scripts: { lint: 'x', test: 'y', build: 'z', start: 'node .' } }),
+    );
     expect((await discovery.discover(d)).map((s) => s.name)).toEqual(['build', 'test', 'lint']);
   });
 
@@ -162,7 +167,9 @@ describe('ScriptDiscovery — real package.json handling', () => {
 
   it('builds a quiet npm run command per script', async () => {
     const d = await pkg(JSON.stringify({ scripts: { test: 'vitest' } }));
-    expect(await discovery.discover(d)).toEqual([{ name: 'test', command: 'npm --silent run test' }]);
+    expect(await discovery.discover(d)).toEqual([
+      { name: 'test', command: 'npm --silent run test' },
+    ]);
   });
 });
 
@@ -170,7 +177,10 @@ describe('CommandRunner — real process behaviour', () => {
   const runner = new CommandRunner();
 
   it('reports exit 0 and captures stdout+stderr', async () => {
-    const r = await runner.run('node -e "console.log(\'out\'); console.error(\'err\')"', process.cwd());
+    const r = await runner.run(
+      "node -e \"console.log('out'); console.error('err')\"",
+      process.cwd(),
+    );
     expect(r.exitCode).toBe(0);
     expect(r.output).toContain('out');
     expect(r.output).toContain('err');
@@ -195,14 +205,23 @@ describe('EvaluationEngine — acceptance checks (does the work match its brief?
     const e = new EvaluationEngine(new FakeDiscovery([S('test')]), runner);
     const r = await e.evaluateRepo('/x', ['node -e "require(\'./index.js\')"', 'node -e "1"']);
     expect(Object.keys(r.dimensions)).toEqual(['test', 'acceptance#1', 'acceptance#2']);
-    expect(runner.ran).toEqual(['npm --silent run test', 'node -e "require(\'./index.js\')"', 'node -e "1"']);
+    expect(runner.ran).toEqual([
+      'npm --silent run test',
+      'node -e "require(\'./index.js\')"',
+      'node -e "1"',
+    ]);
     expect(r.status).toBe('passed');
   });
 
   it('green tests are not enough: a failing acceptance check fails the item (the "right code, wrong layout" case)', async () => {
     const e = new EvaluationEngine(
       new FakeDiscovery([S('test')]),
-      new FakeRunner({ 'node -e "require(\'./index.js\')"': { exitCode: 1, output: 'Cannot find module ./index.js' } }),
+      new FakeRunner({
+        'node -e "require(\'./index.js\')"': {
+          exitCode: 1,
+          output: 'Cannot find module ./index.js',
+        },
+      }),
     );
     const r = await e.evaluateRepo('/x', ['node -e "require(\'./index.js\')"']);
     expect(r.status).toBe('failed');
@@ -220,7 +239,9 @@ describe('EvaluationEngine — acceptance checks (does the work match its brief?
 
 describe('EvaluationEngine — speed without losing feedback', () => {
   it('skips acceptance checks while the project checks fail, keeping the failing output as the feedback', async () => {
-    const runner = new FakeRunner({ 'npm --silent run lint': { exitCode: 1, output: "'x' is never used" } });
+    const runner = new FakeRunner({
+      'npm --silent run lint': { exitCode: 1, output: "'x' is never used" },
+    });
     const e = new EvaluationEngine(new FakeDiscovery([S('lint'), S('test')]), runner);
     const r = await e.evaluateRepo('/x', ['node -e "check()"']);
     expect(r.status).toBe('failed');

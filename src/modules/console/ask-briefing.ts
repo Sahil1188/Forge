@@ -43,8 +43,23 @@ export interface BoardLike {
 export interface CompanyLike {
   company: { name: string };
   stats: Record<string, number>;
-  goals: { title: string; status: string; items: number; done: number; failed: number; running: number; costUsd: number }[];
-  team: { name: string; role: string; department?: string | null; status: string; runtimeConfig?: unknown; latestRun?: RunLike | null }[];
+  goals: {
+    title: string;
+    status: string;
+    items: number;
+    done: number;
+    failed: number;
+    running: number;
+    costUsd: number;
+  }[];
+  team: {
+    name: string;
+    role: string;
+    department?: string | null;
+    status: string;
+    runtimeConfig?: unknown;
+    latestRun?: RunLike | null;
+  }[];
 }
 
 const STATUS: Record<string, string> = {
@@ -65,15 +80,22 @@ const mins = (ms: number) => `${Math.round(ms / 60_000)} min`;
 function runLine(r: RunLike, now: number): string {
   // Recovered runs are stored as rate_limited; say what really happened so nobody blames usage limits.
   const interrupted = r.error?.startsWith('Interrupted');
-  const parts = [interrupted ? 'interrupted (Forge was restarted; the work was saved and continues in the next run)' : r.status];
+  const parts = [
+    interrupted
+      ? 'interrupted (Forge was restarted; the work was saved and continues in the next run)'
+      : r.status,
+  ];
   if (r.model) parts.push(r.model);
-  if (r.status === 'running' && r.startedAt) parts.push(`running for ${mins(now - new Date(r.startedAt).getTime())}`);
+  if (r.status === 'running' && r.startedAt)
+    parts.push(`running for ${mins(now - new Date(r.startedAt).getTime())}`);
   else if (r.durationMs) parts.push(mins(r.durationMs));
   parts.push(`${r.toolCallCount ?? 0} tool calls`, usd(r.estimatedCostUsd));
   let line = parts.join(', ');
   if (r.error && !interrupted) line += ` | error: ${r.error.slice(0, 300)}`;
   if (r.live) {
-    const quiet = r.live.lastAt ? ` (last action ${mins(now - new Date(r.live.lastAt).getTime())} ago)` : '';
+    const quiet = r.live.lastAt
+      ? ` (last action ${mins(now - new Date(r.live.lastAt).getTime())} ago)`
+      : '';
     line += ` | live: ${r.live.actions} actions so far, now: ${r.live.last ?? 'starting'}${quiet}`;
   }
   return line;
@@ -92,17 +114,32 @@ export function boardBriefing(b: BoardLike, now = Date.now()): string {
   b.items.forEach((it, n) => {
     out.push(`### ${n + 1}. ${it.title}`);
     out.push(`- Status: ${STATUS[it.status] ?? it.status}`);
-    out.push(`- Owner: ${it.assignee ? `${it.assignee.name} (${it.assignee.role})` : 'unassigned'}${it.taskType ? `, kind: ${it.taskType}` : ''}`);
-    if (it.dependsOn.length) out.push(`- Waits for: ${it.dependsOn.map((d) => titles.get(d) ?? d).join('; ')}`);
+    out.push(
+      `- Owner: ${it.assignee ? `${it.assignee.name} (${it.assignee.role})` : 'unassigned'}${it.taskType ? `, kind: ${it.taskType}` : ''}`,
+    );
+    if (it.dependsOn.length)
+      out.push(`- Waits for: ${it.dependsOn.map((d) => titles.get(d) ?? d).join('; ')}`);
     if (it.description) out.push(`- Task: ${it.description.replace(/\s+/g, ' ').slice(0, 600)}`);
     out.push(`- Attempts: ${it.runs.length}, spend ${usd(it.costUsd)}`);
-    it.runs.slice(-3).forEach((r, k, arr) => out.push(`  - run ${it.runs.length - arr.length + k + 1}: ${runLine(r, now)}`));
+    it.runs
+      .slice(-3)
+      .forEach((r, k, arr) =>
+        out.push(`  - run ${it.runs.length - arr.length + k + 1}: ${runLine(r, now)}`),
+      );
     if (it.evaluation) {
       const failing = it.evaluation.dimensions.filter((d) => d.score !== 100);
-      out.push(`- Latest checks: ${it.evaluation.status}${it.evaluation.score != null ? ` (score ${it.evaluation.score})` : ''}${it.evaluation.note ? ` | ${it.evaluation.note}` : ''}`);
-      for (const d of failing) out.push(`  - FAILED ${d.name}: \`${d.command}\`\n    ${d.output.slice(-600).replace(/\n/g, '\n    ')}`);
+      out.push(
+        `- Latest checks: ${it.evaluation.status}${it.evaluation.score != null ? ` (score ${it.evaluation.score})` : ''}${it.evaluation.note ? ` | ${it.evaluation.note}` : ''}`,
+      );
+      for (const d of failing)
+        out.push(
+          `  - FAILED ${d.name}: \`${d.command}\`\n    ${d.output.slice(-600).replace(/\n/g, '\n    ')}`,
+        );
     }
-    for (const a of it.pendingApprovals ?? []) out.push(`- Waiting for approval: ${a.toolName} ${a.requestedAction ? JSON.stringify(a.requestedAction).slice(0, 200) : ''}`);
+    for (const a of it.pendingApprovals ?? [])
+      out.push(
+        `- Waiting for approval: ${a.toolName} ${a.requestedAction ? JSON.stringify(a.requestedAction).slice(0, 200) : ''}`,
+      );
   });
   return out.filter((l) => l !== '').join('\n');
 }
@@ -110,10 +147,17 @@ export function boardBriefing(b: BoardLike, now = Date.now()): string {
 export function companyBriefing(c: CompanyLike, now = Date.now()): string {
   const out = [
     `# Company: ${c.company.name}`,
-    `Stats: ${Object.entries(c.stats).map(([k, v]) => `${k} ${typeof v === 'number' && k.toLowerCase().includes('usd') ? usd(v) : v}`).join(', ')}`,
+    `Stats: ${Object.entries(c.stats)
+      .map(
+        ([k, v]) => `${k} ${typeof v === 'number' && k.toLowerCase().includes('usd') ? usd(v) : v}`,
+      )
+      .join(', ')}`,
     '',
     '## Goals',
-    ...c.goals.map((g) => `- ${g.title} (${g.status}): ${g.done}/${g.items} done, ${g.running} running, ${g.failed} failed, ${usd(g.costUsd)}`),
+    ...c.goals.map(
+      (g) =>
+        `- ${g.title} (${g.status}): ${g.done}/${g.items} done, ${g.running} running, ${g.failed} failed, ${usd(g.costUsd)}`,
+    ),
     '',
     '## Team',
     ...c.team.map((e) => {

@@ -82,8 +82,17 @@ export class CustomRuntime implements AgentRuntime {
         if (ctx.canUseTool) {
           const decision = await ctx.canUseTool(call.name, call.input);
           if (decision.behavior === 'deny') {
-            messages.push({ role: 'tool', toolCallId: call.id, content: `Denied: ${decision.message}` });
-            yield { kind: 'tool_result', toolUseId: call.id, isError: true, content: decision.message };
+            messages.push({
+              role: 'tool',
+              toolCallId: call.id,
+              content: `Denied: ${decision.message}`,
+            });
+            yield {
+              kind: 'tool_result',
+              toolUseId: call.id,
+              isError: true,
+              content: decision.message,
+            };
             continue;
           }
           if (decision.behavior === 'pause') {
@@ -99,7 +108,12 @@ export class CustomRuntime implements AgentRuntime {
 
         const result = await this.tools.execute(call.name, call.input, ctx.cwd);
         messages.push({ role: 'tool', toolCallId: call.id, content: result.output });
-        yield { kind: 'tool_result', toolUseId: call.id, isError: result.isError, content: result.output };
+        yield {
+          kind: 'tool_result',
+          toolUseId: call.id,
+          isError: result.isError,
+          content: result.output,
+        };
       }
     }
 

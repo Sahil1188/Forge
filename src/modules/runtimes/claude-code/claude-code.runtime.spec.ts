@@ -50,12 +50,7 @@ describe('ClaudeCodeRuntime', () => {
       }),
     );
 
-    expect(events.map((e) => e.kind)).toEqual([
-      'session',
-      'assistant_text',
-      'usage',
-      'completed',
-    ]);
+    expect(events.map((e) => e.kind)).toEqual(['session', 'assistant_text', 'usage', 'completed']);
 
     // CLAUDE.md was written to the workspace.
     expect(await readFile(path.join(cwd, 'CLAUDE.md'), 'utf8')).toBe('# Ada — CEO');

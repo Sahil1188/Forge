@@ -59,7 +59,10 @@ export interface LiveActivity {
 
 /** Drops the agent's private workspace prefix so paths read as project paths (apps/web/src/...). */
 function relativeToRun(text: string): string {
-  return text.replace(/(?:[A-Za-z]:)?[\\/][^\s'"]*?workspaces[\\/]runs[\\/][0-9a-f-]{36}[\\/]?/gi, '');
+  return text.replace(
+    /(?:[A-Za-z]:)?[\\/][^\s'"]*?workspaces[\\/]runs[\\/][0-9a-f-]{36}[\\/]?/gi,
+    '',
+  );
 }
 
 /** Summarises a live transcript: how many actions so far, and the latest thing the agent did. */
@@ -69,7 +72,13 @@ export function summariseLive(raw: string): LiveActivity {
   let lastAt: string | null = null;
   for (const line of raw.split('\n')) {
     if (!line) continue;
-    let e: { kind?: string; toolName?: string; input?: Record<string, unknown>; text?: string; at?: string };
+    let e: {
+      kind?: string;
+      toolName?: string;
+      input?: Record<string, unknown>;
+      text?: string;
+      at?: string;
+    };
     try {
       e = JSON.parse(line);
     } catch {
@@ -79,8 +88,16 @@ export function summariseLive(raw: string): LiveActivity {
     if (e.kind === 'tool_use') {
       actions += 1;
       const input = e.input ?? {};
-      const target = input.command ?? input.file_path ?? input.path ?? input.pattern ?? input.url ?? input.description;
-      last = target ? `${e.toolName}: ${relativeToRun(String(target)).replace(/\s+/g, ' ').slice(0, 140)}` : (e.toolName ?? 'tool');
+      const target =
+        input.command ??
+        input.file_path ??
+        input.path ??
+        input.pattern ??
+        input.url ??
+        input.description;
+      last = target
+        ? `${e.toolName}: ${relativeToRun(String(target)).replace(/\s+/g, ' ').slice(0, 140)}`
+        : (e.toolName ?? 'tool');
     } else if (e.kind === 'assistant_text' && e.text?.trim()) {
       last = e.text.trim().replace(/\s+/g, ' ').slice(0, 160);
     }
@@ -126,7 +143,12 @@ export class ConsoleService {
       const [row] = await this.db
         .select({ total: sql<number>`coalesce(sum(${costEvents.costUsd}), 0)` })
         .from(costEvents)
-        .where(and(inArray(costEvents.employeeId, ids), since ? gte(costEvents.createdAt, since) : undefined));
+        .where(
+          and(
+            inArray(costEvents.employeeId, ids),
+            since ? gte(costEvents.createdAt, since) : undefined,
+          ),
+        );
       return Number(row?.total ?? 0);
     };
     const today = new Date();
@@ -194,17 +216,34 @@ export class ConsoleService {
     const projectRows = await this.db.select().from(projects).where(eq(projects.goalId, goalId));
     const projectIds = projectRows.map((p) => p.id);
     const items = projectIds.length
-      ? await this.db.select().from(workItems).where(inArray(workItems.projectId, projectIds)).orderBy(workItems.createdAt)
+      ? await this.db
+          .select()
+          .from(workItems)
+          .where(inArray(workItems.projectId, projectIds))
+          .orderBy(workItems.createdAt)
       : [];
     const itemIds = items.map((i) => i.id);
 
     const [deps, runs, evals, pending, roster] = await Promise.all([
-      itemIds.length ? this.db.select().from(workDependencies).where(inArray(workDependencies.workItemId, itemIds)) : [],
       itemIds.length
-        ? this.db.select().from(agentRuns).where(inArray(agentRuns.workItemId, itemIds)).orderBy(agentRuns.createdAt)
+        ? this.db
+            .select()
+            .from(workDependencies)
+            .where(inArray(workDependencies.workItemId, itemIds))
         : [],
       itemIds.length
-        ? this.db.select().from(evaluations).where(inArray(evaluations.workItemId, itemIds)).orderBy(desc(evaluations.createdAt))
+        ? this.db
+            .select()
+            .from(agentRuns)
+            .where(inArray(agentRuns.workItemId, itemIds))
+            .orderBy(agentRuns.createdAt)
+        : [],
+      itemIds.length
+        ? this.db
+            .select()
+            .from(evaluations)
+            .where(inArray(evaluations.workItemId, itemIds))
+            .orderBy(desc(evaluations.createdAt))
         : [],
       itemIds.length
         ? this.db
@@ -215,14 +254,21 @@ export class ConsoleService {
       this.employeesSvc.findByCompany(goal.companyId),
     ]);
     const people = new Map(roster.map((e) => [e.id, { id: e.id, name: e.name, role: e.role }]));
-    const [ceoRun] = await this.db.select().from(agentRuns).where(eq(agentRuns.goalId, goalId)).orderBy(desc(agentRuns.createdAt)).limit(1);
+    const [ceoRun] = await this.db
+      .select()
+      .from(agentRuns)
+      .where(eq(agentRuns.goalId, goalId))
+      .orderBy(desc(agentRuns.createdAt))
+      .limit(1);
 
     const live = await this.liveActivity(runs);
 
     const boardItems = items.map((item) => {
       const itemRuns = runs.filter((r) => r.workItemId === item.id);
       const latestEval = evals.find((e) => e.workItemId === item.id);
-      const dims = ((latestEval?.detail as { dimensions?: Record<string, Record<string, unknown>> })?.dimensions ?? {});
+      const dims =
+        (latestEval?.detail as { dimensions?: Record<string, Record<string, unknown>> })
+          ?.dimensions ?? {};
       return {
         id: item.id,
         projectId: item.projectId,
@@ -231,7 +277,7 @@ export class ConsoleService {
         taskType: item.taskType,
         status: item.status,
         acceptance: item.acceptance ?? [],
-        assignee: item.assignedEmployeeId ? people.get(item.assignedEmployeeId) ?? null : null,
+        assignee: item.assignedEmployeeId ? (people.get(item.assignedEmployeeId) ?? null) : null,
         dependsOn: deps.filter((d) => d.workItemId === item.id).map((d) => d.dependsOnWorkItemId),
         runs: itemRuns.map((r) => ({ ...runSummary(r), live: live.get(r.id) ?? null })),
         costUsd: itemRuns.reduce((a, r) => a + (r.estimatedCostUsd ?? 0), 0),
@@ -251,7 +297,12 @@ export class ConsoleService {
           : null,
         pendingApprovals: pending
           .filter((a) => a.workItemId === item.id)
-          .map((a) => ({ id: a.id, toolName: a.toolName, requestedAction: a.requestedAction, createdAt: a.createdAt })),
+          .map((a) => ({
+            id: a.id,
+            toolName: a.toolName,
+            requestedAction: a.requestedAction,
+            createdAt: a.createdAt,
+          })),
       };
     });
 
@@ -260,7 +311,11 @@ export class ConsoleService {
       goal,
       planningRun: ceoRun ? runSummary(ceoRun) : null,
       projects: await Promise.all(
-        projectRows.map(async (p) => ({ id: p.id, name: p.name, deliverablePath: await this.workspace.projectPath(p.id) })),
+        projectRows.map(async (p) => ({
+          id: p.id,
+          name: p.name,
+          deliverablePath: await this.workspace.projectPath(p.id),
+        })),
       ),
       items: boardItems,
       totals: {
@@ -353,8 +408,16 @@ export class ConsoleService {
   async files(projectId: string) {
     const root = await this.projectRoot(projectId);
     if (!root) return { projectId, path: await this.workspace.projectPath(projectId), files: [] };
-    const { stdout } = await git('git', ['ls-files'], { cwd: root, windowsHide: true, maxBuffer: 8 * 1024 * 1024 });
-    const files = stdout.split('\n').map((f) => f.trim()).filter(Boolean).filter((f) => f !== '.gitignore');
+    const { stdout } = await git('git', ['ls-files'], {
+      cwd: root,
+      windowsHide: true,
+      maxBuffer: 8 * 1024 * 1024,
+    });
+    const files = stdout
+      .split('\n')
+      .map((f) => f.trim())
+      .filter(Boolean)
+      .filter((f) => f !== '.gitignore');
     return { projectId, path: root, files };
   }
 
@@ -371,7 +434,13 @@ export class ConsoleService {
     }
     const buf = await readFile(abs);
     const binary = buf.subarray(0, 8000).includes(0);
-    return { path: filePath, size: info.size, truncated: false, binary, content: binary ? '' : buf.toString('utf8') };
+    return {
+      path: filePath,
+      size: info.size,
+      truncated: false,
+      binary,
+      content: binary ? '' : buf.toString('utf8'),
+    };
   }
 
   /**
@@ -382,15 +451,28 @@ export class ConsoleService {
    */
   async requestChanges(goalId: string, input: { feedback: string; workItemId?: string }) {
     const goal = await this.goalsSvc.findOne(goalId);
-    const [project] = await this.db.select().from(projects).where(eq(projects.goalId, goalId)).orderBy(projects.createdAt).limit(1);
-    if (!project) throw new BadRequestException('This goal has no delivered project yet. Start it first.');
-    const items = await this.db.select().from(workItems).where(eq(workItems.projectId, project.id)).orderBy(workItems.createdAt);
+    const [project] = await this.db
+      .select()
+      .from(projects)
+      .where(eq(projects.goalId, goalId))
+      .orderBy(projects.createdAt)
+      .limit(1);
+    if (!project)
+      throw new BadRequestException('This goal has no delivered project yet. Start it first.');
+    const items = await this.db
+      .select()
+      .from(workItems)
+      .where(eq(workItems.projectId, project.id))
+      .orderBy(workItems.createdAt);
     const target = input.workItemId ? items.find((i) => i.id === input.workItemId) : undefined;
-    if (input.workItemId && !target) throw new NotFoundException('That step is not part of this goal.');
+    if (input.workItemId && !target)
+      throw new NotFoundException('That step is not part of this goal.');
 
     const feedback = input.feedback.trim();
     // Regression guard: everything that was required before is still required.
-    const regression = [...new Set(items.filter((i) => i.status !== 'cancelled').flatMap((i) => i.acceptance ?? []))].slice(0, 20);
+    const regression = [
+      ...new Set(items.filter((i) => i.status !== 'cancelled').flatMap((i) => i.acceptance ?? [])),
+    ].slice(0, 20);
     const item = await this.work.createWorkItem(project.id, {
       title: `Change request: ${feedback.replace(/\s+/g, ' ').slice(0, 120)}`,
       description: [
@@ -413,21 +495,41 @@ export class ConsoleService {
       await this.work.addDependency(item.id, { dependsOnWorkItemId: other.id });
     }
     const builder = target?.assignedEmployeeId ?? null;
-    const decision = builder ? { employeeId: builder } : await this.router.route({ id: item.id, companyId: goal.companyId, taskType: item.taskType });
-    if (!decision) throw new BadRequestException('Nobody in this company can take this change right now.');
+    const decision = builder
+      ? { employeeId: builder }
+      : await this.router.route({
+          id: item.id,
+          companyId: goal.companyId,
+          taskType: item.taskType,
+        });
+    if (!decision)
+      throw new BadRequestException('Nobody in this company can take this change right now.');
     // Back in progress without re-planning: completion is re-evaluated when the change is done.
-    if (goal.status === 'completed') await this.db.update(goals).set({ status: 'active' }).where(eq(goals.id, goalId));
-    await this.work.assign(item.id, { employeeId: decision.employeeId, assignedBy: 'change_request' });
-    return { workItemId: item.id, assignedTo: decision.employeeId, regressionChecks: regression.length };
+    if (goal.status === 'completed')
+      await this.db.update(goals).set({ status: 'active' }).where(eq(goals.id, goalId));
+    await this.work.assign(item.id, {
+      employeeId: decision.employeeId,
+      assignedBy: 'change_request',
+    });
+    return {
+      workItemId: item.id,
+      assignedTo: decision.employeeId,
+      regressionChecks: regression.length,
+    };
   }
 
   /** A deliverable file's raw bytes for download (workbooks, PDFs, images…) — tracked files only. */
-  async download(projectId: string, filePath: string): Promise<{ name: string; size: number; body: Buffer }> {
+  async download(
+    projectId: string,
+    filePath: string,
+  ): Promise<{ name: string; size: number; body: Buffer }> {
     const listing = await this.files(projectId);
-    if (!listing.files.includes(filePath)) throw new NotFoundException(`No file '${filePath}' in this project`);
+    if (!listing.files.includes(filePath))
+      throw new NotFoundException(`No file '${filePath}' in this project`);
     const abs = path.join(listing.path, filePath);
     const info = await stat(abs);
-    if (info.size > MAX_DOWNLOAD_BYTES) throw new BadRequestException('File is larger than 50 MB; open it from the project folder.');
+    if (info.size > MAX_DOWNLOAD_BYTES)
+      throw new BadRequestException('File is larger than 50 MB; open it from the project folder.');
     return { name: path.basename(filePath), size: info.size, body: await readFile(abs) };
   }
 
@@ -435,11 +537,21 @@ export class ConsoleService {
   async retry(workItemId: string) {
     const item = await this.work.findOne(workItemId);
     if (item.status !== 'failed' && item.status !== 'rework') {
-      throw new BadRequestException(`Only failed or rework items can be retried (this one is ${item.status})`);
+      throw new BadRequestException(
+        `Only failed or rework items can be retried (this one is ${item.status})`,
+      );
     }
-    const decision = await this.router.route({ id: item.id, companyId: item.companyId, taskType: item.taskType });
-    if (!decision) throw new BadRequestException('Nobody in this company can run this work right now');
-    await this.work.assign(item.id, { employeeId: decision.employeeId, assignedBy: 'console_retry' });
+    const decision = await this.router.route({
+      id: item.id,
+      companyId: item.companyId,
+      taskType: item.taskType,
+    });
+    if (!decision)
+      throw new BadRequestException('Nobody in this company can run this work right now');
+    await this.work.assign(item.id, {
+      employeeId: decision.employeeId,
+      assignedBy: 'console_retry',
+    });
     return { workItemId: item.id, assignedTo: decision.employeeId };
   }
 
@@ -466,11 +578,18 @@ export class ConsoleService {
         { key: 'claude_code', label: 'Claude Code (subscription)', ...claudeCode },
         { key: 'custom:anthropic', label: 'API workers', ...anthropicApi },
         { key: 'custom:ollama', label: 'Local models (Ollama)', ...ollama },
-        { key: 'custom:openai', label: 'Fallback gateway (OmniRoute / OpenRouter)', ...fallbackApi },
+        {
+          key: 'custom:openai',
+          label: 'Fallback gateway (OmniRoute / OpenRouter)',
+          ...fallbackApi,
+        },
       ],
       // Where work goes automatically while Claude is at its usage limit.
       fallback: fallbackSelection('claude_code')
-        ? { model: process.env.FORGE_FALLBACK_MODEL, endpoint: new URL(process.env.FORGE_FALLBACK_BASE_URL as string).host }
+        ? {
+            model: process.env.FORGE_FALLBACK_MODEL,
+            endpoint: new URL(process.env.FORGE_FALLBACK_BASE_URL as string).host,
+          }
         : null,
     };
   }
@@ -483,7 +602,10 @@ export class ConsoleService {
    */
   async starterTeam(companyId: string, model?: string, template: 'full' | 'minimal' = 'full') {
     await this.companies.findOne(companyId);
-    const members = template === 'minimal' ? FULL_ORG.filter((m) => m.key === 'ceo' || m.key === 'backend') : FULL_ORG;
+    const members =
+      template === 'minimal'
+        ? FULL_ORG.filter((m) => m.key === 'ceo' || m.key === 'backend')
+        : FULL_ORG;
     const ids = new Map<string, string>();
     const created = [];
     for (const m of members) {
@@ -554,14 +676,22 @@ export class ConsoleService {
   async projects(companyId: string) {
     await this.companies.findOne(companyId);
     const rows = await this.db
-      .select({ project: projects, goalTitle: goals.title, goalStatus: goals.status, goalId: goals.id })
+      .select({
+        project: projects,
+        goalTitle: goals.title,
+        goalStatus: goals.status,
+        goalId: goals.id,
+      })
       .from(projects)
       .innerJoin(goals, eq(goals.id, projects.goalId))
       .where(eq(projects.companyId, companyId))
       .orderBy(desc(projects.createdAt));
     const ids = rows.map((r) => r.project.id);
     const items = ids.length
-      ? await this.db.select({ projectId: workItems.projectId, status: workItems.status }).from(workItems).where(inArray(workItems.projectId, ids))
+      ? await this.db
+          .select({ projectId: workItems.projectId, status: workItems.status })
+          .from(workItems)
+          .where(inArray(workItems.projectId, ids))
       : [];
     return rows.map(({ project, goalTitle, goalStatus, goalId }) => {
       const mine = items.filter((i) => i.projectId === project.id && i.status !== 'cancelled');
@@ -574,7 +704,8 @@ export class ConsoleService {
         createdAt: project.createdAt,
         items: mine.length,
         done: mine.filter((i) => i.status === 'done').length,
-        deliverablePath: project.repoPath ?? path.join(process.cwd(), 'workspaces', 'projects', project.id),
+        deliverablePath:
+          project.repoPath ?? path.join(process.cwd(), 'workspaces', 'projects', project.id),
       };
     });
   }
@@ -589,7 +720,9 @@ export class ConsoleService {
       .where(and(eq(workItems.companyId, companyId), gte(evaluations.createdAt, since)));
     const scored = rows.filter((r) => r.status !== 'inconclusive');
     if (scored.length === 0) return null;
-    return Math.round((scored.filter((r) => r.status === 'passed').length / scored.length) * 1000) / 10;
+    return (
+      Math.round((scored.filter((r) => r.status === 'passed').length / scored.length) * 1000) / 10
+    );
   }
 
   /** Runs and spend per day for the last 7 days (oldest first, today last). */
@@ -618,12 +751,23 @@ export class ConsoleService {
   }
 
   /** What a human should look at: approvals waiting, and work that failed or is being retried. */
-  private async needsAttention(companyId: string, pending: Awaited<ReturnType<ConsoleService['approvals']>>) {
+  private async needsAttention(
+    companyId: string,
+    pending: Awaited<ReturnType<ConsoleService['approvals']>>,
+  ) {
     const troubled = await this.db
-      .select({ id: workItems.id, title: workItems.title, status: workItems.status, updatedAt: workItems.updatedAt, goalId: projects.goalId })
+      .select({
+        id: workItems.id,
+        title: workItems.title,
+        status: workItems.status,
+        updatedAt: workItems.updatedAt,
+        goalId: projects.goalId,
+      })
       .from(workItems)
       .innerJoin(projects, eq(projects.id, workItems.projectId))
-      .where(and(eq(workItems.companyId, companyId), inArray(workItems.status, ['failed', 'rework'])))
+      .where(
+        and(eq(workItems.companyId, companyId), inArray(workItems.status, ['failed', 'rework'])),
+      )
       .orderBy(desc(workItems.updatedAt))
       .limit(10);
     return [
@@ -639,7 +783,8 @@ export class ConsoleService {
         kind: t.status === 'failed' ? ('failed' as const) : ('retrying' as const),
         id: t.id,
         title: t.title,
-        detail: t.status === 'failed' ? 'Failed after all attempts' : 'Failed its checks — retrying',
+        detail:
+          t.status === 'failed' ? 'Failed after all attempts' : 'Failed its checks — retrying',
         goalId: t.goalId,
         at: t.updatedAt,
       })),
@@ -647,7 +792,10 @@ export class ConsoleService {
   }
 
   private async projectRoot(projectId: string): Promise<string | null> {
-    const [project] = await this.db.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId));
+    const [project] = await this.db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.id, projectId));
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);
     const root = await this.workspace.projectPath(projectId);
     try {
@@ -667,14 +815,20 @@ export class ConsoleService {
       .innerJoin(projects, eq(projects.id, workItems.projectId))
       .where(inArray(projects.goalId, goalIds));
     const costRows = await this.db
-      .select({ goalId: projects.goalId, cost: sql<number>`coalesce(sum(${agentRuns.estimatedCostUsd}), 0)` })
+      .select({
+        goalId: projects.goalId,
+        cost: sql<number>`coalesce(sum(${agentRuns.estimatedCostUsd}), 0)`,
+      })
       .from(agentRuns)
       .innerJoin(workItems, eq(workItems.id, agentRuns.workItemId))
       .innerJoin(projects, eq(projects.id, workItems.projectId))
       .where(inArray(projects.goalId, goalIds))
       .groupBy(projects.goalId);
     const planCost = await this.db
-      .select({ goalId: agentRuns.goalId, cost: sql<number>`coalesce(sum(${agentRuns.estimatedCostUsd}), 0)` })
+      .select({
+        goalId: agentRuns.goalId,
+        cost: sql<number>`coalesce(sum(${agentRuns.estimatedCostUsd}), 0)`,
+      })
       .from(agentRuns)
       .where(inArray(agentRuns.goalId, goalIds))
       .groupBy(agentRuns.goalId);
@@ -710,9 +864,17 @@ function emptyProgress() {
 }
 
 /** What the agents' command sandbox will do on this installation, in plain words. */
-export function agentSandboxStatus(mode = (process.env.FORGE_AGENT_SANDBOX ?? 'on').toLowerCase(), platform = process.platform) {
+export function agentSandboxStatus(
+  mode = (process.env.FORGE_AGENT_SANDBOX ?? 'on').toLowerCase(),
+  platform = process.platform,
+) {
   const off = mode === 'off' || mode === 'false' || mode === '0';
-  if (off) return { mode: 'off', protected: false, note: 'Agent commands run as your user with your permissions.' };
+  if (off)
+    return {
+      mode: 'off',
+      protected: false,
+      note: 'Agent commands run as your user with your permissions.',
+    };
   if (platform === 'win32') {
     return {
       mode,
@@ -726,6 +888,9 @@ export function agentSandboxStatus(mode = (process.env.FORGE_AGENT_SANDBOX ?? 'o
   return {
     mode,
     protected: true,
-    note: mode === 'required' ? 'Agent commands always run sandboxed; runs refuse to start without it.' : 'Agent commands run sandboxed when the platform supports it (bubblewrap on Linux).',
+    note:
+      mode === 'required'
+        ? 'Agent commands always run sandboxed; runs refuse to start without it.'
+        : 'Agent commands run sandboxed when the platform supports it (bubblewrap on Linux).',
   };
 }

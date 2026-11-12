@@ -2,7 +2,11 @@ import { Role, ROLES } from './auth.schema';
 
 /** Pages, assets, health and sign-in work without a session. */
 export function isPublic(method: string, path: string): boolean {
-  if (method === 'GET' && (/^\/(ui)?$/.test(path) || /^\/assets\/[^/]+$/.test(path) || /^\/health(\/.*)?$/.test(path))) return true;
+  if (
+    method === 'GET' &&
+    (/^\/(ui)?$/.test(path) || /^\/assets\/[^/]+$/.test(path) || /^\/health(\/.*)?$/.test(path))
+  )
+    return true;
   return /^\/auth\/(status|login|setup|logout)$/.test(path);
 }
 
@@ -32,7 +36,15 @@ export function requiredRole(method: string, path: string): Role {
   return 'member';
 }
 
-export type ResourceKind = 'company' | 'goal' | 'employee' | 'work_item' | 'project' | 'agent_run' | 'approval' | 'evaluation';
+export type ResourceKind =
+  | 'company'
+  | 'goal'
+  | 'employee'
+  | 'work_item'
+  | 'project'
+  | 'agent_run'
+  | 'approval'
+  | 'evaluation';
 
 const KINDS: Record<string, ResourceKind> = {
   companies: 'company',

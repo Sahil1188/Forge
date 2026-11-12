@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { AuthService, SESSION_COOKIE } from './auth.service';
 import { ForgeRequest, readCookie } from './access.guard';
@@ -81,7 +93,10 @@ export class AuthController {
   async setup(@Body() dto: SetupDto, @Res({ passthrough: true }) res: CookieResponse) {
     await this.auth.setup(dto);
     const s = await this.auth.login(dto.email, dto.password);
-    res.setHeader('Set-Cookie', sessionCookie(s.token, Math.floor((s.expiresAt.getTime() - Date.now()) / 1000)));
+    res.setHeader(
+      'Set-Cookie',
+      sessionCookie(s.token, Math.floor((s.expiresAt.getTime() - Date.now()) / 1000)),
+    );
     return { user: s.user };
   }
 
@@ -89,7 +104,10 @@ export class AuthController {
   @HttpCode(200)
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: CookieResponse) {
     const s = await this.auth.login(dto.email, dto.password);
-    res.setHeader('Set-Cookie', sessionCookie(s.token, Math.floor((s.expiresAt.getTime() - Date.now()) / 1000)));
+    res.setHeader(
+      'Set-Cookie',
+      sessionCookie(s.token, Math.floor((s.expiresAt.getTime() - Date.now()) / 1000)),
+    );
     return { user: s.user };
   }
 
@@ -114,12 +132,19 @@ export class AuthController {
   }
 
   @Patch('companies/:id/members/:userId')
-  changeRole(@Param('id', ParseUUIDPipe) id: string, @Param('userId', ParseUUIDPipe) userId: string, @Body() dto: RoleDto) {
+  changeRole(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Body() dto: RoleDto,
+  ) {
     return this.auth.changeRole(id, userId, dto.role);
   }
 
   @Delete('companies/:id/members/:userId')
-  removeMember(@Param('id', ParseUUIDPipe) id: string, @Param('userId', ParseUUIDPipe) userId: string) {
+  removeMember(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+  ) {
     return this.auth.removeMember(id, userId);
   }
 }

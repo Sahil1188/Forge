@@ -29,7 +29,8 @@ export function goalText(args: string[]): string {
 export function flagAll(args: string[], name: string): string[] {
   const out: string[] = [];
   for (let i = 0; i < args.length; i += 1) {
-    if (args[i] === name && args[i + 1] !== undefined && !args[i + 1].startsWith('--')) out.push(args[i + 1]);
+    if (args[i] === name && args[i + 1] !== undefined && !args[i + 1].startsWith('--'))
+      out.push(args[i + 1]);
   }
   return out;
 }

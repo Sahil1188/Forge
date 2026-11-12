@@ -18,7 +18,15 @@ describe('summarizeGoal', () => {
   });
 
   it('any failed execution → failure, exit code 2, and it is named', () => {
-    const s = summarizeGoal([item({}), item({ workItemId: 'bad', execution: 'failed', evaluation: undefined, finalStatus: 'failed' })]);
+    const s = summarizeGoal([
+      item({}),
+      item({
+        workItemId: 'bad',
+        execution: 'failed',
+        evaluation: undefined,
+        finalStatus: 'failed',
+      }),
+    ]);
     expect(s.ok).toBe(false);
     expect(s.exitCode).toBe(2);
     expect(s.lines.join('\n')).toMatch(/1 of 2/);
@@ -32,13 +40,23 @@ describe('summarizeGoal', () => {
   });
 
   it('an item left unrun (never executed) counts as not done', () => {
-    const s = summarizeGoal([item({}), item({ workItemId: 'idle', execution: undefined, evaluation: undefined, finalStatus: 'assigned' })]);
+    const s = summarizeGoal([
+      item({}),
+      item({
+        workItemId: 'idle',
+        execution: undefined,
+        evaluation: undefined,
+        finalStatus: 'assigned',
+      }),
+    ]);
     expect(s.ok).toBe(false);
     expect(s.lines.join('\n')).toContain('idle');
   });
 
   it('a paused item is reported as awaiting approval, not as a failure', () => {
-    const s = summarizeGoal([item({ execution: 'paused', evaluation: undefined, finalStatus: 'needs_approval' })]);
+    const s = summarizeGoal([
+      item({ execution: 'paused', evaluation: undefined, finalStatus: 'needs_approval' }),
+    ]);
     expect(s.ok).toBe(false);
     expect(s.exitCode).toBe(3);
     expect(s.lines.join('\n')).toMatch(/approval/i);

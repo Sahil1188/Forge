@@ -17,7 +17,11 @@ import { RuntimeEvent, RuntimeRunContext } from '../src/modules/runtimes/runtime
 import { ScriptedRuntime, bootApp, createCompany, createEmployee, sleep } from './helpers';
 
 const pkg = (pass: boolean) =>
-  JSON.stringify({ name: 'p', version: '1.0.0', scripts: { test: `node -e "process.exit(${pass ? 0 : 1})"` } });
+  JSON.stringify({
+    name: 'p',
+    version: '1.0.0',
+    scripts: { test: `node -e "process.exit(${pass ? 0 : 1})"` },
+  });
 
 /**
  * The `forge serve` chain, driven ONLY by events (the server's auto-triggers enabled): start a
@@ -95,15 +99,29 @@ describe('Server auto-chain: goal → completed with no manual driving (e2e)', (
     app.get(RuntimeRegistry).register(devRuntime);
 
     const companyId = await createCompany(app, 'Auto Co');
-    const ceo = await createEmployee(app, companyId, { name: 'Ceo', role: 'CEO', runtimeKey: ceoKey });
+    const ceo = await createEmployee(app, companyId, {
+      name: 'Ceo',
+      role: 'CEO',
+      runtimeKey: ceoKey,
+    });
     const dev = await createEmployee(app, companyId, {
-      name: 'Dev', role: 'Engineer', runtimeKey: devKey, managerEmployeeId: ceo, skills: [{ skillKey: 'node', level: 80 }],
+      name: 'Dev',
+      role: 'Engineer',
+      runtimeKey: devKey,
+      managerEmployeeId: ceo,
+      skills: [{ skillKey: 'node', level: 80 }],
     });
 
-    const goal = (await request(server).post(`/companies/${companyId}/goals`).send({ title: 'Ship A, B, C' }).expect(201)).body.id;
+    const goal = (
+      await request(server)
+        .post(`/companies/${companyId}/goals`)
+        .send({ title: 'Ship A, B, C' })
+        .expect(201)
+    ).body.id;
     await request(server).post(`/goals/${goal}/start`).expect(201);
 
-    const goalStatus = async () => (await request(server).get(`/goals/${goal}`).expect(200)).body.status as string;
+    const goalStatus = async () =>
+      (await request(server).get(`/goals/${goal}`).expect(200)).body.status as string;
     await pumpUntil(async () => (await goalStatus()) === 'completed');
 
     // The whole chain happened by itself, in order, with one retry for B.
@@ -111,7 +129,8 @@ describe('Server auto-chain: goal → completed with no manual driving (e2e)', (
     expect(ceoRuntime.runs).toBe(1);
 
     const [project] = (await request(server).get(`/goals/${goal}/projects`).expect(200)).body;
-    const items = (await request(server).get(`/projects/${project.id}/work-items`).expect(200)).body as Array<{
+    const items = (await request(server).get(`/projects/${project.id}/work-items`).expect(200))
+      .body as Array<{
       status: string;
       assignedEmployeeId: string;
     }>;
@@ -120,7 +139,8 @@ describe('Server auto-chain: goal → completed with no manual driving (e2e)', (
 
     // The deliverable on main contains everyone's work.
     const main = await app.get<WorkspacePort>(WORKSPACE_PORT).projectPath(project.id);
-    for (const f of ['a.js', 'b.js', 'c.js', 'package.json']) expect(existsSync(path.join(main, f)), f).toBe(true);
+    for (const f of ['a.js', 'b.js', 'c.js', 'package.json'])
+      expect(existsSync(path.join(main, f)), f).toBe(true);
     expect(existsSync(path.join(main, 'CLAUDE.md'))).toBe(false);
 
     // A replayed goal.started (at-least-once outbox) does not plan the goal again.

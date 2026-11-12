@@ -1,10 +1,20 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+} from '@nestjs/common';
 import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { brandChecklist, getBrand, listBrands, saveBrand } from './brand-library';
 
 class SaveBrandDto {
   @IsString()
-  @Matches(/^[a-z0-9][a-z0-9-]{1,48}$/, { message: 'id must be 2-49 lowercase letters, digits or dashes' })
+  @Matches(/^[a-z0-9][a-z0-9-]{1,48}$/, {
+    message: 'id must be 2-49 lowercase letters, digits or dashes',
+  })
   slug!: string;
 
   @IsString()
@@ -26,7 +36,11 @@ export class BrandsController {
     const brand = await getBrand(slug);
     if (!brand) throw new NotFoundException(`No brand "${slug}"`);
     const { content, ...summary } = brand;
-    return { ...summary, platformChecklist: brandChecklist(content, 'platform'), websiteChecklist: brandChecklist(content, 'website') };
+    return {
+      ...summary,
+      platformChecklist: brandChecklist(content, 'platform'),
+      websiteChecklist: brandChecklist(content, 'website'),
+    };
   }
 
   @Post()

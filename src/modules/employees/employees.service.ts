@@ -1,4 +1,10 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { DRIZZLE, Database } from '../../infrastructure/database/drizzle.provider';
 import { CompaniesService } from '../companies/companies.service';
@@ -124,9 +130,13 @@ export class EmployeesService {
         ...(dto.role !== undefined ? { role: dto.role } : {}),
         ...(dto.description !== undefined ? { description: dto.description } : {}),
         ...(dto.department !== undefined ? { department: dto.department } : {}),
-        ...(dto.managerEmployeeId !== undefined ? { managerEmployeeId: dto.managerEmployeeId } : {}),
+        ...(dto.managerEmployeeId !== undefined
+          ? { managerEmployeeId: dto.managerEmployeeId }
+          : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
-        ...(dto.governance !== undefined ? { governance: dto.governance as Record<string, unknown> } : {}),
+        ...(dto.governance !== undefined
+          ? { governance: dto.governance as Record<string, unknown> }
+          : {}),
         runtimeConfigId,
       })
       .where(eq(employees.id, id));
@@ -140,9 +150,14 @@ export class EmployeesService {
     await this.db.transaction(async (tx) => {
       await tx.delete(employeeSkills).where(eq(employeeSkills.employeeId, id));
       if (skills.length > 0) {
-        await tx
-          .insert(employeeSkills)
-          .values(skills.map((k) => ({ employeeId: id, skillKey: k.skillKey, level: k.level, source: 'manual' })));
+        await tx.insert(employeeSkills).values(
+          skills.map((k) => ({
+            employeeId: id,
+            skillKey: k.skillKey,
+            level: k.level,
+            source: 'manual',
+          })),
+        );
       }
     });
     return this.findOne(id);
@@ -173,7 +188,9 @@ export class EmployeesService {
       .from(employees)
       .where(and(eq(employees.managerEmployeeId, id), isNull(employees.deletedAt)));
     if (reports.length > 0) {
-      throw new ConflictException(`Employee ${id} still manages ${reports.length} employee(s); move them first`);
+      throw new ConflictException(
+        `Employee ${id} still manages ${reports.length} employee(s); move them first`,
+      );
     }
     await this.db.update(employees).set({ deletedAt: new Date() }).where(eq(employees.id, id));
   }
@@ -196,7 +213,9 @@ export class EmployeesService {
         .from(employees)
         .where(and(eq(employees.id, cursor), isNull(employees.deletedAt)));
       if (!row || row.companyId !== employee.companyId) {
-        throw new BadRequestException(`Manager ${managerId} does not exist in company ${employee.companyId}`);
+        throw new BadRequestException(
+          `Manager ${managerId} does not exist in company ${employee.companyId}`,
+        );
       }
       cursor = row.managerEmployeeId;
     }
@@ -210,13 +229,22 @@ export class EmployeesService {
   }
 
   /** The brief this employee works under, whether it was edited, and the built-in one to compare or reset to. */
-  async getBrief(id: string): Promise<{ brief: EmployeeBrief | null; custom: boolean; builtIn: EmployeeBrief | null }> {
+  async getBrief(
+    id: string,
+  ): Promise<{ brief: EmployeeBrief | null; custom: boolean; builtIn: EmployeeBrief | null }> {
     const employee = await this.findOne(id);
-    return { brief: briefForEmployee(employee), custom: Boolean(employee.brief), builtIn: defaultBriefFor(employee) };
+    return {
+      brief: briefForEmployee(employee),
+      custom: Boolean(employee.brief),
+      builtIn: defaultBriefFor(employee),
+    };
   }
 
   /** Saves an edited brief; it is used from the employee's next task on. */
-  async setBrief(id: string, brief: BriefContent): Promise<{ brief: EmployeeBrief | null; custom: boolean; builtIn: EmployeeBrief | null }> {
+  async setBrief(
+    id: string,
+    brief: BriefContent,
+  ): Promise<{ brief: EmployeeBrief | null; custom: boolean; builtIn: EmployeeBrief | null }> {
     await this.findOne(id);
     const clean = (lines: string[]) => lines.map((l) => l.trim()).filter(Boolean);
     const content: BriefContent = {
@@ -233,7 +261,9 @@ export class EmployeesService {
   }
 
   /** Drops the edited brief, so the built-in one applies again. */
-  async resetBrief(id: string): Promise<{ brief: EmployeeBrief | null; custom: boolean; builtIn: EmployeeBrief | null }> {
+  async resetBrief(
+    id: string,
+  ): Promise<{ brief: EmployeeBrief | null; custom: boolean; builtIn: EmployeeBrief | null }> {
     await this.findOne(id);
     await this.db.update(employees).set({ brief: null }).where(eq(employees.id, id));
     return this.getBrief(id);

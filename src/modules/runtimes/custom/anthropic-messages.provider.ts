@@ -82,7 +82,11 @@ export class AnthropicMessagesProvider implements ModelProvider {
         inputTokens: data.usage.input_tokens,
         outputTokens: data.usage.output_tokens,
         // Per-token API billing: report an estimate so budgets can see this spend.
-        costUsd: estimateAnthropicCostUsd(request.model, data.usage.input_tokens, data.usage.output_tokens),
+        costUsd: estimateAnthropicCostUsd(
+          request.model,
+          data.usage.input_tokens,
+          data.usage.output_tokens,
+        ),
       },
     };
   }
@@ -99,7 +103,12 @@ function toWireMessages(request: ChatRequest): Array<{ role: string; content: un
     if (m.role === 'tool') {
       const block = { type: 'tool_result', tool_use_id: m.toolCallId, content: m.content };
       const prev = out[out.length - 1];
-      if (prev && prev.role === 'user' && Array.isArray(prev.content) && isToolResultTurn(prev.content)) {
+      if (
+        prev &&
+        prev.role === 'user' &&
+        Array.isArray(prev.content) &&
+        isToolResultTurn(prev.content)
+      ) {
         prev.content.push(block);
       } else {
         out.push({ role: 'user', content: [block] });

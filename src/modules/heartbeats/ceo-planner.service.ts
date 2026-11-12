@@ -85,10 +85,15 @@ export class CeoPlanner {
    * model goes to the CFO, a security review to the CISO), falling back to the CEO. Only executives plan; specialists do the work.
    */
   async findPlanner(goal: Goal): Promise<EmployeeWithRelations | null> {
-    const department = domainOf(inferTaskType(`${goal.title} ${goal.description ?? ''}`)).department.toLowerCase();
+    const department = domainOf(
+      inferTaskType(`${goal.title} ${goal.description ?? ''}`),
+    ).department.toLowerCase();
     const roster = await this.employees.findByCompany(goal.companyId);
     const head = roster.find(
-      (e) => isExecutive(e.role) && !/\bceo\b/i.test(e.role) && (e.department ?? '').toLowerCase() === department,
+      (e) =>
+        isExecutive(e.role) &&
+        !/\bceo\b/i.test(e.role) &&
+        (e.department ?? '').toLowerCase() === department,
     );
     return head ? this.employees.findOne(head.id) : this.findCeo(goal.companyId);
   }
@@ -101,7 +106,13 @@ export class CeoPlanner {
         goal,
         {
           project: goal.title.slice(0, 200),
-          workItems: [{ title: goal.title.slice(0, MAX_TITLE), description: goal.description ?? undefined, taskType: inferTaskType(`${goal.title} ${goal.description ?? ''}`) }],
+          workItems: [
+            {
+              title: goal.title.slice(0, MAX_TITLE),
+              description: goal.description ?? undefined,
+              taskType: inferTaskType(`${goal.title} ${goal.description ?? ''}`),
+            },
+          ],
         },
         null,
         'direct',
@@ -144,7 +155,11 @@ export class CeoPlanner {
         workItemId: `plan:${goalId}`,
         employeeId: planner.id,
         cwd: handle.rootPath,
-        task: this.planningPrompt(goal, await this.employees.findByCompany(goal.companyId), await this.brandOptions(goal)),
+        task: this.planningPrompt(
+          goal,
+          await this.employees.findByCompany(goal.companyId),
+          await this.brandOptions(goal),
+        ),
         model: selection.model,
         systemPromptAppend: this.planningClaudeMd(planner, goal),
         limits: { maxTurns: 30 },
@@ -178,7 +193,8 @@ export class CeoPlanner {
           failedError = event.error;
         } else if (event.kind === 'rate_limit') {
           this.usageLimits.record(selection.runtimeKey, event);
-          if (event.status === 'rejected') failedError = 'Claude usage limit reached; plan again after it resets';
+          if (event.status === 'rejected')
+            failedError = 'Claude usage limit reached; plan again after it resets';
         }
       }
 
@@ -195,7 +211,9 @@ export class CeoPlanner {
       });
       if (!completed) {
         // Don't invent work from a planning run that never finished.
-        throw new Error(`CEO planning run failed for goal ${goalId}: ${failedError ?? 'no completion'}`);
+        throw new Error(
+          `CEO planning run failed for goal ${goalId}: ${failedError ?? 'no completion'}`,
+        );
       }
     } catch (err) {
       // Whatever went wrong, the run must not be left "running" forever.
@@ -259,13 +277,19 @@ export class CeoPlanner {
           assignedBy: ceoRunId ? 'ceo_plan' : 'direct',
         });
       }
-      workItems.push({ workItemId: item.id, title: item.title, assignedTo: decision?.employeeId ?? null });
+      workItems.push({
+        workItemId: item.id,
+        title: item.title,
+        assignedTo: decision?.employeeId ?? null,
+      });
     }
 
     const review = await this.addProductionReview(goal, project.id, created, workItems);
     if (review) workItems.push(review);
 
-    this.logger.log(`${plannedBy} planned goal ${goal.id}: ${workItems.length} work item(s) in project ${project.id}`);
+    this.logger.log(
+      `${plannedBy} planned goal ${goal.id}: ${workItems.length} work item(s) in project ${project.id}`,
+    );
     return { goalId: goal.id, ceoRunId, projectId: project.id, workItems };
   }
 
@@ -284,11 +308,26 @@ export class CeoPlanner {
     if (process.env.FORGE_PRODUCTION_REVIEW === '0' || built.length === 0) return null;
     // The planner already ended its plan with a review step: don't add a second one.
     if (built[built.length - 1].taskType === 'review') return null;
-    const engineering = ['coding', 'frontend', 'design', 'qa', 'devops', 'cloud', 'network', 'data', 'security', 'architecture', 'review', 'generic'];
+    const engineering = [
+      'coding',
+      'frontend',
+      'design',
+      'qa',
+      'devops',
+      'cloud',
+      'network',
+      'data',
+      'security',
+      'architecture',
+      'review',
+      'generic',
+    ];
     // Anything with engineering or design in it is a product: the review specialists sign it off.
     // Pure business work (finance, legal, …) is reviewed by another senior of that department.
     const productWork = built.some((i) => engineering.includes(i.taskType));
-    const primary = productWork ? (built.find((i) => i.taskType !== 'design')?.taskType ?? 'frontend') : built[0].taskType;
+    const primary = productWork
+      ? (built.find((i) => i.taskType !== 'design')?.taskType ?? 'frontend')
+      : built[0].taskType;
     const taskType: TaskType = productWork ? 'review' : this.coerceTaskType(primary);
     const regression = [...new Set(built.flatMap((i) => i.acceptance ?? []))].slice(0, 20);
     const item = await this.work.createWorkItem(projectId, {
@@ -307,8 +346,17 @@ export class CeoPlanner {
     });
     for (const b of built) await this.work.addDependency(item.id, { dependsOnWorkItemId: b.id });
     const builders = assigned.map((a) => a.assignedTo).filter((x): x is string => Boolean(x));
-    const decision = await this.router.route({ id: item.id, companyId: goal.companyId, taskType, excludeEmployeeIds: builders });
-    if (decision) await this.work.assign(item.id, { employeeId: decision.employeeId, assignedBy: 'production_review' });
+    const decision = await this.router.route({
+      id: item.id,
+      companyId: goal.companyId,
+      taskType,
+      excludeEmployeeIds: builders,
+    });
+    if (decision)
+      await this.work.assign(item.id, {
+        employeeId: decision.employeeId,
+        assignedBy: 'production_review',
+      });
     return { workItemId: item.id, title: item.title, assignedTo: decision?.employeeId ?? null };
   }
 
@@ -317,7 +365,9 @@ export class CeoPlanner {
     const company = await this.companies.findOne(goal.companyId).catch(() => null);
     const fixed = await getBrand(goal.brand ?? company?.brand ?? null);
     if (fixed) {
-      return [`Brand: every user interface follows the ${fixed.name} brand (BRAND.md in the repository); it is already chosen, do not pick another.`];
+      return [
+        `Brand: every user interface follows the ${fixed.name} brand (BRAND.md in the repository); it is already chosen, do not pick another.`,
+      ];
     }
     const brands = await listBrands();
     if (brands.length === 0) return [];
@@ -334,20 +384,34 @@ export class CeoPlanner {
    * Order of preference: the goal's brand, the company default, the planner's pick, then the brand that
    * fits the product. Only for work with a user interface (or when a brand was chosen explicitly).
    */
-  private async applyBrand(goal: Goal, projectId: string, planBrand: string | undefined, items: PlannedItem[]): Promise<Brand | null> {
+  private async applyBrand(
+    goal: Goal,
+    projectId: string,
+    planBrand: string | undefined,
+    items: PlannedItem[],
+  ): Promise<Brand | null> {
     try {
       const company = await this.companies.findOne(goal.companyId).catch(() => null);
       const explicit = goal.brand ?? company?.brand ?? null;
       const text = `${goal.title} ${goal.description ?? ''}`;
       const hasUi =
         items.some((i) => i.taskType === 'frontend' || i.taskType === 'design') ||
-        /\b(ui|web ?app|website|dashboard|frontend|front-end|interface|screens?|landing page|portal)\b/i.test(text);
+        /\b(ui|web ?app|website|dashboard|frontend|front-end|interface|screens?|landing page|portal)\b/i.test(
+          text,
+        );
       if (!explicit && !hasUi) return null;
       const available = (await listBrands()).map((b) => b.slug);
-      const slug = [explicit, planBrand].find((s) => s && available.includes(s)) ?? fittingBrand(text, available);
+      const slug =
+        [explicit, planBrand].find((s) => s && available.includes(s)) ??
+        fittingBrand(text, available);
       const brand = await getBrand(slug);
       if (!brand) return null;
-      await this.workspace.seedFile(projectId, 'BRAND.md', brand.content, `chore: brand system ${brand.name}`);
+      await this.workspace.seedFile(
+        projectId,
+        'BRAND.md',
+        brand.content,
+        `chore: brand system ${brand.name}`,
+      );
       if (goal.brand !== brand.slug) await this.goals.setBrand(goal.id, brand.slug);
       this.logger.log(`Goal ${goal.id} follows the ${brand.name} brand`);
       return brand;
@@ -364,7 +428,12 @@ export class CeoPlanner {
   ): Promise<{ project: string; workItems: PlannedItem[]; hires: PlannedHire[]; brand?: string }> {
     try {
       const raw = await readFile(path.join(rootPath, 'PLAN.json'), 'utf8');
-      const parsed = JSON.parse(raw) as { project?: unknown; workItems?: unknown; hires?: unknown; brand?: unknown } | null;
+      const parsed = JSON.parse(raw) as {
+        project?: unknown;
+        workItems?: unknown;
+        hires?: unknown;
+        brand?: unknown;
+      } | null;
       // PLAN.json is model-written: trust nothing about its shape.
       const items = Array.isArray(parsed?.workItems) ? parsed!.workItems.flatMap(sanitizeItem) : [];
       if (items.length > 0) {
@@ -373,7 +442,10 @@ export class CeoPlanner {
             ? parsed!.project.trim().slice(0, 200)
             : 'Delivery';
         const hires = Array.isArray(parsed!.hires) ? parsed!.hires.flatMap(sanitizeHire) : [];
-        const brand = typeof parsed!.brand === 'string' ? parsed!.brand.trim().toLowerCase().slice(0, 50) : undefined;
+        const brand =
+          typeof parsed!.brand === 'string'
+            ? parsed!.brand.trim().toLowerCase().slice(0, 50)
+            : undefined;
         return { project, workItems: items, hires, brand };
       }
     } catch {
@@ -382,7 +454,13 @@ export class CeoPlanner {
     // Resilient fallback: always yield at least one work item.
     return {
       project: 'Delivery',
-      workItems: [{ title: `Deliver: ${goal.title}`.slice(0, MAX_TITLE), description: goal.description ?? undefined, taskType: 'coding' }],
+      workItems: [
+        {
+          title: `Deliver: ${goal.title}`.slice(0, MAX_TITLE),
+          description: goal.description ?? undefined,
+          taskType: 'coding',
+        },
+      ],
       hires: [],
     };
   }
@@ -392,7 +470,11 @@ export class CeoPlanner {
    * Bounded per goal (FORGE_MAX_HIRES_PER_GOAL, default 2); a role the company already has is not
    * hired twice. New hires run on Sonnet, stepping up to Opus for complex work.
    */
-  private async hire(goal: Goal, planner: EmployeeWithRelations, hires: PlannedHire[]): Promise<void> {
+  private async hire(
+    goal: Goal,
+    planner: EmployeeWithRelations,
+    hires: PlannedHire[],
+  ): Promise<void> {
     const max = Number(process.env.FORGE_MAX_HIRES_PER_GOAL ?? DEFAULT_MAX_HIRES);
     if (!Number.isFinite(max) || max <= 0 || hires.length === 0) return;
     const roster = await this.employees.findByCompany(goal.companyId);
@@ -405,18 +487,25 @@ export class CeoPlanner {
         name: h.name,
         role: h.role,
         department: h.department ?? planner.department ?? undefined,
-        description: h.description ?? `${h.role}, hired by ${planner.name} for: ${goal.title}`.slice(0, 1000),
+        description:
+          h.description ?? `${h.role}, hired by ${planner.name} for: ${goal.title}`.slice(0, 1000),
         managerEmployeeId: planner.id,
         runtimeConfig: {
           runtimeKey: 'claude_code',
-          modelPolicy: { default: 'sonnet', byComplexity: { high: 'opus', low: 'sonnet' }, complexityThreshold: 0.8 },
+          modelPolicy: {
+            default: 'sonnet',
+            byComplexity: { high: 'opus', low: 'sonnet' },
+            complexityThreshold: 0.8,
+          },
           settings: { maxTurns: 100 },
         },
         skills: h.skills,
       });
       roles.add(h.role.toLowerCase());
       hired += 1;
-      this.logger.log(`${planner.name} hired ${employee.name} (${employee.role}) for goal ${goal.id}`);
+      this.logger.log(
+        `${planner.name} hired ${employee.name} (${employee.role}) for goal ${goal.id}`,
+      );
     }
   }
 
@@ -424,7 +513,11 @@ export class CeoPlanner {
     return isTaskType(value) ? value : 'coding';
   }
 
-  private planningPrompt(goal: Goal, roster: Array<{ name: string; role: string; department: string | null }>, brandLines: string[] = []): string {
+  private planningPrompt(
+    goal: Goal,
+    roster: Array<{ name: string; role: string; department: string | null }>,
+    brandLines: string[] = [],
+  ): string {
     const max = process.env.FORGE_MAX_PLAN_ITEMS ?? DEFAULT_MAX_PLAN_ITEMS;
     const departments = new Map<string, string[]>();
     for (const e of roster) {
@@ -496,14 +589,20 @@ export class CeoPlanner {
       'If the work needs expertise nobody in the organisation has, you may hire up to',
       `${process.env.FORGE_MAX_HIRES_PER_GOAL ?? DEFAULT_MAX_HIRES} senior specialists in "hires" (name, role, department, a description of their`,
       'expertise, and skills with levels 85-98). Only hire when it is truly needed; the new people',
-      'will report to you and can be given this goal\'s items.',
+      "will report to you and can be given this goal's items.",
       'Usefulness first: before listing screens, think like the real users of this product. Name the jobs they do',
       'every day and plan each one as a complete working workflow (create, edit, search, filter, act on it, export,',
       'see the result), with realistic seeded data. A screen that only displays numbers is not a feature. Prefer depth',
       'in the core workflows over many thin tabs, and make the acceptance checks exercise those workflows.',
       ...brandLines,
       'Write a file named PLAN.json in the current working directory with the shape:',
-      `{ "project": string, "workItems": [ { "title": string, "description": string, "taskType": ${TASK_TYPES.filter((t) => t !== 'generic').map((t) => `"${t}"`).join('|')}, "acceptance": string[], "dependsOn"?: number[] } ], "brand"?: string, "hires"?: [ { "name": string, "role": string, "department": string, "description": string, "skills": [ { "skillKey": string, "level": number } ] } ] }`,
+      `{ "project": string, "workItems": [ { "title": string, "description": string, "taskType": ${TASK_TYPES.filter(
+        (t) => t !== 'generic',
+      )
+        .map((t) => `"${t}"`)
+        .join(
+          '|',
+        )}, "acceptance": string[], "dependsOn"?: number[] } ], "brand"?: string, "hires"?: [ { "name": string, "role": string, "department": string, "description": string, "skills": [ { "skillKey": string, "level": number } ] } ] }`,
       'dependsOn: 0-based indices of earlier items this one needs; [] means it starts immediately in parallel.',
     ].join('\n');
   }
@@ -517,7 +616,12 @@ export class CeoPlanner {
       '',
       brief
         ? renderBrief(brief)
-        : [`# You are ${planner.name}, ${planner.role}`, '', planner.description ?? 'You lead an AI company (Forge). Plan strategically and delegate.'].join('\n'),
+        : [
+            `# You are ${planner.name}, ${planner.role}`,
+            '',
+            planner.description ??
+              'You lead an AI company (Forge). Plan strategically and delegate.',
+          ].join('\n'),
       '',
       '---',
       '',

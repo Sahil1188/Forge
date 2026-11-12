@@ -72,17 +72,34 @@ export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
    * UI work must also look right: frontend, design and final-review steps that passed their checks
    * go through the visual gate (run the app, screenshot it, design review). Failing it fails the item.
    */
-  private async withVisualGate(item: WorkItem, rootPath: string, result: EvaluationResult): Promise<EvaluationResult> {
-    if (result.status === 'failed' || !['frontend', 'design', 'review'].includes(item.taskType)) return result;
-    const [project] = await this.db.select({ goalId: projects.goalId }).from(projects).where(eq(projects.id, item.projectId));
+  private async withVisualGate(
+    item: WorkItem,
+    rootPath: string,
+    result: EvaluationResult,
+  ): Promise<EvaluationResult> {
+    if (result.status === 'failed' || !['frontend', 'design', 'review'].includes(item.taskType))
+      return result;
+    const [project] = await this.db
+      .select({ goalId: projects.goalId })
+      .from(projects)
+      .where(eq(projects.id, item.projectId));
     if (!project) return result;
-    const visual = await this.visual.check(rootPath, { companyId: item.companyId, goalId: project.goalId, title: item.title });
+    const visual = await this.visual.check(rootPath, {
+      companyId: item.companyId,
+      goalId: project.goalId,
+      title: item.title,
+    });
     if (!visual) return result;
     const dimensions = { ...result.dimensions, visual };
     const scores = Object.values(dimensions).map((d) => d.score);
     return {
       ...result,
-      status: visual.exitCode === 0 ? (result.status === 'inconclusive' ? 'passed' : result.status) : 'failed',
+      status:
+        visual.exitCode === 0
+          ? result.status === 'inconclusive'
+            ? 'passed'
+            : result.status
+          : 'failed',
       overallScore: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
       dimensions,
     };
@@ -105,18 +122,24 @@ export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
    */
   onApplicationBootstrap(): void {
     if (process.env.VITEST || process.env.FORGE_MANUAL_DRIVE) return;
-    void this.resumeInterrupted().catch((err) => this.logger.error(`Resuming interrupted checks failed: ${(err as Error).message}`));
+    void this.resumeInterrupted().catch((err) =>
+      this.logger.error(`Resuming interrupted checks failed: ${(err as Error).message}`),
+    );
   }
 
   async resumeInterrupted(): Promise<number> {
-    const stuck = await this.db.select({ id: workItems.id }).from(workItems).where(eq(workItems.status, 'evaluating'));
+    const stuck = await this.db
+      .select({ id: workItems.id })
+      .from(workItems)
+      .where(eq(workItems.status, 'evaluating'));
     for (const { id } of stuck) {
       this.logger.log(`Re-running interrupted checks for work item ${id}`);
       try {
         const r = await this.evaluate(id);
         if (r.routedTo === 'rework') await this.retryOrFail(r.workItemId);
       } catch (err) {
-        if (!(err instanceof NotAwaitingEvaluationError)) this.logger.warn(`Checks for ${id} failed to run: ${(err as Error).message}`);
+        if (!(err instanceof NotAwaitingEvaluationError))
+          this.logger.warn(`Checks for ${id} failed to run: ${(err as Error).message}`);
       }
     }
     return stuck.length;
@@ -166,9 +189,19 @@ export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
     // Check the work as the code `main` will become: other steps may have merged since it started,
     // and each one's checks must still pass (observed live: a later step emptied an earlier step's
     // API, every step passed its own checks, and the assembled app was broken).
-    const caughtUp = branch ? await this.workspace.catchUp(item.projectId, rootPath) : { merged: true };
+    const caughtUp = branch
+      ? await this.workspace.catchUp(item.projectId, rootPath)
+      : { merged: true };
     const result = caughtUp.merged
-      ? await this.withVisualGate(item, rootPath, await this.engine.evaluateRepo(rootPath, item.acceptance ?? [], await this.regressionChecks(item)))
+      ? await this.withVisualGate(
+          item,
+          rootPath,
+          await this.engine.evaluateRepo(
+            rootPath,
+            item.acceptance ?? [],
+            await this.regressionChecks(item),
+          ),
+        )
       : mergeConflictResult(caughtUp.conflict);
     const runs = await this.agentRuns.findByWorkItem(item.id);
     const evaluation = await this.evaluations.create({
@@ -184,7 +217,12 @@ export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
       // Remembered so the retry starts from the latest main with this work merged in.
       await this.db
         .update(workItems)
-        .set({ artifacts: { ...((item.artifacts as Record<string, unknown> | null) ?? {}), conflict: caughtUp.conflict ?? 'merge conflict' } })
+        .set({
+          artifacts: {
+            ...((item.artifacts as Record<string, unknown> | null) ?? {}),
+            conflict: caughtUp.conflict ?? 'merge conflict',
+          },
+        })
         .where(eq(workItems.id, item.id));
       this.logger.warn(`Work item ${item.id} conflicts with the latest main: ${caughtUp.conflict}`);
     }
@@ -199,9 +237,16 @@ export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
           // Remembered so the retry starts from the latest main with this work merged in.
           await this.db
             .update(workItems)
-            .set({ artifacts: { ...((item.artifacts as Record<string, unknown> | null) ?? {}), conflict: merged.conflict ?? 'merge conflict' } })
+            .set({
+              artifacts: {
+                ...((item.artifacts as Record<string, unknown> | null) ?? {}),
+                conflict: merged.conflict ?? 'merge conflict',
+              },
+            })
             .where(eq(workItems.id, item.id));
-          this.logger.warn(`Work item ${item.id} passed but could not be merged: ${merged.conflict}`);
+          this.logger.warn(
+            `Work item ${item.id} passed but could not be merged: ${merged.conflict}`,
+          );
         } else if ((item.artifacts as { conflict?: string } | null)?.conflict) {
           const rest = { ...(item.artifacts as Record<string, unknown>) };
           delete rest.conflict; // resolved by this merge
@@ -236,16 +281,27 @@ export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
       const failing = Object.entries(result.dimensions).filter(([, d]) => d.exitCode !== 0);
       const earlier = (await this.evaluations.findByWorkItem(item.id)).slice(1); // newest first; [0] is this one
       const lastFailure = earlier.find((e) => e.status === 'failed');
-      const changed = ((item.artifacts as { filesChanged?: string[] } | null)?.filesChanged ?? []).slice(0, 8);
+      const changed = (
+        (item.artifacts as { filesChanged?: string[] } | null)?.filesChanged ?? []
+      ).slice(0, 8);
       let content: string;
       let salience: number;
       if (!passed) {
         // Specific: what broke and the evidence, so the same mistake is recognised next time.
-        content = [`Mistake on "${item.title}" (${item.taskType}):`, ...failing.map(([name, d]) => `- ${name}: ${keyLines(d.output, name)}`)].join('\n');
+        content = [
+          `Mistake on "${item.title}" (${item.taskType}):`,
+          ...failing.map(([name, d]) => `- ${name}: ${keyLines(d.output, name)}`),
+        ].join('\n');
         salience = 85;
       } else if (lastFailure) {
         // What fixed it: the most valuable kind of lesson.
-        const was = Object.entries((lastFailure.detail as { dimensions?: Record<string, { exitCode?: number; output?: string }> }).dimensions ?? {})
+        const was = Object.entries(
+          (
+            lastFailure.detail as {
+              dimensions?: Record<string, { exitCode?: number; output?: string }>;
+            }
+          ).dimensions ?? {},
+        )
           .filter(([, d]) => d.exitCode !== 0)
           .map(([name, d]) => `${name}: ${keyLines(d.output ?? '', name)}`)
           .join('; ');
@@ -290,18 +346,28 @@ export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
     // If the only failures are acceptance checks that cannot even run, retrying can't help:
     // stop and surface it, so a person fixes the check instead of the team burning attempts.
     const [latest] = await this.evaluations.findByWorkItem(item.id);
-    const detail = (latest?.detail ?? {}) as { dimensions?: Record<string, { exitCode?: number }>; brokenChecks?: string[] };
-    const failing = Object.entries(detail.dimensions ?? {}).filter(([, d]) => d.exitCode !== 0).map(([n]) => n);
+    const detail = (latest?.detail ?? {}) as {
+      dimensions?: Record<string, { exitCode?: number }>;
+      brokenChecks?: string[];
+    };
+    const failing = Object.entries(detail.dimensions ?? {})
+      .filter(([, d]) => d.exitCode !== 0)
+      .map(([n]) => n);
     if (detail.brokenChecks?.length && failing.every((n) => detail.brokenChecks!.includes(n))) {
       await this.work.changeStatus(item.id, { status: 'failed' });
-      this.logger.warn(`Work item ${item.id}: acceptance check(s) ${detail.brokenChecks.join(', ')} are invalid; not retrying`);
+      this.logger.warn(
+        `Work item ${item.id}: acceptance check(s) ${detail.brokenChecks.join(', ')} are invalid; not retrying`,
+      );
       return 'failed';
     }
     // Runs stopped by a usage limit are not attempts: the employee never got to finish.
     const { attempts } = countAttempts(await this.agentRuns.findByWorkItem(item.id));
     const max = Number(process.env.FORGE_MAX_ATTEMPTS ?? DEFAULT_MAX_ATTEMPTS);
     if (attempts < max) {
-      await this.work.assign(item.id, { employeeId: item.assignedEmployeeId, assignedBy: 'auto_rework' });
+      await this.work.assign(item.id, {
+        employeeId: item.assignedEmployeeId,
+        assignedBy: 'auto_rework',
+      });
       this.logger.log(`Work item ${item.id} failed evaluation; retry ${attempts + 1}/${max}`);
       return 'retried';
     }
@@ -314,11 +380,19 @@ export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
   private async completeGoalIfFinished(projectId: string): Promise<void> {
     const [project] = await this.db.select().from(projects).where(eq(projects.id, projectId));
     if (!project) return;
-    const goalProjects = await this.db.select({ id: projects.id }).from(projects).where(eq(projects.goalId, project.goalId));
+    const goalProjects = await this.db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.goalId, project.goalId));
     const items = await this.db
       .select({ status: workItems.status })
       .from(workItems)
-      .where(inArray(workItems.projectId, goalProjects.map((p) => p.id)));
+      .where(
+        inArray(
+          workItems.projectId,
+          goalProjects.map((p) => p.id),
+        ),
+      );
     const live = items.filter((i) => i.status !== 'cancelled');
     if (live.length === 0 || live.some((i) => i.status !== 'done')) return;
 
@@ -341,10 +415,18 @@ export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
     const done = await this.db
       .select({ title: workItems.title, acceptance: workItems.acceptance })
       .from(workItems)
-      .where(and(eq(workItems.projectId, item.projectId), eq(workItems.status, 'done'), ne(workItems.id, item.id)))
+      .where(
+        and(
+          eq(workItems.projectId, item.projectId),
+          eq(workItems.status, 'done'),
+          ne(workItems.id, item.id),
+        ),
+      )
       .orderBy(asc(workItems.createdAt));
     const max = Number(process.env.FORGE_MAX_REGRESSION_CHECKS ?? DEFAULT_MAX_REGRESSION_CHECKS);
-    return done.flatMap((d) => (d.acceptance ?? []).map((command) => ({ command, from: d.title }))).slice(0, max);
+    return done
+      .flatMap((d) => (d.acceptance ?? []).map((command) => ({ command, from: d.title })))
+      .slice(0, max);
   }
 
   private async resolveWorkspacePath(item: WorkItem): Promise<string> {
@@ -371,11 +453,16 @@ export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
 
 /** The few lines of a check's output that say what actually went wrong. */
 export function keyLines(output: string, name: string): string {
-  const lines = String(output ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
+  const lines = String(output ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
   // Design review: its findings are the bullet lines.
   const findings = lines.filter((l) => /^- \[(critical|major|minor)\]/.test(l));
   if (name === 'visual' && findings.length) return findings.slice(0, 5).join(' | ');
-  const signal = lines.filter((l) => /error|fail|expected|assert|not ok|cannot|undefined|exception|✗|×/i.test(l));
+  const signal = lines.filter((l) =>
+    /error|fail|expected|assert|not ok|cannot|undefined|exception|✗|×/i.test(l),
+  );
   return (signal.length ? signal : lines.slice(-3)).slice(0, 4).join(' | ').slice(0, 600);
 }
 
@@ -393,7 +480,8 @@ function mergeConflictResult(conflict: string | undefined): EvaluationResult {
         ran: true,
         exitCode: 1,
         command: 'git merge main',
-        output: `Your work conflicts with work other steps merged into main since you started. Resolve the conflict, keeping both:
+        output:
+          `Your work conflicts with work other steps merged into main since you started. Resolve the conflict, keeping both:
 ${conflict ?? ''}`.slice(0, 4000),
         durationMs: 0,
       },

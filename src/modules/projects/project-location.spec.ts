@@ -8,22 +8,41 @@ const ID = '42c93b0a-4324-4048-a717-cfc76ce661d6';
 
 describe('project locations', () => {
   it('defaults to ~/Forge Projects, overridable with FORGE_PROJECTS_DIR', () => {
-    expect(defaultProjectsRoot({} as NodeJS.ProcessEnv)).toBe(path.join(os.homedir(), 'Forge Projects'));
-    expect(defaultProjectsRoot({ FORGE_PROJECTS_DIR: path.join(os.tmpdir(), 'x') } as NodeJS.ProcessEnv)).toBe(path.join(os.tmpdir(), 'x'));
+    expect(defaultProjectsRoot({} as NodeJS.ProcessEnv)).toBe(
+      path.join(os.homedir(), 'Forge Projects'),
+    );
+    expect(
+      defaultProjectsRoot({ FORGE_PROJECTS_DIR: path.join(os.tmpdir(), 'x') } as NodeJS.ProcessEnv),
+    ).toBe(path.join(os.tmpdir(), 'x'));
   });
 
   it('puts each project in <root>/<company>/<project>-<id8>', () => {
     const env = { FORGE_PROJECTS_DIR: path.join(os.tmpdir(), 'root') } as NodeJS.ProcessEnv;
-    expect(resolveRepoPath({ companyName: 'Acme Fintech', projectName: 'Loan Model v2!', projectId: ID, env })).toBe(
-      path.join(os.tmpdir(), 'root', 'acme-fintech', 'loan-model-v2-42c93b0a'),
-    );
+    expect(
+      resolveRepoPath({
+        companyName: 'Acme Fintech',
+        projectName: 'Loan Model v2!',
+        projectId: ID,
+        env,
+      }),
+    ).toBe(path.join(os.tmpdir(), 'root', 'acme-fintech', 'loan-model-v2-42c93b0a'));
   });
 
   it('a company folder replaces the root; a goal location is used exactly', () => {
     const companyDir = path.join(os.tmpdir(), 'acme');
-    expect(resolveRepoPath({ companyDir, companyName: 'Acme', projectName: 'App', projectId: ID })).toBe(path.join(companyDir, 'app-42c93b0a'));
+    expect(
+      resolveRepoPath({ companyDir, companyName: 'Acme', projectName: 'App', projectId: ID }),
+    ).toBe(path.join(companyDir, 'app-42c93b0a'));
     const exact = path.join(os.tmpdir(), 'my-app');
-    expect(resolveRepoPath({ location: exact, companyDir, companyName: 'Acme', projectName: 'App', projectId: ID })).toBe(exact);
+    expect(
+      resolveRepoPath({
+        location: exact,
+        companyDir,
+        companyName: 'Acme',
+        projectName: 'App',
+        projectId: ID,
+      }),
+    ).toBe(exact);
   });
 
   it('slugs are safe folder names', () => {
@@ -34,7 +53,9 @@ describe('project locations', () => {
 
   it('refuses unsafe or occupied folders with a clear reason', () => {
     expect(folderProblem('relative/dir', { mustBeEmpty: true })).toMatch(/full path/);
-    expect(folderProblem(path.parse(os.tmpdir()).root, { mustBeEmpty: true })).toMatch(/root of a drive/);
+    expect(folderProblem(path.parse(os.tmpdir()).root, { mustBeEmpty: true })).toMatch(
+      /root of a drive/,
+    );
     expect(folderProblem(os.homedir(), { mustBeEmpty: false })).toMatch(/home folder itself/);
     const full = mkdtempSync(path.join(os.tmpdir(), 'forge-loc-'));
     writeFileSync(path.join(full, 'mine.txt'), 'x');

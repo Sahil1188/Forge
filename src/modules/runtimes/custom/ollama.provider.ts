@@ -41,7 +41,11 @@ export class OllamaProvider implements ModelProvider {
           tool_calls: m.toolCalls.map((c) => ({ function: { name: c.name, arguments: c.input } })),
         });
       } else if (m.role === 'tool') {
-        messages.push({ role: 'tool', content: m.content, tool_name: nameById.get(m.toolCallId ?? '') });
+        messages.push({
+          role: 'tool',
+          content: m.content,
+          tool_name: nameById.get(m.toolCallId ?? ''),
+        });
       } else {
         messages.push({ role: m.role, content: m.content });
       }
@@ -78,13 +82,21 @@ export class OllamaProvider implements ModelProvider {
       .map((c) => ({
         id: `call_${randomUUID()}`, // Ollama does not assign call ids
         name: c.function!.name!,
-        input: typeof c.function!.arguments === 'string' ? safeJson(c.function!.arguments) : (c.function!.arguments ?? {}),
+        input:
+          typeof c.function!.arguments === 'string'
+            ? safeJson(c.function!.arguments)
+            : (c.function!.arguments ?? {}),
       }));
 
     return {
       text: data.message?.content ?? '',
       toolCalls,
-      stopReason: toolCalls.length > 0 ? 'tool_use' : data.done_reason === 'length' ? 'max_tokens' : 'end_turn',
+      stopReason:
+        toolCalls.length > 0
+          ? 'tool_use'
+          : data.done_reason === 'length'
+            ? 'max_tokens'
+            : 'end_turn',
       usage: {
         inputTokens: data.prompt_eval_count ?? 0,
         outputTokens: data.eval_count ?? 0,

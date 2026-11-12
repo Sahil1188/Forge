@@ -47,10 +47,16 @@ export class EvaluationEngine {
    * `acceptance`: extra commands that must exit 0 — objective checks that the work matches its
    * brief (e.g. "index.js exists and exports slugify"), not just that its own tests pass.
    */
-  async evaluateRepo(rootPath: string, acceptance: string[] = [], regression: RegressionCheck[] = []): Promise<EvaluationResult> {
+  async evaluateRepo(
+    rootPath: string,
+    acceptance: string[] = [],
+    regression: RegressionCheck[] = [],
+  ): Promise<EvaluationResult> {
     const discovered = await this.discovery.discover(rootPath);
     const own = new Set(acceptance);
-    const earlier = regression.filter((r, i) => !own.has(r.command) && regression.findIndex((x) => x.command === r.command) === i);
+    const earlier = regression.filter(
+      (r, i) => !own.has(r.command) && regression.findIndex((x) => x.command === r.command) === i,
+    );
     const scripts: Array<{ name: string; command: string; from?: string }> = [
       ...discovered,
       ...acceptance.map((command, i) => ({ name: `acceptance#${i + 1}`, command })),
@@ -90,7 +96,8 @@ export class EvaluationEngine {
         continue;
       }
       const started = Date.now();
-      const result = ranAlready.get(script.command) ?? (await this.runner.run(script.command, rootPath));
+      const result =
+        ranAlready.get(script.command) ?? (await this.runner.run(script.command, rootPath));
       ranAlready.set(script.command, result);
       if (isRegression && result.exitCode !== 0 && brokenCheck(result.output)) {
         skippedBroken.add(script.name);
@@ -123,18 +130,25 @@ ${output}`
     }
 
     const overallScore = Math.round(scores.reduce((a, b) => a + b, 0) / Math.max(1, scores.length));
-    const allPassed = Object.entries(dimensions).every(([name, d]) => d.exitCode === 0 || skippedBroken.has(name));
+    const allPassed = Object.entries(dimensions).every(
+      ([name, d]) => d.exitCode === 0 || skippedBroken.has(name),
+    );
     // An acceptance check that cannot even run is the check's fault, not the work's: say so, so
     // nobody burns retries trying to satisfy it (observed live: a quoting slip broke a check).
     const broken = Object.entries(dimensions)
-      .filter(([name, d]) => name.startsWith('acceptance') && d.exitCode !== 0 && brokenCheck(d.output))
+      .filter(
+        ([name, d]) => name.startsWith('acceptance') && d.exitCode !== 0 && brokenCheck(d.output),
+      )
       .map(([name]) => name);
     return {
       status: allPassed ? 'passed' : 'failed',
       overallScore,
       dimensions,
       ...(broken.length
-        ? { note: `The acceptance check${broken.length > 1 ? 's' : ''} ${broken.join(', ')} could not run (the check itself is invalid). Fix the check; the work was not retried for it.`, brokenChecks: broken }
+        ? {
+            note: `The acceptance check${broken.length > 1 ? 's' : ''} ${broken.join(', ')} could not run (the check itself is invalid). Fix the check; the work was not retried for it.`,
+            brokenChecks: broken,
+          }
         : {}),
     };
   }
@@ -147,6 +161,8 @@ ${output}`
 export function brokenCheck(output: string): boolean {
   return (
     /^\[eval\]:\d+[\s\S]*SyntaxError/m.test(output) ||
-    /is not recognized as an internal or external command|command not found|No such file or directory.*\bnode\b/i.test(output)
+    /is not recognized as an internal or external command|command not found|No such file or directory.*\bnode\b/i.test(
+      output,
+    )
   );
 }

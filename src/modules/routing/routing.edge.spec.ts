@@ -21,11 +21,15 @@ describe('WorkforceRouter — scoring edge cases', () => {
     const idle = scoreCandidate('coding', cand({ id: 'a' })).score;
     const err = scoreCandidate('coding', cand({ id: 'b', status: 'error' })).score;
     expect(err).toBeLessThan(idle);
-    expect(scoreCandidate('coding', cand({ id: 'b', status: 'error' })).reasons.availability).toBe(0);
+    expect(scoreCandidate('coding', cand({ id: 'b', status: 'error' })).reasons.availability).toBe(
+      0,
+    );
   });
 
   it('an unknown status gets a neutral availability, not a crash', () => {
-    expect(scoreCandidate('coding', cand({ id: 'a', status: 'on_vacation' })).reasons.availability).toBe(50);
+    expect(
+      scoreCandidate('coding', cand({ id: 'a', status: 'on_vacation' })).reasons.availability,
+    ).toBe(50);
   });
 
   it('ties go to the first candidate (stable, deterministic)', () => {
@@ -42,30 +46,55 @@ describe('WorkforceRouter — scoring edge cases', () => {
   it('only skills relevant to the task type are averaged when any match', () => {
     const r = scoreCandidate(
       'coding',
-      cand({ id: 'a', skills: [{ skillKey: 'node', level: 100 }, { skillKey: 'watercolour', level: 0 }] }),
+      cand({
+        id: 'a',
+        skills: [
+          { skillKey: 'node', level: 100 },
+          { skillKey: 'watercolour', level: 0 },
+        ],
+      }),
     );
     expect(r.reasons.skill).toBe(100);
   });
 
   it('falls back to all skills at half weight when none match the task hints', () => {
-    const r = scoreCandidate('devops', cand({ id: 'a', skills: [{ skillKey: 'watercolour', level: 40 }] }));
+    const r = scoreCandidate(
+      'devops',
+      cand({ id: 'a', skills: [{ skillKey: 'watercolour', level: 40 }] }),
+    );
     expect(r.reasons.skill).toBe(20);
   });
 
   it('skill matching is case-insensitive and substring-based', () => {
-    expect(scoreCandidate('coding', cand({ id: 'a', skills: [{ skillKey: 'NodeJS', level: 70 }] })).reasons.skill).toBe(70);
+    expect(
+      scoreCandidate('coding', cand({ id: 'a', skills: [{ skillKey: 'NodeJS', level: 70 }] }))
+        .reasons.skill,
+    ).toBe(70);
   });
 
   it('the department can supply the role affinity', () => {
     const noDept = scoreCandidate('devops', cand({ id: 'a', role: 'Wizard' })).reasons.role;
-    const withDept = scoreCandidate('devops', cand({ id: 'a', role: 'Wizard', department: 'Platform' })).reasons.role;
+    const withDept = scoreCandidate(
+      'devops',
+      cand({ id: 'a', role: 'Wizard', department: 'Platform' }),
+    ).reasons.role;
     expect(noDept).toBe(30);
     expect(withDept).toBe(100);
   });
 
   it('a domain expert wins work in their domain and loses work outside it', () => {
-    const analyst = cand({ id: 'fin', role: 'Senior financial analyst', department: 'Finance', skills: [{ skillKey: 'financial modeling', level: 95 }] });
-    const coder = cand({ id: 'dev', role: 'Senior backend engineer', department: 'Engineering', skills: [{ skillKey: 'typescript', level: 95 }] });
+    const analyst = cand({
+      id: 'fin',
+      role: 'Senior financial analyst',
+      department: 'Finance',
+      skills: [{ skillKey: 'financial modeling', level: 95 }],
+    });
+    const coder = cand({
+      id: 'dev',
+      role: 'Senior backend engineer',
+      department: 'Engineering',
+      skills: [{ skillKey: 'typescript', level: 95 }],
+    });
     expect(selectBest('finance', [coder, analyst])?.employeeId).toBe('fin');
     expect(selectBest('coding', [coder, analyst])?.employeeId).toBe('dev');
   });
@@ -80,17 +109,26 @@ describe('WorkforceRouter — scoring edge cases', () => {
   });
 
   it('scores are bounded to 0..100 and rounded to 2 decimals', () => {
-    const best = scoreCandidate('coding', cand({ id: 'a', skills: [{ skillKey: 'node', level: 100 }], role: 'Backend Engineer' }));
+    const best = scoreCandidate(
+      'coding',
+      cand({ id: 'a', skills: [{ skillKey: 'node', level: 100 }], role: 'Backend Engineer' }),
+    );
     expect(best.score).toBeLessThanOrEqual(100);
     expect(best.score).toBeGreaterThanOrEqual(0);
     expect(Number.isInteger(best.score * 100)).toBe(true);
-    expect(scoreCandidate('coding', cand({ id: 'z', status: 'error', skills: [], role: 'Cook' })).score).toBeGreaterThanOrEqual(0);
+    expect(
+      scoreCandidate('coding', cand({ id: 'z', status: 'error', skills: [], role: 'Cook' })).score,
+    ).toBeGreaterThanOrEqual(0);
   });
 
   it('architecture work prefers the architect over a generic engineer', () => {
     const d = selectBest('architecture', [
       cand({ id: 'eng', role: 'Software Engineer', skills: [{ skillKey: 'node', level: 90 }] }),
-      cand({ id: 'arch', role: 'Principal Architect', skills: [{ skillKey: 'system-design', level: 90 }] }),
+      cand({
+        id: 'arch',
+        role: 'Principal Architect',
+        skills: [{ skillKey: 'system-design', level: 90 }],
+      }),
     ]);
     expect(d?.employeeId).toBe('arch');
   });
@@ -107,10 +145,20 @@ describe('WorkforceRouter — scoring edge cases', () => {
 describe('DynamicOmniRouter — edge cases', () => {
   const router = new DynamicOmniRouter();
   const emp = (policy: Record<string, unknown>, rc: Record<string, string> = {}) =>
-    ({ runtimeConfig: { runtimeKey: 'claude_code', provider: 'anthropic', modelPolicy: policy, ...rc } }) as unknown as EmployeeWithRelations;
+    ({
+      runtimeConfig: {
+        runtimeKey: 'claude_code',
+        provider: 'anthropic',
+        modelPolicy: policy,
+        ...rc,
+      },
+    }) as unknown as EmployeeWithRelations;
 
   it('an explicit byTaskType mapping beats the complexity tier', () => {
-    const e = emp({ byTaskType: { architecture: 'explicit' }, byComplexity: { high: 'hi', low: 'lo' } });
+    const e = emp({
+      byTaskType: { architecture: 'explicit' },
+      byComplexity: { high: 'hi', low: 'lo' },
+    });
     expect(router.selectModel({ taskType: 'architecture' }, e).model).toBe('explicit');
   });
 
@@ -139,12 +187,17 @@ describe('DynamicOmniRouter — edge cases', () => {
   });
 
   it('preserves runtime key and provider from the employee config', () => {
-    const s = router.selectModel({ taskType: 'coding' }, emp({ default: 'm' }, { runtimeKey: 'custom', provider: 'ollama' }));
+    const s = router.selectModel(
+      { taskType: 'coding' },
+      emp({ default: 'm' }, { runtimeKey: 'custom', provider: 'ollama' }),
+    );
     expect(s).toEqual({ runtimeKey: 'custom', provider: 'ollama', model: 'm' });
   });
 
   it('an employee without any runtime config still resolves safely', () => {
-    const s = router.selectModel({ taskType: 'coding' }, { runtimeConfig: null } as unknown as EmployeeWithRelations);
+    const s = router.selectModel({ taskType: 'coding' }, {
+      runtimeConfig: null,
+    } as unknown as EmployeeWithRelations);
     expect(s).toEqual({ runtimeKey: 'claude_code', provider: 'anthropic', model: 'sonnet' });
   });
 });

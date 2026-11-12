@@ -3,12 +3,19 @@ import { executionPool, isExecutive } from './candidate-scoring';
 
 describe('execution pool', () => {
   it('recognises executive titles', () => {
-    for (const r of ['CEO', 'ceo', 'Chief Technology Officer', 'Co-founder & CEO']) expect(isExecutive(r), r).toBe(true);
-    for (const r of ['Engineer', 'Product Manager', 'Mischief Maker', 'Procedure Writer']) expect(isExecutive(r), r).toBe(false);
+    for (const r of ['CEO', 'ceo', 'Chief Technology Officer', 'Co-founder & CEO'])
+      expect(isExecutive(r), r).toBe(true);
+    for (const r of ['Engineer', 'Product Manager', 'Mischief Maker', 'Procedure Writer'])
+      expect(isExecutive(r), r).toBe(false);
   });
 
   it('excludes executives when anyone else can do the work', () => {
-    const pool = executionPool([{ role: 'CEO' }, { role: 'Engineer' }, { role: 'Chief Architect' }, { role: 'QA' }]);
+    const pool = executionPool([
+      { role: 'CEO' },
+      { role: 'Engineer' },
+      { role: 'Chief Architect' },
+      { role: 'QA' },
+    ]);
     expect(pool.map((c) => c.role)).toEqual(['Engineer', 'QA']);
   });
 

@@ -18,7 +18,14 @@ describe('desktop app guard (agents run unattended)', () => {
   });
 
   it('allows ordinary work', () => {
-    for (const command of ['npm test', 'python generate_budget.py', 'node -e "require(\'./loan.js\')"', 'git status', 'python -m pip install openpyxl', 'npm run start:dev']) {
+    for (const command of [
+      'npm test',
+      'python generate_budget.py',
+      'node -e "require(\'./loan.js\')"',
+      'git status',
+      'python -m pip install openpyxl',
+      'npm run start:dev',
+    ]) {
       expect(desktopAppLaunch('Bash', { command }), command).toBeNull();
     }
     expect(desktopAppLaunch('Write', { file_path: 'start.txt' })).toBeNull();

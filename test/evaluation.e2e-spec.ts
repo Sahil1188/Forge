@@ -8,7 +8,11 @@ import { AppModule } from '../src/app.module';
 import { RuntimeRegistry } from '../src/modules/runtimes/runtime-registry';
 import { ExecutionWorker } from '../src/workers/execution.worker';
 import { EvaluationWorker } from '../src/modules/evaluation/evaluation.worker';
-import { AgentRuntime, RuntimeEvent, RuntimeRunContext } from '../src/modules/runtimes/runtime.port';
+import {
+  AgentRuntime,
+  RuntimeEvent,
+  RuntimeRunContext,
+} from '../src/modules/runtimes/runtime.port';
 
 /** Writes a minimal Node repo whose test script passes or fails. */
 class RepoMockRuntime implements AgentRuntime {
@@ -58,7 +62,11 @@ describe('Evaluation Engine (e2e)', () => {
     const company = await request(server).post('/companies').send({ name: 'Eval Co' }).expect(201);
     const emp = await request(server)
       .post(`/companies/${company.body.id}/employees`)
-      .send({ name: 'Dev', role: 'Engineer', runtimeConfig: { runtimeKey, modelPolicy: { default: 'm' } } })
+      .send({
+        name: 'Dev',
+        role: 'Engineer',
+        runtimeConfig: { runtimeKey, modelPolicy: { default: 'm' } },
+      })
       .expect(201);
     const goal = await request(server)
       .post(`/companies/${company.body.id}/goals`)

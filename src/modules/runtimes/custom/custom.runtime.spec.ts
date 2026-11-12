@@ -21,7 +21,12 @@ class ScriptedProvider implements ModelProvider {
         usage: { inputTokens: 10, outputTokens: 5, costUsd: 0.01 },
       };
     }
-    return { text: 'done', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 3, outputTokens: 2, costUsd: 0.002 } };
+    return {
+      text: 'done',
+      toolCalls: [],
+      stopReason: 'end_turn',
+      usage: { inputTokens: 3, outputTokens: 2, costUsd: 0.002 },
+    };
   }
 }
 
@@ -75,7 +80,11 @@ describe('CustomRuntime', () => {
         task: 'create app.js',
         model: 'm',
         provider: 'scripted',
-        canUseTool: async () => ({ behavior: 'pause', message: 'approval required', approvalId: 'a1' }),
+        canUseTool: async () => ({
+          behavior: 'pause',
+          message: 'approval required',
+          approvalId: 'a1',
+        }),
       }),
     );
 
@@ -90,7 +99,14 @@ describe('CustomRuntime', () => {
     const runtime = makeRuntime();
     await expect(
       collect(
-        runtime.run({ workItemId: 'w', employeeId: 'e', cwd, task: 't', model: 'm', provider: 'nope' }),
+        runtime.run({
+          workItemId: 'w',
+          employeeId: 'e',
+          cwd,
+          task: 't',
+          model: 'm',
+          provider: 'nope',
+        }),
       ),
     ).rejects.toThrow(/No model provider/);
   });

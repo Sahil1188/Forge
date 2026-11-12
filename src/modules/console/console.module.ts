@@ -12,7 +12,16 @@ import { ConsoleService } from './console.service';
 import { AskService } from './ask.service';
 
 @Module({
-  imports: [CompaniesModule, EmployeesModule, GoalsModule, WorkModule, RuntimesModule, WorkspacesModule, RoutingModule, PerformanceModule],
+  imports: [
+    CompaniesModule,
+    EmployeesModule,
+    GoalsModule,
+    WorkModule,
+    RuntimesModule,
+    WorkspacesModule,
+    RoutingModule,
+    PerformanceModule,
+  ],
   controllers: [ConsoleController],
   providers: [ConsoleService, AskService],
 })

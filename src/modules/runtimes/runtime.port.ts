@@ -14,7 +14,13 @@ export type RuntimeEvent =
   | { kind: 'completed'; result: string; sessionId?: string }
   | { kind: 'failed'; error: string }
   /** Subscription usage limit state (Claude Code reports it on every run). resetsAt is epoch ms. */
-  | { kind: 'rate_limit'; status: 'allowed' | 'allowed_warning' | 'rejected'; resetsAt?: number; limitType?: string; utilization?: number };
+  | {
+      kind: 'rate_limit';
+      status: 'allowed' | 'allowed_warning' | 'rejected';
+      resetsAt?: number;
+      limitType?: string;
+      utilization?: number;
+    };
 
 export interface RuntimeLimits {
   maxTurns?: number;
@@ -32,10 +38,7 @@ export type PermissionDecision =
   | { behavior: 'deny'; message: string }
   | { behavior: 'pause'; message: string; approvalId: string };
 
-export type PermissionCallback = (
-  toolName: string,
-  input: unknown,
-) => Promise<PermissionDecision>;
+export type PermissionCallback = (toolName: string, input: unknown) => Promise<PermissionDecision>;
 
 export interface RuntimeRunContext {
   workItemId: string;

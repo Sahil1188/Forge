@@ -22,7 +22,11 @@ export async function stopProcessesIn(dir: string): Promise<number> {
         '$p | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }',
         '@($p).Count',
       ].join('; ');
-      const { stdout } = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 20_000 });
+      const { stdout } = await run(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', script],
+        { windowsHide: true, timeout: 20_000 },
+      );
       return Number(stdout.trim()) || 0;
     }
     await run('pkill', ['-f', '--', target], { timeout: 10_000 }).catch(() => undefined);
@@ -41,7 +45,10 @@ export async function killTree(pid: number | undefined): Promise<void> {
   if (!pid) return;
   try {
     if (process.platform === 'win32') {
-      await run('taskkill', ['/pid', String(pid), '/T', '/F'], { windowsHide: true, timeout: 15_000 });
+      await run('taskkill', ['/pid', String(pid), '/T', '/F'], {
+        windowsHide: true,
+        timeout: 15_000,
+      });
     } else {
       // Spawned detached, so the child leads its own process group: signal the whole group.
       process.kill(-pid, 'SIGKILL');

@@ -31,7 +31,12 @@ describe('computeReputation — edge cases', () => {
   });
 
   it('always stays within the min/max of the inputs', () => {
-    for (const scores of [[10, 90], [0, 100, 0, 100], [55, 56, 57], [100, 0]]) {
+    for (const scores of [
+      [10, 90],
+      [0, 100, 0, 100],
+      [55, 56, 57],
+      [100, 0],
+    ]) {
       const r = computeReputation(scores)!;
       expect(r).toBeGreaterThanOrEqual(Math.min(...scores));
       expect(r).toBeLessThanOrEqual(Math.max(...scores));

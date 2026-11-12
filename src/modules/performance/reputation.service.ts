@@ -31,9 +31,7 @@ export class ReputationService {
 }
 
 export function evaluationScores(records: PerformanceRecord[]): number[] {
-  return records
-    .map((r) => r.evaluationScore)
-    .filter((s): s is number => typeof s === 'number');
+  return records.map((r) => r.evaluationScore).filter((s): s is number => typeof s === 'number');
 }
 
 export function groupByTaskType(records: PerformanceRecord[]): Map<string, PerformanceRecord[]> {

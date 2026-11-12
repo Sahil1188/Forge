@@ -3,7 +3,14 @@
 export interface GoalItemOutcome {
   workItemId: string;
   /** Result of the execution step; undefined when the item never ran. */
-  execution?: 'completed' | 'failed' | 'paused' | 'blocked' | 'killed_budget' | 'killed_timeout' | 'killed_tools';
+  execution?:
+    | 'completed'
+    | 'failed'
+    | 'paused'
+    | 'blocked'
+    | 'killed_budget'
+    | 'killed_timeout'
+    | 'killed_tools';
   /** Result of the objective evaluation, when one ran. */
   evaluation?: 'passed' | 'failed' | 'inconclusive';
   finalStatus: string;
@@ -36,7 +43,9 @@ export function summarizeGoal(items: GoalItemOutcome[]): GoalSummary {
     lines.push(`  ⏸ ${i.workItemId}: waiting for approval — decide it, then re-run`);
   }
   if (unverified.length > 0) {
-    lines.push(`  ⚠ ${unverified.length} item(s) marked done but unverified (nothing to verify: no package.json scripts).`);
+    lines.push(
+      `  ⚠ ${unverified.length} item(s) marked done but unverified (nothing to verify: no package.json scripts).`,
+    );
   }
 
   const ok = items.length > 0 && notDone.length === 0 && paused.length === 0;

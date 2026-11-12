@@ -11,7 +11,12 @@ export interface SdkMessage {
   result?: string;
   total_cost_usd?: number;
   usage?: { input_tokens?: number; output_tokens?: number };
-  rate_limit_info?: { status?: string; resetsAt?: number; rateLimitType?: string; utilization?: number };
+  rate_limit_info?: {
+    status?: string;
+    resetsAt?: number;
+    rateLimitType?: string;
+    utilization?: number;
+  };
   message?: {
     content?: Array<{
       type: string;
@@ -58,12 +63,22 @@ export function normalizeSdkMessage(msg: SdkMessage): RuntimeEvent[] {
 
     case 'rate_limit_event': {
       const info = msg.rate_limit_info;
-      if (info && (info.status === 'allowed' || info.status === 'allowed_warning' || info.status === 'rejected')) {
+      if (
+        info &&
+        (info.status === 'allowed' ||
+          info.status === 'allowed_warning' ||
+          info.status === 'rejected')
+      ) {
         out.push({
           kind: 'rate_limit',
           status: info.status,
           // The SDK reports seconds since the epoch.
-          resetsAt: typeof info.resetsAt === 'number' ? (info.resetsAt < 1e12 ? info.resetsAt * 1000 : info.resetsAt) : undefined,
+          resetsAt:
+            typeof info.resetsAt === 'number'
+              ? info.resetsAt < 1e12
+                ? info.resetsAt * 1000
+                : info.resetsAt
+              : undefined,
           limitType: info.rateLimitType,
           utilization: info.utilization,
         });

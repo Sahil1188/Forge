@@ -24,15 +24,24 @@ export class FallbackDrillController {
   status() {
     const until = this.usageLimits.blockedUntil(CLAUDE);
     const fallback = fallbackSelection(CLAUDE);
-    return { claudeLimitedUntil: until ? new Date(until).toISOString() : null, fallback: fallback ? `${fallback.provider}:${fallback.model}` : null };
+    return {
+      claudeLimitedUntil: until ? new Date(until).toISOString() : null,
+      fallback: fallback ? `${fallback.provider}:${fallback.model}` : null,
+    };
   }
 
   @Post()
   start(@Body() dto: DrillDto) {
     if (!fallbackSelection(CLAUDE)) {
-      throw new BadRequestException('No fallback is configured (FORGE_FALLBACK_BASE_URL / FORGE_FALLBACK_MODEL), so a drill would only pause work.');
+      throw new BadRequestException(
+        'No fallback is configured (FORGE_FALLBACK_BASE_URL / FORGE_FALLBACK_MODEL), so a drill would only pause work.',
+      );
     }
-    this.usageLimits.record(CLAUDE, { status: 'rejected', resetsAt: Date.now() + dto.minutes * 60_000, limitType: 'drill' });
+    this.usageLimits.record(CLAUDE, {
+      status: 'rejected',
+      resetsAt: Date.now() + dto.minutes * 60_000,
+      limitType: 'drill',
+    });
     return this.status();
   }
 

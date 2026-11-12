@@ -9,15 +9,21 @@ describe('GovernanceService — precedence and edges', () => {
   });
 
   it('deny beats approval-required for the same tool', () => {
-    expect(svc.evaluate({ deniedTools: ['Deploy'], approvalRequiredTools: ['Deploy'] }, 'Deploy')).toBe('deny');
+    expect(
+      svc.evaluate({ deniedTools: ['Deploy'], approvalRequiredTools: ['Deploy'] }, 'Deploy'),
+    ).toBe('deny');
   });
 
   it('the allow-list beats approval-required: a tool outside the whitelist is denied, not queued', () => {
-    expect(svc.evaluate({ allowedTools: ['Read'], approvalRequiredTools: ['Deploy'] }, 'Deploy')).toBe('deny');
+    expect(
+      svc.evaluate({ allowedTools: ['Read'], approvalRequiredTools: ['Deploy'] }, 'Deploy'),
+    ).toBe('deny');
   });
 
   it('an approval-required tool inside the whitelist still needs approval', () => {
-    expect(svc.evaluate({ allowedTools: ['Deploy'], approvalRequiredTools: ['Deploy'] }, 'Deploy')).toBe('approval_required');
+    expect(
+      svc.evaluate({ allowedTools: ['Deploy'], approvalRequiredTools: ['Deploy'] }, 'Deploy'),
+    ).toBe('approval_required');
   });
 
   it('an empty allow-list denies everything (explicit lock-down), unlike an absent one', () => {

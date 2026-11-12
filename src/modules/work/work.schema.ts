@@ -1,12 +1,4 @@
-import {
-  pgTable,
-  uuid,
-  text,
-  integer,
-  timestamp,
-  jsonb,
-  unique,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, timestamp, jsonb, unique } from 'drizzle-orm/pg-core';
 import { companies } from '../companies/companies.schema';
 import { employees } from '../employees/employees.schema';
 import { projects } from '../projects/projects.schema';

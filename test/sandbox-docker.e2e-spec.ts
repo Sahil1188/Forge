@@ -59,13 +59,19 @@ describe.skipIf(!dockerUp())('DockerCommandSandbox — real isolation', () => {
   }, 60_000);
 
   it('cannot see host files outside the workspace', async () => {
-    const r = await sandbox.run(`cat "${path.join(outside, 'secret.txt').replace(/\\/g, '/')}"`, ws);
+    const r = await sandbox.run(
+      `cat "${path.join(outside, 'secret.txt').replace(/\\/g, '/')}"`,
+      ws,
+    );
     expect(r.isError).toBe(true);
     expect(r.output).not.toContain('TOP-SECRET-HOST-FILE');
   }, 60_000);
 
   it('cannot walk out of /work to reach the host through relative paths', async () => {
-    const r = await sandbox.run('ls /work/.. | head -50; test -e /work/../outside && echo LEAK || echo contained', ws);
+    const r = await sandbox.run(
+      'ls /work/.. | head -50; test -e /work/../outside && echo LEAK || echo contained',
+      ws,
+    );
     expect(r.output).toContain('contained');
     expect(r.output).not.toContain('LEAK');
   }, 60_000);
@@ -114,9 +120,13 @@ describe.skipIf(!dockerUp())('DockerCommandSandbox — real isolation', () => {
 
   it('does not leave containers behind (--rm)', async () => {
     await sandbox.run('echo cleanup-check', ws);
-    const leftovers = execFileSync('docker', ['ps', '-a', '--filter', 'ancestor=node:20-alpine', '--format', '{{.ID}}'], {
-      encoding: 'utf8',
-    }).trim();
+    const leftovers = execFileSync(
+      'docker',
+      ['ps', '-a', '--filter', 'ancestor=node:20-alpine', '--format', '{{.ID}}'],
+      {
+        encoding: 'utf8',
+      },
+    ).trim();
     expect(leftovers).toBe('');
   }, 60_000);
 });

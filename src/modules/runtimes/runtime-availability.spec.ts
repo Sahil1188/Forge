@@ -7,7 +7,8 @@ import { ProviderRegistry } from './custom/provider-registry';
 import { AgentRuntime } from './runtime.port';
 import { ModelProvider } from './custom/model-provider';
 
-const runtime = (key: string) => ({ key, run: vi.fn(), resume: vi.fn() }) as unknown as AgentRuntime;
+const runtime = (key: string) =>
+  ({ key, run: vi.fn(), resume: vi.fn() }) as unknown as AgentRuntime;
 const provider = (name: string) => ({ name, chat: vi.fn() }) as unknown as ModelProvider;
 
 function make(): RuntimeAvailability {

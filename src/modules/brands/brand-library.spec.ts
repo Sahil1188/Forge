@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
-import { brandChecklist, brandProblem, describeBrand, fittingBrand, getBrand, listBrands, saveBrand } from './brand-library';
+import {
+  brandChecklist,
+  brandProblem,
+  describeBrand,
+  fittingBrand,
+  getBrand,
+  listBrands,
+  saveBrand,
+} from './brand-library';
 
 const sample = [
   '# DEMO.md · Sahil Shaikh brand (all-in-one)',
@@ -28,7 +36,13 @@ const sample = [
 
 describe('brand library', () => {
   it('describes a brand from its file', () => {
-    expect(describeBrand('demo', sample)).toEqual({ slug: 'demo', name: 'Demo Brand', metaphor: 'A demo metaphor.', personality: 'Calm, exact.', feeling: 'It just works.' });
+    expect(describeBrand('demo', sample)).toEqual({
+      slug: 'demo',
+      name: 'Demo Brand',
+      metaphor: 'A demo metaphor.',
+      personality: 'Calm, exact.',
+      feeling: 'It just works.',
+    });
   });
 
   it('extracts the platform and website checklists', () => {

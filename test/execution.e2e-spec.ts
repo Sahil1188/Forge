@@ -8,7 +8,11 @@ import { AppModule } from '../src/app.module';
 import { RuntimeRegistry } from '../src/modules/runtimes/runtime-registry';
 import { AgentRunsService } from '../src/modules/runtimes/agent-runs.service';
 import { ExecutionWorker } from '../src/workers/execution.worker';
-import { AgentRuntime, RuntimeEvent, RuntimeRunContext } from '../src/modules/runtimes/runtime.port';
+import {
+  AgentRuntime,
+  RuntimeEvent,
+  RuntimeRunContext,
+} from '../src/modules/runtimes/runtime.port';
 
 /**
  * A mock runtime that writes a real file into the workspace and emits a normal

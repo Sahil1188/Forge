@@ -61,7 +61,11 @@ export class ApprovalsService {
         type: EventTypes.ApprovalRequested,
         aggregateType: 'approval',
         aggregateId: row.id,
-        payload: { agentRunId: input.agentRunId, workItemId: input.workItemId, toolName: input.toolName },
+        payload: {
+          agentRunId: input.agentRunId,
+          workItemId: input.workItemId,
+          toolName: input.toolName,
+        },
       });
       return row;
     });

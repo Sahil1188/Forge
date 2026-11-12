@@ -64,10 +64,7 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
           payload: row.payload,
           occurredAt: row.createdAt.toISOString(),
         });
-        await this.db
-          .update(events)
-          .set({ publishedAt: new Date() })
-          .where(eq(events.id, row.id));
+        await this.db.update(events).set({ publishedAt: new Date() }).where(eq(events.id, row.id));
       }
       return pending.length;
     } catch (err) {

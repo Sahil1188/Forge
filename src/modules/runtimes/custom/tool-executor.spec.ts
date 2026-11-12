@@ -18,7 +18,11 @@ describe('ToolExecutor', () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  const exists = (p: string) => stat(p).then(() => true, () => false);
+  const exists = (p: string) =>
+    stat(p).then(
+      () => true,
+      () => false,
+    );
 
   it('advertises exactly write_file and run_command, with required fields', () => {
     const defs = tools.definitions();
@@ -62,7 +66,11 @@ describe('ToolExecutor', () => {
   it('refuses a sibling directory that shares the workspace name as a prefix', async () => {
     const evil = path.join(root, 'ws-evil');
     await mkdir(evil, { recursive: true });
-    const r = await tools.execute('write_file', { path: path.join(evil, 'x.txt'), content: 'x' }, cwd);
+    const r = await tools.execute(
+      'write_file',
+      { path: path.join(evil, 'x.txt'), content: 'x' },
+      cwd,
+    );
     expect(r.isError).toBe(true);
     expect(await readdir(evil)).toEqual([]);
   });
@@ -94,13 +102,21 @@ describe('ToolExecutor', () => {
 
   it('run_command executes inside the workspace', async () => {
     await tools.execute('write_file', { path: 'marker.txt', content: 'm' }, cwd);
-    const r = await tools.execute('run_command', { command: 'node -e "console.log(require(\'fs\').readdirSync(\'.\').join(\',\'))"' }, cwd);
+    const r = await tools.execute(
+      'run_command',
+      { command: "node -e \"console.log(require('fs').readdirSync('.').join(','))\"" },
+      cwd,
+    );
     expect(r.isError).toBe(false);
     expect(r.output).toContain('marker.txt');
   });
 
   it('run_command surfaces a non-zero exit as an error with output', async () => {
-    const r = await tools.execute('run_command', { command: 'node -e "console.error(\'bad\'); process.exit(3)"' }, cwd);
+    const r = await tools.execute(
+      'run_command',
+      { command: 'node -e "console.error(\'bad\'); process.exit(3)"' },
+      cwd,
+    );
     expect(r.isError).toBe(true);
     expect(r.output).toContain('bad');
   });

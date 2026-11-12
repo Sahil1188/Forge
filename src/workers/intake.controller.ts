@@ -15,7 +15,11 @@ export class IntakeController {
   @Get()
   async status() {
     const active = await this.worker.activeWork();
-    return { paused: this.worker.isIntakePaused, ...active, safeToRestart: active.running === 0 && active.evaluating === 0 };
+    return {
+      paused: this.worker.isIntakePaused,
+      ...active,
+      safeToRestart: active.running === 0 && active.evaluating === 0,
+    };
   }
 
   @Post()

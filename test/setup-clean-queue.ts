@@ -15,7 +15,8 @@ process.env.FORGE_VISUAL_GATE ??= '0';
 process.env.FORGE_AUTOSTAFF ??= '0';
 // The machine's own fallback endpoint (e.g. a local OmniRoute in .env) must not leak into tests:
 // empty values win over .env (dotenv never overrides), and fallback tests set their own.
-for (const key of ['FORGE_FALLBACK_BASE_URL', 'FORGE_FALLBACK_API_KEY', 'FORGE_FALLBACK_MODEL']) process.env[key] = '';
+for (const key of ['FORGE_FALLBACK_BASE_URL', 'FORGE_FALLBACK_API_KEY', 'FORGE_FALLBACK_MODEL'])
+  process.env[key] = '';
 
 /**
  * The execution queue is global (one DB, `assigned` work from any company). A spec that plans

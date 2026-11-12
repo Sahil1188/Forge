@@ -5,7 +5,11 @@ import { killTree } from './process-cleanup';
 
 describe.runIf(process.platform === 'win32')('keep-awake script', () => {
   it('starts, holds its request without erroring, and stops when killed', async () => {
-    const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', KEEP_AWAKE_SCRIPT], { windowsHide: true });
+    const ps = spawn(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', KEEP_AWAKE_SCRIPT],
+      { windowsHide: true },
+    );
     let stderr = '';
     ps.stderr.on('data', (b: Buffer) => (stderr += b.toString()));
     await new Promise((r) => setTimeout(r, 4000));

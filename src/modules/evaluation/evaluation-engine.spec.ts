@@ -59,7 +59,11 @@ describe('EvaluationEngine.evaluateRepo', () => {
   describe('regression checks from finished steps', () => {
     it('fails work that breaks an earlier step and names that step', async () => {
       const root = await makeRepo({ test: 'node test.js' }, { 'test.js': 'process.exit(0);\n' });
-      const result = await engine.evaluateRepo(root, [], [{ command: 'node -e "process.exit(1)"', from: 'Customers API' }]);
+      const result = await engine.evaluateRepo(
+        root,
+        [],
+        [{ command: 'node -e "process.exit(1)"', from: 'Customers API' }],
+      );
       expect(result.status).toBe('failed');
       expect(result.dimensions['regression#1'].output).toContain('finished step "Customers API"');
     }, 30_000);
@@ -67,18 +71,28 @@ describe('EvaluationEngine.evaluateRepo', () => {
     it('passes when every earlier check still holds, and never runs a check twice', async () => {
       const root = await makeRepo({ test: 'node test.js' }, { 'test.js': 'process.exit(0);\n' });
       const ok = 'node -e "process.exit(0)"';
-      const result = await engine.evaluateRepo(root, [ok], [
-        { command: ok, from: 'Same check as this step' },
-        { command: 'node -e "process.exit(0) "', from: 'Dashboard' },
-        { command: 'node -e "process.exit(0) "', from: 'Dashboard again' },
-      ]);
+      const result = await engine.evaluateRepo(
+        root,
+        [ok],
+        [
+          { command: ok, from: 'Same check as this step' },
+          { command: 'node -e "process.exit(0) "', from: 'Dashboard' },
+          { command: 'node -e "process.exit(0) "', from: 'Dashboard again' },
+        ],
+      );
       expect(result.status).toBe('passed');
-      expect(Object.keys(result.dimensions).filter((k) => k.startsWith('regression'))).toEqual(['regression#1']);
+      expect(Object.keys(result.dimensions).filter((k) => k.startsWith('regression'))).toEqual([
+        'regression#1',
+      ]);
     }, 30_000);
 
     it('does not hold an earlier check that cannot even run against this work', async () => {
       const root = await makeRepo({ test: 'node test.js' }, { 'test.js': 'process.exit(0);\n' });
-      const result = await engine.evaluateRepo(root, [], [{ command: 'node -e "process.exit(("', from: 'Old step' }]);
+      const result = await engine.evaluateRepo(
+        root,
+        [],
+        [{ command: 'node -e "process.exit(("', from: 'Old step' }],
+      );
       expect(result.status).toBe('passed');
       expect(result.dimensions['regression#1'].ran).toBe(false);
     }, 30_000);

@@ -27,7 +27,16 @@ export class UsageLimits {
   private readonly logger = new Logger(UsageLimits.name);
   private readonly states = new Map<string, UsageLimitState>();
 
-  record(runtimeKey: string, info: { status: LimitStatus; resetsAt?: number | null; limitType?: string | null; utilization?: number | null }, now = Date.now()): UsageLimitState {
+  record(
+    runtimeKey: string,
+    info: {
+      status: LimitStatus;
+      resetsAt?: number | null;
+      limitType?: string | null;
+      utilization?: number | null;
+    },
+    now = Date.now(),
+  ): UsageLimitState {
     const resetsAt = info.resetsAt ?? (info.status === 'rejected' ? now + UNKNOWN_RESET_MS : null);
     const state: UsageLimitState = {
       runtimeKey,
@@ -40,7 +49,9 @@ export class UsageLimits {
     const before = this.states.get(runtimeKey);
     this.states.set(runtimeKey, state);
     if (info.status === 'rejected' && before?.status !== 'rejected') {
-      this.logger.warn(`${runtimeKey} usage limit reached${resetsAt ? `; resets ${new Date(resetsAt).toISOString()}` : ''}`);
+      this.logger.warn(
+        `${runtimeKey} usage limit reached${resetsAt ? `; resets ${new Date(resetsAt).toISOString()}` : ''}`,
+      );
     }
     return state;
   }
@@ -55,7 +66,9 @@ export class UsageLimits {
 
   snapshot(now = Date.now()): UsageLimitState[] {
     return [...this.states.values()].map((s) =>
-      s.status === 'rejected' && s.resetsAt !== null && s.resetsAt <= now ? { ...s, status: 'allowed' as const } : s,
+      s.status === 'rejected' && s.resetsAt !== null && s.resetsAt <= now
+        ? { ...s, status: 'allowed' as const }
+        : s,
     );
   }
 }
@@ -63,7 +76,10 @@ export class UsageLimits {
 /** Recognises a usage-limit or out-of-credit failure from error text (runtimes without structured events). */
 export function looksLikeUsageLimit(error: string | undefined): boolean {
   return Boolean(
-    error && /usage limit|rate limit|limit reached|too many requests|\b429\b|\b402\b|insufficient (credits|quota|funds|balance)|quota exceeded|out of credits/i.test(error),
+    error &&
+    /usage limit|rate limit|limit reached|too many requests|\b429\b|\b402\b|insufficient (credits|quota|funds|balance)|quota exceeded|out of credits/i.test(
+      error,
+    ),
   );
 }
 
@@ -72,7 +88,10 @@ export function looksLikeUsageLimit(error: string | undefined): boolean {
  * AI gateway such as OmniRoute or OpenRouter), when configured with a model. Never falls back from
  * the fallback itself — if that runs out too, work waits for a reset like before.
  */
-export function fallbackSelection(blockedRuntime: string, env: NodeJS.ProcessEnv = process.env): { runtimeKey: string; provider: string; model: string } | null {
+export function fallbackSelection(
+  blockedRuntime: string,
+  env: NodeJS.ProcessEnv = process.env,
+): { runtimeKey: string; provider: string; model: string } | null {
   if (blockedRuntime === 'custom') return null;
   if (env.FORGE_FALLBACK_AUTO === '0') return null;
   const base = env.FORGE_FALLBACK_BASE_URL?.trim();

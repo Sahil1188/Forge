@@ -26,7 +26,6 @@ export function computeSkillDelta(
   return round1(performance * DROP_FACTOR);
 }
 
-
 /** Maps a work item's task type + priority to a 0..1 complexity factor. */
 export function complexityOf(taskType: string, priority = 0): number {
   const base = taskType in DOMAINS ? domainOf(taskType).weight : 0.5;

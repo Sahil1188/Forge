@@ -26,7 +26,10 @@ import { agentEnv } from '../../../infrastructure/security/safe-env';
  * FORGE_AGENT_SANDBOX: `on` (default; warns and degrades if the platform can't sandbox),
  * `required` (refuse to run unsandboxed), `off`.
  */
-export function agentSandbox(cwd: string, mode = (process.env.FORGE_AGENT_SANDBOX ?? 'on').toLowerCase()): Record<string, unknown> | undefined {
+export function agentSandbox(
+  cwd: string,
+  mode = (process.env.FORGE_AGENT_SANDBOX ?? 'on').toLowerCase(),
+): Record<string, unknown> | undefined {
   if (mode === 'off' || mode === 'false' || mode === '0') return undefined;
   return {
     enabled: true,
@@ -36,9 +39,17 @@ export function agentSandbox(cwd: string, mode = (process.env.FORGE_AGENT_SANDBO
     filesystem: { allowWrite: [cwd] },
     credentials: {
       envVars: [{ name: 'CLAUDE_CODE_OAUTH_TOKEN', mode: 'deny' }],
-      files: ['~/.ssh', '~/.aws', '~/.azure', '~/.config/gcloud', '~/.config/gh', '~/.docker/config.json', '~/.npmrc', '~/.git-credentials', '~/.claude/.credentials.json'].map(
-        (p) => ({ path: p, mode: 'deny' }),
-      ),
+      files: [
+        '~/.ssh',
+        '~/.aws',
+        '~/.azure',
+        '~/.config/gcloud',
+        '~/.config/gh',
+        '~/.docker/config.json',
+        '~/.npmrc',
+        '~/.git-credentials',
+        '~/.claude/.credentials.json',
+      ].map((p) => ({ path: p, mode: 'deny' })),
     },
   };
 }
@@ -74,10 +85,7 @@ export class ClaudeCodeRuntime implements AgentRuntime {
     return this.execute(ctx, sessionId);
   }
 
-  private async *execute(
-    ctx: RuntimeRunContext,
-    resume?: string,
-  ): AsyncIterable<RuntimeEvent> {
+  private async *execute(ctx: RuntimeRunContext, resume?: string): AsyncIterable<RuntimeEvent> {
     if (ctx.systemPromptAppend) {
       await writeFile(path.join(ctx.cwd, 'CLAUDE.md'), ctx.systemPromptAppend, 'utf8');
     }
@@ -123,7 +131,11 @@ export class ClaudeCodeRuntime implements AgentRuntime {
       // Each tool call is judged exactly once: the PreToolUse hook and canUseTool can both
       // fire for the same call, and a one-shot approval must not be consumed twice.
       const decisions = new Map<string, Promise<PermissionDecision>>();
-      const decide = (toolName: string, input: unknown, toolUseId?: string): Promise<PermissionDecision> => {
+      const decide = (
+        toolName: string,
+        input: unknown,
+        toolUseId?: string,
+      ): Promise<PermissionDecision> => {
         const judge = async (): Promise<PermissionDecision> => {
           const decision = await gate(toolName, input);
           if (decision.behavior === 'pause') {
@@ -141,7 +153,11 @@ export class ClaudeCodeRuntime implements AgentRuntime {
         return fresh;
       };
 
-      options.canUseTool = async (toolName: string, input: unknown, opts?: { toolUseID?: string }) => {
+      options.canUseTool = async (
+        toolName: string,
+        input: unknown,
+        opts?: { toolUseID?: string },
+      ) => {
         const decision = await decide(toolName, input, opts?.toolUseID);
         if (decision.behavior === 'allow') {
           return { behavior: 'allow', updatedInput: input };
@@ -157,8 +173,16 @@ export class ClaudeCodeRuntime implements AgentRuntime {
           {
             hooks: [
               async (hookInput: unknown, toolUseId: string | undefined) => {
-                const h = hookInput as { tool_name: string; tool_input: unknown; tool_use_id?: string };
-                const decision = await decide(h.tool_name, h.tool_input, toolUseId ?? h.tool_use_id);
+                const h = hookInput as {
+                  tool_name: string;
+                  tool_input: unknown;
+                  tool_use_id?: string;
+                };
+                const decision = await decide(
+                  h.tool_name,
+                  h.tool_input,
+                  toolUseId ?? h.tool_use_id,
+                );
                 if (decision.behavior === 'allow') return {};
                 return {
                   hookSpecificOutput: {
@@ -174,7 +198,9 @@ export class ClaudeCodeRuntime implements AgentRuntime {
       };
     }
 
-    this.logger.log(`Starting Claude Code run for work item ${ctx.workItemId} (model ${ctx.model})`);
+    this.logger.log(
+      `Starting Claude Code run for work item ${ctx.workItemId} (model ${ctx.model})`,
+    );
 
     try {
       const iterable = this.query({ prompt: ctx.task, options });

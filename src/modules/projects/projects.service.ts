@@ -36,7 +36,11 @@ export class ProjectsService {
         projectName: dto.name,
         projectId: created.id,
       });
-      const [project] = await tx.update(projects).set({ repoPath }).where(eq(projects.id, created.id)).returning();
+      const [project] = await tx
+        .update(projects)
+        .set({ repoPath })
+        .where(eq(projects.id, created.id))
+        .returning();
       await this.outbox.record(tx, {
         type: EventTypes.ProjectCreated,
         aggregateType: 'project',

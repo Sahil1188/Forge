@@ -19,7 +19,8 @@ const TYPES: Record<string, string> = {
   woff2: 'font/woff2',
 };
 // Everything is same-origin; inline styles are used for small layout tweaks, never inline scripts.
-const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
+const CSP =
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 
 @Controller()
 export class UiController {

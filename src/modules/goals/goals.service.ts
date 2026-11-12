@@ -22,7 +22,8 @@ export class GoalsService {
     const location = dto.location?.trim() || null;
     const problem = location ? folderProblem(location, { mustBeEmpty: true }) : null;
     if (problem) throw new BadRequestException(`Project folder: ${problem}`);
-    if (dto.brand?.trim() && !(await getBrand(dto.brand.trim()))) throw new BadRequestException(`Unknown brand "${dto.brand}". Pick one from the brand list.`);
+    if (dto.brand?.trim() && !(await getBrand(dto.brand.trim())))
+      throw new BadRequestException(`Unknown brand "${dto.brand}". Pick one from the brand list.`);
     return this.db.transaction(async (tx) => {
       const [goal] = await tx
         .insert(goals)
@@ -78,7 +79,10 @@ export class GoalsService {
   }
 
   async findOne(id: string): Promise<Goal> {
-    const [goal] = await this.db.select().from(goals).where(and(eq(goals.id, id)));
+    const [goal] = await this.db
+      .select()
+      .from(goals)
+      .where(and(eq(goals.id, id)));
     if (!goal) {
       throw new NotFoundException(`Goal ${id} not found`);
     }

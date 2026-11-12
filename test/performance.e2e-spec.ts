@@ -8,7 +8,11 @@ import { AppModule } from '../src/app.module';
 import { RuntimeRegistry } from '../src/modules/runtimes/runtime-registry';
 import { ExecutionWorker } from '../src/workers/execution.worker';
 import { EvaluationWorker } from '../src/modules/evaluation/evaluation.worker';
-import { AgentRuntime, RuntimeEvent, RuntimeRunContext } from '../src/modules/runtimes/runtime.port';
+import {
+  AgentRuntime,
+  RuntimeEvent,
+  RuntimeRunContext,
+} from '../src/modules/runtimes/runtime.port';
 
 /** Writes a minimal Node repo with a passing test. */
 class PerfMockRuntime implements AgentRuntime {
@@ -95,7 +99,9 @@ describe('Performance & reputation (e2e)', () => {
     expect(after.body.recentPerformance[0].evaluationScore).toBe(100);
 
     // The node skill grew from its seeded level (non-trivial coding task).
-    const node = after.body.employee.skills.find((s: { skillKey: string }) => s.skillKey === 'node');
+    const node = after.body.employee.skills.find(
+      (s: { skillKey: string }) => s.skillKey === 'node',
+    );
     expect(node.level).toBeGreaterThan(50);
   });
 });

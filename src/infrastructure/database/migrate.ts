@@ -15,7 +15,9 @@ async function main(): Promise<void> {
   }
 
   if (!existsSync('./drizzle/meta/_journal.json')) {
-    console.log('[migrate] no migrations to apply yet (run `npm run db:generate` after adding tables)');
+    console.log(
+      '[migrate] no migrations to apply yet (run `npm run db:generate` after adding tables)',
+    );
     return;
   }
 

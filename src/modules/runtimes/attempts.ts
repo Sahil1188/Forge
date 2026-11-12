@@ -41,7 +41,11 @@ export function countAttempts(
       fallbackRuns += 1;
       continue;
     }
-    if (LIMIT_KILLS.has(r.status) && (r.filesChangedCount ?? 0) > 0 && continuations < maxContinuations) {
+    if (
+      LIMIT_KILLS.has(r.status) &&
+      (r.filesChangedCount ?? 0) > 0 &&
+      continuations < maxContinuations
+    ) {
       continuations += 1;
       continue;
     }

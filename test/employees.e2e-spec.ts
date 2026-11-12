@@ -84,17 +84,28 @@ describe('Organization & workforce (e2e)', () => {
 
     it('reads the built-in brief, saves an edited one, and resets it', async () => {
       const server = app.getHttpServer();
-      const companyId = (await request(server).post('/companies').send({ name: 'Brief Co' }).expect(201)).body.id;
-      const id = (await request(server).post(`/companies/${companyId}/employees`).send({ name: 'Grace', role: 'Senior Backend Engineer' }).expect(201)).body.id;
+      const companyId = (
+        await request(server).post('/companies').send({ name: 'Brief Co' }).expect(201)
+      ).body.id;
+      const id = (
+        await request(server)
+          .post(`/companies/${companyId}/employees`)
+          .send({ name: 'Grace', role: 'Senior Backend Engineer' })
+          .expect(201)
+      ).body.id;
 
       const initial = (await request(server).get(`/employees/${id}/brief`).expect(200)).body;
       expect(initial.custom).toBe(false);
       expect(initial.brief.mission).toBe(initial.builtIn.mission);
 
-      const saved = (await request(server).put(`/employees/${id}/brief`).send(brief).expect(200)).body;
+      const saved = (await request(server).put(`/employees/${id}/brief`).send(brief).expect(200))
+        .body;
       expect(saved.custom).toBe(true);
       expect(saved.brief.mission).toBe(brief.mission);
-      expect(saved.brief.standards).toEqual(['Money is integer pence.', 'Every endpoint has a test.']); // blank lines dropped
+      expect(saved.brief.standards).toEqual([
+        'Money is integer pence.',
+        'Every endpoint has a test.',
+      ]); // blank lines dropped
       expect(saved.brief.name).toBe('Grace');
 
       const reset = (await request(server).delete(`/employees/${id}/brief`).expect(200)).body;
@@ -104,9 +115,19 @@ describe('Organization & workforce (e2e)', () => {
 
     it('rejects an incomplete brief with a clear message', async () => {
       const server = app.getHttpServer();
-      const companyId = (await request(server).post('/companies').send({ name: 'Brief Co 2' }).expect(201)).body.id;
-      const id = (await request(server).post(`/companies/${companyId}/employees`).send({ name: 'Noor', role: 'Designer' }).expect(201)).body.id;
-      const res = await request(server).put(`/employees/${id}/brief`).send({ ...brief, mission: '', standards: [] }).expect(400);
+      const companyId = (
+        await request(server).post('/companies').send({ name: 'Brief Co 2' }).expect(201)
+      ).body.id;
+      const id = (
+        await request(server)
+          .post(`/companies/${companyId}/employees`)
+          .send({ name: 'Noor', role: 'Designer' })
+          .expect(201)
+      ).body.id;
+      const res = await request(server)
+        .put(`/employees/${id}/brief`)
+        .send({ ...brief, mission: '', standards: [] })
+        .expect(400);
       expect(JSON.stringify(res.body.message)).toMatch(/mission/);
       expect(JSON.stringify(res.body.message)).toMatch(/standards/);
     });

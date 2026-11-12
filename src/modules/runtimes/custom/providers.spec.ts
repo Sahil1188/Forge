@@ -30,7 +30,11 @@ function mockFetch(responder: (c: Captured) => { status?: number; json?: unknown
 }
 
 const tools = [
-  { name: 'write_file', description: 'write', inputSchema: { type: 'object', properties: { path: { type: 'string' } } } },
+  {
+    name: 'write_file',
+    description: 'write',
+    inputSchema: { type: 'object', properties: { path: { type: 'string' } } },
+  },
 ];
 const baseReq = (over: Partial<ChatRequest> = {}): ChatRequest => ({
   model: 'claude-sonnet-4-6',
@@ -52,20 +56,28 @@ describe('AnthropicMessagesProvider', () => {
 
   it('refuses to run without FORGE_ANTHROPIC_API_KEY', async () => {
     vi.stubEnv('FORGE_ANTHROPIC_API_KEY', '');
-    await expect(new AnthropicMessagesProvider().chat(baseReq())).rejects.toThrow(/FORGE_ANTHROPIC_API_KEY/);
+    await expect(new AnthropicMessagesProvider().chat(baseReq())).rejects.toThrow(
+      /FORGE_ANTHROPIC_API_KEY/,
+    );
   });
 
   it('never falls back to ANTHROPIC_API_KEY (billing separation from the subscription runtime)', async () => {
     vi.stubEnv('FORGE_ANTHROPIC_API_KEY', '');
     vi.stubEnv('ANTHROPIC_API_KEY', 'sk-ant-api03-should-not-be-used-000000');
     const calls = mockFetch(() => ({ json: {} }));
-    await expect(new AnthropicMessagesProvider().chat(baseReq())).rejects.toThrow(/FORGE_ANTHROPIC_API_KEY/);
+    await expect(new AnthropicMessagesProvider().chat(baseReq())).rejects.toThrow(
+      /FORGE_ANTHROPIC_API_KEY/,
+    );
     expect(calls).toHaveLength(0);
   });
 
   it('sends the key, version header, system prompt and tool schemas in the documented shape', async () => {
     const calls = mockFetch(() => ({
-      json: { content: [{ type: 'text', text: 'ok' }], stop_reason: 'end_turn', usage: { input_tokens: 5, output_tokens: 7 } },
+      json: {
+        content: [{ type: 'text', text: 'ok' }],
+        stop_reason: 'end_turn',
+        usage: { input_tokens: 5, output_tokens: 7 },
+      },
     }));
     await new AnthropicMessagesProvider().chat(baseReq({ maxTokens: 123 }));
     const { url, init } = calls[0];
@@ -75,18 +87,26 @@ describe('AnthropicMessagesProvider', () => {
     expect(init.headers['anthropic-version']).toBe('2023-06-01');
     const body = JSON.parse(init.body);
     expect(body).toMatchObject({ model: 'claude-sonnet-4-6', max_tokens: 123, system: 'be good' });
-    expect(body.tools[0]).toEqual({ name: 'write_file', description: 'write', input_schema: tools[0].inputSchema });
+    expect(body.tools[0]).toEqual({
+      name: 'write_file',
+      description: 'write',
+      input_schema: tools[0].inputSchema,
+    });
     expect(body.messages).toEqual([{ role: 'user', content: 'hi' }]);
   });
 
   it('defaults max_tokens to 4096', async () => {
-    const calls = mockFetch(() => ({ json: { content: [], stop_reason: 'end_turn', usage: { input_tokens: 0, output_tokens: 0 } } }));
+    const calls = mockFetch(() => ({
+      json: { content: [], stop_reason: 'end_turn', usage: { input_tokens: 0, output_tokens: 0 } },
+    }));
     await new AnthropicMessagesProvider().chat(baseReq());
     expect(JSON.parse(calls[0].init.body).max_tokens).toBe(4096);
   });
 
   it('replays an assistant tool call and merges all tool results of one turn into ONE user message', async () => {
-    const calls = mockFetch(() => ({ json: { content: [], stop_reason: 'end_turn', usage: { input_tokens: 0, output_tokens: 0 } } }));
+    const calls = mockFetch(() => ({
+      json: { content: [], stop_reason: 'end_turn', usage: { input_tokens: 0, output_tokens: 0 } },
+    }));
     await new AnthropicMessagesProvider().chat(
       baseReq({
         messages: [
@@ -124,9 +144,19 @@ describe('AnthropicMessagesProvider', () => {
   });
 
   it('omits an empty text block when replaying an assistant tool call', async () => {
-    const calls = mockFetch(() => ({ json: { content: [], stop_reason: 'end_turn', usage: { input_tokens: 0, output_tokens: 0 } } }));
+    const calls = mockFetch(() => ({
+      json: { content: [], stop_reason: 'end_turn', usage: { input_tokens: 0, output_tokens: 0 } },
+    }));
     await new AnthropicMessagesProvider().chat(
-      baseReq({ messages: [{ role: 'assistant', content: '', toolCalls: [{ id: 'a', name: 'write_file', input: {} }] }] }),
+      baseReq({
+        messages: [
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [{ id: 'a', name: 'write_file', input: {} }],
+          },
+        ],
+      }),
     );
     const content = JSON.parse(calls[0].init.body).messages[0].content;
     expect(content).toEqual([{ type: 'tool_use', id: 'a', name: 'write_file', input: {} }]);
@@ -155,18 +185,32 @@ describe('AnthropicMessagesProvider', () => {
   });
 
   it('reports max_tokens truthfully (a truncated reply is not an end_turn)', async () => {
-    mockFetch(() => ({ json: { content: [{ type: 'text', text: 'cut off' }], stop_reason: 'max_tokens', usage: { input_tokens: 1, output_tokens: 1 } } }));
+    mockFetch(() => ({
+      json: {
+        content: [{ type: 'text', text: 'cut off' }],
+        stop_reason: 'max_tokens',
+        usage: { input_tokens: 1, output_tokens: 1 },
+      },
+    }));
     expect((await new AnthropicMessagesProvider().chat(baseReq())).stopReason).toBe('max_tokens');
   });
 
   it('maps stop_sequence / end_turn to end_turn', async () => {
-    mockFetch(() => ({ json: { content: [], stop_reason: 'stop_sequence', usage: { input_tokens: 1, output_tokens: 1 } } }));
+    mockFetch(() => ({
+      json: {
+        content: [],
+        stop_reason: 'stop_sequence',
+        usage: { input_tokens: 1, output_tokens: 1 },
+      },
+    }));
     expect((await new AnthropicMessagesProvider().chat(baseReq())).stopReason).toBe('end_turn');
   });
 
   it('raises a descriptive error on API failures (rate limit, auth)', async () => {
     mockFetch(() => ({ status: 429, text: '{"error":"rate_limited"}' }));
-    await expect(new AnthropicMessagesProvider().chat(baseReq())).rejects.toThrow(/Anthropic API error 429.*rate_limited/);
+    await expect(new AnthropicMessagesProvider().chat(baseReq())).rejects.toThrow(
+      /Anthropic API error 429.*rate_limited/,
+    );
   });
 });
 
@@ -203,11 +247,17 @@ describe('estimateAnthropicCostUsd', () => {
 describe('OllamaProvider', () => {
   it('posts to the configured host with tools in function format and stream disabled', async () => {
     vi.stubEnv('FORGE_OLLAMA_HOST', 'http://gpu-box:11434/');
-    const calls = mockFetch(() => ({ json: { message: { role: 'assistant', content: 'hi' }, prompt_eval_count: 4, eval_count: 6 } }));
+    const calls = mockFetch(() => ({
+      json: { message: { role: 'assistant', content: 'hi' }, prompt_eval_count: 4, eval_count: 6 },
+    }));
     await new OllamaProvider().chat(baseReq({ model: 'qwen2.5-coder', maxTokens: 256 }));
     expect(calls[0].url).toBe('http://gpu-box:11434/api/chat');
     const body = JSON.parse(calls[0].init.body);
-    expect(body).toMatchObject({ model: 'qwen2.5-coder', stream: false, options: { num_predict: 256 } });
+    expect(body).toMatchObject({
+      model: 'qwen2.5-coder',
+      stream: false,
+      options: { num_predict: 256 },
+    });
     expect(body.messages[0]).toEqual({ role: 'system', content: 'be good' });
     expect(body.tools[0]).toEqual({
       type: 'function',
@@ -222,7 +272,14 @@ describe('OllamaProvider', () => {
   });
 
   it('is free: reports token counts and zero cost', async () => {
-    mockFetch(() => ({ json: { message: { role: 'assistant', content: 'done' }, done_reason: 'stop', prompt_eval_count: 11, eval_count: 22 } }));
+    mockFetch(() => ({
+      json: {
+        message: { role: 'assistant', content: 'done' },
+        done_reason: 'stop',
+        prompt_eval_count: 11,
+        eval_count: 22,
+      },
+    }));
     const r = await new OllamaProvider().chat(baseReq());
     expect(r).toMatchObject({ text: 'done', stopReason: 'end_turn', toolCalls: [] });
     expect(r.usage).toEqual({ inputTokens: 11, outputTokens: 22, costUsd: 0 });
@@ -250,14 +307,26 @@ describe('OllamaProvider', () => {
   });
 
   it('tolerates malformed string arguments instead of throwing', async () => {
-    mockFetch(() => ({ json: { message: { tool_calls: [{ function: { name: 'write_file', arguments: '{not json' } }] } } }));
+    mockFetch(() => ({
+      json: {
+        message: { tool_calls: [{ function: { name: 'write_file', arguments: '{not json' } }] },
+      },
+    }));
     const r = await new OllamaProvider().chat(baseReq());
     expect(r.toolCalls[0].input).toEqual({});
   });
 
   it('drops tool calls with no function name', async () => {
-    mockFetch(() => ({ json: { message: { tool_calls: [{}, { function: {} }, { function: { name: 'ok', arguments: {} } }] } } }));
-    expect((await new OllamaProvider().chat(baseReq())).toolCalls.map((c) => c.name)).toEqual(['ok']);
+    mockFetch(() => ({
+      json: {
+        message: {
+          tool_calls: [{}, { function: {} }, { function: { name: 'ok', arguments: {} } }],
+        },
+      },
+    }));
+    expect((await new OllamaProvider().chat(baseReq())).toolCalls.map((c) => c.name)).toEqual([
+      'ok',
+    ]);
   });
 
   it('replays tool calls and labels each tool result with its tool name', async () => {
@@ -267,7 +336,11 @@ describe('OllamaProvider', () => {
         system: undefined,
         messages: [
           { role: 'user', content: 'go' },
-          { role: 'assistant', content: 'ok', toolCalls: [{ id: 'c1', name: 'write_file', input: { path: 'a' } }] },
+          {
+            role: 'assistant',
+            content: 'ok',
+            toolCalls: [{ id: 'c1', name: 'write_file', input: { path: 'a' } }],
+          },
           { role: 'tool', toolCallId: 'c1', content: 'wrote a' },
         ],
       }),
@@ -288,12 +361,19 @@ describe('OllamaProvider', () => {
   });
 
   it('gives an actionable error when the server is unreachable', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new Error('ECONNREFUSED'))));
-    await expect(new OllamaProvider().chat(baseReq())).rejects.toThrow(/Could not reach Ollama.*ECONNREFUSED.*FORGE_OLLAMA_HOST/);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Promise.reject(new Error('ECONNREFUSED'))),
+    );
+    await expect(new OllamaProvider().chat(baseReq())).rejects.toThrow(
+      /Could not reach Ollama.*ECONNREFUSED.*FORGE_OLLAMA_HOST/,
+    );
   });
 
   it('surfaces HTTP errors from the server (e.g. model not pulled)', async () => {
     mockFetch(() => ({ status: 404, text: 'model "nope" not found' }));
-    await expect(new OllamaProvider().chat(baseReq())).rejects.toThrow(/Ollama error 404.*not found/);
+    await expect(new OllamaProvider().chat(baseReq())).rejects.toThrow(
+      /Ollama error 404.*not found/,
+    );
   });
 });

@@ -1,7 +1,18 @@
 import { describe, it, expect } from 'vitest';
 // The console's toolkit is plain browser ESM; it is importable in Node because it touches no
 // browser globals at import time.
-import { duration, esc, goalFields, html, label, lines, list, money, parseSkills, when } from '../../../public/assets/lib.js';
+import {
+  duration,
+  esc,
+  goalFields,
+  html,
+  label,
+  lines,
+  list,
+  money,
+  parseSkills,
+  when,
+} from '../../../public/assets/lib.js';
 
 const XSS = `<img src=x onerror="alert('x')">`;
 
@@ -21,7 +32,8 @@ describe('console html`` — escaping by construction', () => {
 
   it('nested html`` results are kept as markup, arrays are joined, null/false render nothing', () => {
     const items = ['a', '<b>'];
-    const out = html`<ul>${items.map((i) => html`<li>${i}</li>`)}</ul>${null}${false}${undefined}`.value;
+    const out = html`<ul>${items.map((i) => html`<li>${i}</li>`)}</ul>${null}${false}${undefined}`
+      .value;
     expect(out).toBe('<ul><li>a</li><li>&lt;b&gt;</li></ul>');
   });
 
@@ -56,7 +68,18 @@ describe('console formatting helpers', () => {
   });
 
   it('labels every work and run status in plain language', () => {
-    for (const s of ['created', 'assigned', 'in_progress', 'needs_approval', 'evaluating', 'rework', 'done', 'failed', 'cancelled', 'killed_budget']) {
+    for (const s of [
+      'created',
+      'assigned',
+      'in_progress',
+      'needs_approval',
+      'evaluating',
+      'rework',
+      'done',
+      'failed',
+      'cancelled',
+      'killed_budget',
+    ]) {
       expect(label(s)).not.toBe(s);
     }
     expect(label('mystery')).toBe('mystery');

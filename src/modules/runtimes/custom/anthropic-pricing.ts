@@ -33,7 +33,11 @@ function rateFor(model: string): Rate {
   };
 }
 
-export function estimateAnthropicCostUsd(model: string, inputTokens: number, outputTokens: number): number {
+export function estimateAnthropicCostUsd(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+): number {
   const r = rateFor(model);
   return (inputTokens * r.inPerMTok + outputTokens * r.outPerMTok) / 1_000_000;
 }

@@ -68,15 +68,22 @@ describe('CustomRuntime — loop edge cases', () => {
     const ea = await collect(a.runtime.run(a.ctx));
     const eb = await collect(b.runtime.run(b.ctx));
     expect(ea[0].kind).toBe('session');
-    expect((ea[0] as { sessionId: string }).sessionId).not.toBe((eb[0] as { sessionId: string }).sessionId);
+    expect((ea[0] as { sessionId: string }).sessionId).not.toBe(
+      (eb[0] as { sessionId: string }).sessionId,
+    );
   });
 
   it('fails with max_turns (and still reports usage) when the model never stops calling tools', async () => {
-    const p = new Script([toolTurn([tool('c1', 'write_file', { path: 'a.txt', content: 'x' })], 0.02)]);
+    const p = new Script([
+      toolTurn([tool('c1', 'write_file', { path: 'a.txt', content: 'x' })], 0.02),
+    ]);
     const { runtime, ctx } = await setup(p, { limits: { maxTurns: 3 } });
     const events = await collect(runtime.run(ctx));
     expect(p.requests).toHaveLength(3);
-    const usage = events.find((e) => e.kind === 'usage') as Extract<RuntimeEvent, { kind: 'usage' }>;
+    const usage = events.find((e) => e.kind === 'usage') as Extract<
+      RuntimeEvent,
+      { kind: 'usage' }
+    >;
     expect(usage.costUsd).toBeCloseTo(0.06, 10);
     expect(events.at(-1)).toEqual({ kind: 'failed', error: 'max_turns' });
     expect(events.some((e) => e.kind === 'completed')).toBe(false);
@@ -90,7 +97,10 @@ describe('CustomRuntime — loop edge cases', () => {
     ]);
     const { runtime, ctx } = await setup(p);
     const events = await collect(runtime.run(ctx));
-    const usage = events.filter((e) => e.kind === 'usage') as Extract<RuntimeEvent, { kind: 'usage' }>[];
+    const usage = events.filter((e) => e.kind === 'usage') as Extract<
+      RuntimeEvent,
+      { kind: 'usage' }
+    >[];
     expect(usage).toHaveLength(1);
     expect(usage[0].costUsd).toBeCloseTo(0.033, 10);
     expect(usage[0].inputTokens).toBe(21);
@@ -98,7 +108,10 @@ describe('CustomRuntime — loop edge cases', () => {
   });
 
   it('feeds the assistant tool call and the tool result back to the model on the next turn', async () => {
-    const p = new Script([toolTurn([tool('c1', 'write_file', { path: 'a.txt', content: 'hi' })], 0.01, 'writing'), endTurn()]);
+    const p = new Script([
+      toolTurn([tool('c1', 'write_file', { path: 'a.txt', content: 'hi' })], 0.01, 'writing'),
+      endTurn(),
+    ]);
     const { runtime, ctx } = await setup(p, { systemPromptAppend: '# identity' });
     await collect(runtime.run(ctx));
     const second = p.requests[1];
@@ -120,21 +133,28 @@ describe('CustomRuntime — loop edge cases', () => {
     ]);
     const { runtime, ctx, cwd } = await setup(p);
     const events = await collect(runtime.run(ctx));
-    expect(events.filter((e) => e.kind === 'tool_use').map((e) => (e as { toolUseId: string }).toolUseId)).toEqual([
-      'c1',
-      'c2',
-    ]);
+    expect(
+      events
+        .filter((e) => e.kind === 'tool_use')
+        .map((e) => (e as { toolUseId: string }).toolUseId),
+    ).toEqual(['c1', 'c2']);
     expect((await readdir(cwd)).sort()).toEqual(['one.txt', 'two.txt']);
   });
 
   it('a denied tool is NOT executed; the denial is reported to the model and the run continues', async () => {
-    const p = new Script([toolTurn([tool('c1', 'write_file', { path: 'no.txt', content: 'x' })]), endTurn('fine')]);
+    const p = new Script([
+      toolTurn([tool('c1', 'write_file', { path: 'no.txt', content: 'x' })]),
+      endTurn('fine'),
+    ]);
     const { runtime, ctx, cwd } = await setup(p, {
       canUseTool: async () => ({ behavior: 'deny', message: 'policy says no' }),
     });
     const events = await collect(runtime.run(ctx));
     expect(await readdir(cwd)).toEqual([]);
-    const result = events.find((e) => e.kind === 'tool_result') as Extract<RuntimeEvent, { kind: 'tool_result' }>;
+    const result = events.find((e) => e.kind === 'tool_result') as Extract<
+      RuntimeEvent,
+      { kind: 'tool_result' }
+    >;
     expect(result.isError).toBe(true);
     expect(result.content).toBe('policy says no');
     expect(p.requests[1].messages.at(-1)?.content).toBe('Denied: policy says no');
@@ -144,7 +164,10 @@ describe('CustomRuntime — loop edge cases', () => {
   it('consults the gate with the exact tool name and input, once per call', async () => {
     const seen: Array<[string, unknown]> = [];
     const p = new Script([
-      toolTurn([tool('c1', 'write_file', { path: 'a.txt', content: 'x' }), tool('c2', 'run_command', { command: 'echo hi' })]),
+      toolTurn([
+        tool('c1', 'write_file', { path: 'a.txt', content: 'x' }),
+        tool('c2', 'run_command', { command: 'echo hi' }),
+      ]),
       endTurn(),
     ]);
     const { runtime, ctx } = await setup(p, {
@@ -162,7 +185,10 @@ describe('CustomRuntime — loop edge cases', () => {
 
   it('a pause stops the loop immediately: no later tool in the same response runs', async () => {
     const p = new Script([
-      toolTurn([tool('c1', 'write_file', { path: 'gated.txt', content: 'x' }), tool('c2', 'write_file', { path: 'after.txt', content: 'y' })]),
+      toolTurn([
+        tool('c1', 'write_file', { path: 'gated.txt', content: 'x' }),
+        tool('c2', 'write_file', { path: 'after.txt', content: 'y' }),
+      ]),
       endTurn(),
     ]);
     const { runtime, ctx, cwd } = await setup(p, {
@@ -170,15 +196,25 @@ describe('CustomRuntime — loop edge cases', () => {
     });
     const events = await collect(runtime.run(ctx));
     expect(await readdir(cwd)).toEqual([]);
-    expect(events.at(-1)).toMatchObject({ kind: 'needs_approval', toolName: 'write_file', approvalRef: 'ap1' });
+    expect(events.at(-1)).toMatchObject({
+      kind: 'needs_approval',
+      toolName: 'write_file',
+      approvalRef: 'ap1',
+    });
     expect(p.requests).toHaveLength(1);
   });
 
   it('surfaces a tool failure (escape attempt) as an error result and lets the model recover', async () => {
-    const p = new Script([toolTurn([tool('c1', 'write_file', { path: '../escape.txt', content: 'x' })]), endTurn()]);
+    const p = new Script([
+      toolTurn([tool('c1', 'write_file', { path: '../escape.txt', content: 'x' })]),
+      endTurn(),
+    ]);
     const { runtime, ctx, cwd } = await setup(p);
     const events = await collect(runtime.run(ctx));
-    const result = events.find((e) => e.kind === 'tool_result') as Extract<RuntimeEvent, { kind: 'tool_result' }>;
+    const result = events.find((e) => e.kind === 'tool_result') as Extract<
+      RuntimeEvent,
+      { kind: 'tool_result' }
+    >;
     expect(result.isError).toBe(true);
     expect(String(result.content)).toMatch(/escapes the workspace/);
     expect(await readdir(path.dirname(cwd))).not.toContain('escape.txt');
@@ -199,7 +235,10 @@ describe('CustomRuntime — loop edge cases', () => {
     expect(await readdir(cwd)).toEqual([]);
     expect(events.at(-1)).toEqual({ kind: 'failed', error: 'max_tokens' });
     expect(events.some((e) => e.kind === 'tool_use')).toBe(false);
-    expect((events.find((e) => e.kind === 'usage') as { costUsd: number }).costUsd).toBeCloseTo(0.05, 10);
+    expect((events.find((e) => e.kind === 'usage') as { costUsd: number }).costUsd).toBeCloseTo(
+      0.05,
+      10,
+    );
   });
 
   it('propagates a provider failure to the caller (the worker turns it into a failed run)', async () => {

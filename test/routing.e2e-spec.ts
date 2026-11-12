@@ -8,7 +8,11 @@ import { AppModule } from '../src/app.module';
 import { RuntimeRegistry } from '../src/modules/runtimes/runtime-registry';
 import { AgentRunsService } from '../src/modules/runtimes/agent-runs.service';
 import { ExecutionWorker } from '../src/workers/execution.worker';
-import { AgentRuntime, RuntimeEvent, RuntimeRunContext } from '../src/modules/runtimes/runtime.port';
+import {
+  AgentRuntime,
+  RuntimeEvent,
+  RuntimeRunContext,
+} from '../src/modules/runtimes/runtime.port';
 
 class RouteMockRuntime implements AgentRuntime {
   readonly key = 'mock-router';
@@ -52,7 +56,10 @@ describe('Routers (e2e)', () => {
         name: 'Grace',
         role: 'Backend Engineer',
         runtimeConfig: { runtimeKey: 'mock-router', modelPolicy: policy },
-        skills: [{ skillKey: 'node', level: 90 }, { skillKey: 'sql', level: 80 }],
+        skills: [
+          { skillKey: 'node', level: 90 },
+          { skillKey: 'sql', level: 80 },
+        ],
       })
       .expect(201);
     devId = dev.body.id;
@@ -113,7 +120,10 @@ describe('Routers (e2e)', () => {
       .post(`/projects/${projectId}/work-items`)
       .send({ title: 'Code it', taskType: 'coding' })
       .expect(201);
-    await request(server).post(`/work-items/${coding.body.id}/assign`).send({ employeeId: devId }).expect(201);
+    await request(server)
+      .post(`/work-items/${coding.body.id}/assign`)
+      .send({ employeeId: devId })
+      .expect(201);
     await app.get(ExecutionWorker).runOnce();
     const codingRun = (await app.get(AgentRunsService).findByWorkItem(coding.body.id))[0];
     expect(codingRun.model).toBe('claude-sonnet-4-6');
@@ -123,7 +133,10 @@ describe('Routers (e2e)', () => {
       .post(`/projects/${projectId}/work-items`)
       .send({ title: 'Design it', taskType: 'architecture' })
       .expect(201);
-    await request(server).post(`/work-items/${arch.body.id}/assign`).send({ employeeId: devId }).expect(201);
+    await request(server)
+      .post(`/work-items/${arch.body.id}/assign`)
+      .send({ employeeId: devId })
+      .expect(201);
     await app.get(ExecutionWorker).runOnce();
     const archRun = (await app.get(AgentRunsService).findByWorkItem(arch.body.id))[0];
     expect(archRun.model).toBe('claude-opus-4-8');

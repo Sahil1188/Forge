@@ -31,8 +31,16 @@ import {
 } from './helpers';
 
 const git = promisify(execFile);
-const passingPkg = JSON.stringify({ name: 'p', version: '1.0.0', scripts: { test: 'node -e "process.exit(0)"' } });
-const failingPkg = JSON.stringify({ name: 'p', version: '1.0.0', scripts: { test: 'node -e "process.exit(1)"' } });
+const passingPkg = JSON.stringify({
+  name: 'p',
+  version: '1.0.0',
+  scripts: { test: 'node -e "process.exit(0)"' },
+});
+const failingPkg = JSON.stringify({
+  name: 'p',
+  version: '1.0.0',
+  scripts: { test: 'node -e "process.exit(1)"' },
+});
 
 describe('Shared project workspace — work items build on each other (e2e)', () => {
   let app: INestApplication;
@@ -59,7 +67,11 @@ describe('Shared project workspace — work items build on each other (e2e)', ()
     const runtime = new ScriptedRuntime(key, script);
     app.get(RuntimeRegistry).register(runtime);
     const companyId = await createCompany(app);
-    const emp = await createEmployee(app, companyId, { name: 'Builder', role: 'Engineer', runtimeKey: key });
+    const emp = await createEmployee(app, companyId, {
+      name: 'Builder',
+      role: 'Engineer',
+      runtimeKey: key,
+    });
     const { projectId, goalId } = await createProject(app, companyId);
     return { runtime, companyId, emp, projectId, goalId };
   }
@@ -69,14 +81,18 @@ describe('Shared project workspace — work items build on each other (e2e)', ()
     return async function* (ctx: RuntimeRunContext): AsyncIterable<RuntimeEvent> {
       yield { kind: 'session', sessionId: 's' };
       const files = byTitle[ctx.task.split('\n')[0]] ?? {};
-      for (const [name, content] of Object.entries(files)) await writeFile(path.join(ctx.cwd, name), content);
+      for (const [name, content] of Object.entries(files))
+        await writeFile(path.join(ctx.cwd, name), content);
       yield { kind: 'completed', result: 'ok', sessionId: 's' };
     };
   }
 
   it('the second item starts from the first item’s merged output, and main accumulates both', async () => {
     const seen: string[][] = [];
-    const base = writes({ A: { 'package.json': passingPkg, 'a.js': 'module.exports = 1;' }, B: { 'b.js': 'require("./a");' } });
+    const base = writes({
+      A: { 'package.json': passingPkg, 'a.js': 'module.exports = 1;' },
+      B: { 'b.js': 'require("./a");' },
+    });
     const s = await setup(async function* (ctx, n) {
       seen.push((await readdir(ctx.cwd)).filter((f) => !f.startsWith('.')).sort());
       yield* base(ctx);
@@ -84,7 +100,10 @@ describe('Shared project workspace — work items build on each other (e2e)', ()
     });
     const a = await createWorkItem(app, s.projectId, { title: 'A' });
     const b = await createWorkItem(app, s.projectId, { title: 'B' });
-    await request(server).post(`/work-items/${b}/dependencies`).send({ dependsOnWorkItemId: a }).expect(201);
+    await request(server)
+      .post(`/work-items/${b}/dependencies`)
+      .send({ dependsOnWorkItemId: a })
+      .expect(201);
     await assign(app, a, s.emp);
     await assign(app, b, s.emp);
 
@@ -131,8 +150,14 @@ describe('Shared project workspace — work items build on each other (e2e)', ()
     });
     const a = await createWorkItem(app, s.projectId, { title: 'Customers API' });
     const b = await createWorkItem(app, s.projectId, { title: 'Reports' });
-    await db(app).update(workItems).set({ acceptance: [fileExists('customers.js')] }).where(eq(workItems.id, a));
-    await request(server).post(`/work-items/${b}/dependencies`).send({ dependsOnWorkItemId: a }).expect(201);
+    await db(app)
+      .update(workItems)
+      .set({ acceptance: [fileExists('customers.js')] })
+      .where(eq(workItems.id, a));
+    await request(server)
+      .post(`/work-items/${b}/dependencies`)
+      .send({ dependsOnWorkItemId: a })
+      .expect(201);
     await assign(app, a, s.emp);
     await assign(app, b, s.emp);
 
@@ -160,7 +185,10 @@ describe('Shared project workspace — work items build on each other (e2e)', ()
     // No dependency: both start from the same empty main and run side by side.
     const a = await createWorkItem(app, s.projectId, { title: 'Ledger' });
     const b = await createWorkItem(app, s.projectId, { title: 'Aging' });
-    await db(app).update(workItems).set({ acceptance: [fileExists('ledger.js')] }).where(eq(workItems.id, a));
+    await db(app)
+      .update(workItems)
+      .set({ acceptance: [fileExists('ledger.js')] })
+      .where(eq(workItems.id, a));
     await assign(app, a, s.emp);
     await assign(app, b, s.emp);
     await worker().runOnce();
@@ -196,7 +224,9 @@ describe('Shared project workspace — work items build on each other (e2e)', ()
     expect((await getWorkItem(app, id)).status).toBe('assigned');
     expect((await worker().runOnce())?.status).toBe('completed');
     expect((await evaluator().evaluate(id)).routedTo).toBe('done');
-    expect(await readFile(path.join(await workspace().projectPath(s.projectId), 'draft.js'), 'utf8')).toBe('first attempt + fixed');
+    expect(
+      await readFile(path.join(await workspace().projectPath(s.projectId), 'draft.js'), 'utf8'),
+    ).toBe('first attempt + fixed');
   });
 
   it('retries up to FORGE_MAX_ATTEMPTS, then gives up and fails the item', async () => {
@@ -221,7 +251,9 @@ describe('Shared project workspace — work items build on each other (e2e)', ()
   });
 
   it('two independent items that edit the same file: the second cannot merge, goes to rework, and main keeps the first', async () => {
-    const s = await setup(writes({ Left: { 'shared.txt': 'left\n' }, Right: { 'shared.txt': 'right\n' } }));
+    const s = await setup(
+      writes({ Left: { 'shared.txt': 'left\n' }, Right: { 'shared.txt': 'right\n' } }),
+    );
     const left = await createWorkItem(app, s.projectId, { title: 'Left' });
     const right = await createWorkItem(app, s.projectId, { title: 'Right' });
     await assign(app, left, s.emp);
@@ -243,19 +275,32 @@ describe('Shared project workspace — work items build on each other (e2e)', ()
     const one = await createWorkItem(app, s.projectId, { title: 'One' });
     const two = await createWorkItem(app, s.projectId, { title: 'Two' });
     const dropped = await createWorkItem(app, s.projectId, { title: 'Dropped' });
-    await request(server).post(`/work-items/${dropped}/status`).send({ status: 'cancelled' }).expect(201);
-    await request(server).post(`/work-items/${two}/dependencies`).send({ dependsOnWorkItemId: one }).expect(201);
+    await request(server)
+      .post(`/work-items/${dropped}/status`)
+      .send({ status: 'cancelled' })
+      .expect(201);
+    await request(server)
+      .post(`/work-items/${two}/dependencies`)
+      .send({ dependsOnWorkItemId: one })
+      .expect(201);
     await assign(app, one, s.emp);
     await assign(app, two, s.emp);
 
     await worker().runOnce();
     await evaluator().evaluate(one);
-    expect((await request(server).get(`/goals/${s.goalId}`).expect(200)).body.status).not.toBe('completed');
+    expect((await request(server).get(`/goals/${s.goalId}`).expect(200)).body.status).not.toBe(
+      'completed',
+    );
 
     await worker().runOnce();
     await evaluator().evaluate(two);
-    expect((await request(server).get(`/goals/${s.goalId}`).expect(200)).body.status).toBe('completed');
-    const announced = await db(app).select().from(eventsTable).where(eq(eventsTable.aggregateId, s.goalId));
+    expect((await request(server).get(`/goals/${s.goalId}`).expect(200)).body.status).toBe(
+      'completed',
+    );
+    const announced = await db(app)
+      .select()
+      .from(eventsTable)
+      .where(eq(eventsTable.aggregateId, s.goalId));
     expect(announced.map((e) => e.type)).toContain(EventTypes.GoalCompleted);
   });
 
@@ -265,14 +310,19 @@ describe('Shared project workspace — work items build on each other (e2e)', ()
       app.get(RuntimeRegistry).register(
         new ScriptedRuntime(key, async function* (ctx) {
           yield { kind: 'session', sessionId: 's' } as RuntimeEvent;
-          await writeFile(path.join(ctx.cwd, 'PLAN.json'), JSON.stringify({ project: 'P', workItems }));
+          await writeFile(
+            path.join(ctx.cwd, 'PLAN.json'),
+            JSON.stringify({ project: 'P', workItems }),
+          );
           yield { kind: 'completed', result: 'ok', sessionId: 's' } as RuntimeEvent;
         }),
       );
       const companyId = await createCompany(app);
       await createEmployee(app, companyId, { name: 'Ceo', role: 'CEO', runtimeKey: key });
       await createEmployee(app, companyId, { name: 'Dev', role: 'Engineer', runtimeKey: key });
-      const goal = (await request(server).post(`/companies/${companyId}/goals`).send({ title: 'G' }).expect(201)).body.id;
+      const goal = (
+        await request(server).post(`/companies/${companyId}/goals`).send({ title: 'G' }).expect(201)
+      ).body.id;
       const plan = await app.get(CeoPlanner).plan(goal);
       const deps: Record<number, number[]> = {};
       for (const [i, w] of plan.workItems.entries()) {
@@ -285,7 +335,11 @@ describe('Shared project workspace — work items build on each other (e2e)', ()
     }
 
     it('chains items in plan order by default', async () => {
-      expect(await planWith([{ title: 'a' }, { title: 'b' }, { title: 'c' }])).toEqual({ 0: [], 1: [0], 2: [1] });
+      expect(await planWith([{ title: 'a' }, { title: 'b' }, { title: 'c' }])).toEqual({
+        0: [],
+        1: [0],
+        2: [1],
+      });
     });
 
     it('honours explicit earlier-only dependsOn, including none (independent work)', async () => {

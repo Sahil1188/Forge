@@ -45,8 +45,15 @@ async function readPkg(dir: string): Promise<Pkg | null> {
 export async function hasWebUi(dir: string): Promise<boolean> {
   const pkg = await readPkg(dir);
   const deps = { ...(pkg?.dependencies ?? {}), ...(pkg?.devDependencies ?? {}) };
-  if (['react', 'vue', 'svelte', 'next', 'vite', '@angular/core', 'solid-js', 'preact'].some((d) => d in deps)) return true;
-  return ['index.html', 'public/index.html', 'src/index.html', 'static/index.html'].some((f) => existsSync(path.join(dir, f)));
+  if (
+    ['react', 'vue', 'svelte', 'next', 'vite', '@angular/core', 'solid-js', 'preact'].some(
+      (d) => d in deps,
+    )
+  )
+    return true;
+  return ['index.html', 'public/index.html', 'src/index.html', 'static/index.html'].some((f) =>
+    existsSync(path.join(dir, f)),
+  );
 }
 
 async function freePort(): Promise<number> {
@@ -61,8 +68,18 @@ async function freePort(): Promise<number> {
 }
 
 const MIME: Record<string, string> = {
-  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
-  '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff', '.webp': 'image/webp',
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript',
+  '.mjs': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.webp': 'image/webp',
 };
 
 /** A tiny static server with single-page-app fallback, for projects without their own server. */
@@ -78,7 +95,9 @@ function serveStatic(dir: string, port: number): Promise<Server> {
     }
     try {
       const body = await readFile(file);
-      res.writeHead(200, { 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream' }).end(body);
+      res
+        .writeHead(200, { 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream' })
+        .end(body);
     } catch {
       res.writeHead(404).end();
     }
@@ -99,7 +118,10 @@ export interface RunningApp {
  */
 export async function launchApp(projectDir: string, timeoutMs = 120_000): Promise<RunningApp> {
   const copyDir = await mkdtemp(path.join(os.tmpdir(), 'forge-visual-app-'));
-  await cp(projectDir, copyDir, { recursive: true, filter: (src) => !/[\\/](\.git|node_modules)([\\/]|$)/.test(src.slice(projectDir.length)) });
+  await cp(projectDir, copyDir, {
+    recursive: true,
+    filter: (src) => !/[\\/](\.git|node_modules)([\\/]|$)/.test(src.slice(projectDir.length)),
+  });
   const env = { ...commandEnv(), BROWSER: 'none', CI: '1' };
   let output = '';
   const note = (s: string) => (output = (output + s).slice(-6000));
@@ -107,11 +129,25 @@ export async function launchApp(projectDir: string, timeoutMs = 120_000): Promis
   const pkg = await readPkg(copyDir);
   const deps = { ...(pkg?.dependencies ?? {}), ...(pkg?.devDependencies ?? {}) };
   if (Object.keys(deps).length) {
-    const r = await run('npm', ['install', '--no-audit', '--no-fund'], { cwd: copyDir, env, shell: true, timeout: 300_000, maxBuffer: 20 * 1024 * 1024, windowsHide: true }).catch((e) => e);
+    const r = await run('npm', ['install', '--no-audit', '--no-fund'], {
+      cwd: copyDir,
+      env,
+      shell: true,
+      timeout: 300_000,
+      maxBuffer: 20 * 1024 * 1024,
+      windowsHide: true,
+    }).catch((e) => e);
     note(`$ npm install\n${r.stdout ?? ''}${r.stderr ?? ''}`);
   }
   if (pkg?.scripts?.build) {
-    const r = await run('npm', ['run', 'build'], { cwd: copyDir, env, shell: true, timeout: 300_000, maxBuffer: 20 * 1024 * 1024, windowsHide: true }).catch((e) => e);
+    const r = await run('npm', ['run', 'build'], {
+      cwd: copyDir,
+      env,
+      shell: true,
+      timeout: 300_000,
+      maxBuffer: 20 * 1024 * 1024,
+      windowsHide: true,
+    }).catch((e) => e);
     note(`$ npm run build\n${r.stdout ?? ''}${r.stderr ?? ''}`);
   }
 
@@ -119,20 +155,41 @@ export async function launchApp(projectDir: string, timeoutMs = 120_000): Promis
   const candidates = new Set<string>([`http://127.0.0.1:${port}/`]);
   let child: ChildProcess | undefined;
   let staticServer: Server | undefined;
-  const script = pkg?.scripts?.start ? 'start' : pkg?.scripts?.preview ? 'preview' : pkg?.scripts?.dev ? 'dev' : null;
+  const script = pkg?.scripts?.start
+    ? 'start'
+    : pkg?.scripts?.preview
+      ? 'preview'
+      : pkg?.scripts?.dev
+        ? 'dev'
+        : null;
   if (script) {
-    const args = script === 'start' ? ['start'] : ['run', script, '--', '--port', String(port), '--host', '127.0.0.1'];
-    child = spawn('npm', args, { cwd: copyDir, env: { ...env, PORT: String(port), HOST: '127.0.0.1' }, shell: true, windowsHide: true, detached: process.platform !== 'win32' });
+    const args =
+      script === 'start'
+        ? ['start']
+        : ['run', script, '--', '--port', String(port), '--host', '127.0.0.1'];
+    child = spawn('npm', args, {
+      cwd: copyDir,
+      env: { ...env, PORT: String(port), HOST: '127.0.0.1' },
+      shell: true,
+      windowsHide: true,
+      detached: process.platform !== 'win32',
+    });
     const watch = (b: Buffer) => {
       const s = b.toString();
       note(s);
-      for (const m of s.matchAll(/https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1?\]):(\d{2,5})/g)) candidates.add(`http://127.0.0.1:${m[1]}/`);
+      for (const m of s.matchAll(
+        /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1?\]):(\d{2,5})/g,
+      ))
+        candidates.add(`http://127.0.0.1:${m[1]}/`);
     };
     child.stdout?.on('data', watch);
     child.stderr?.on('data', watch);
   } else {
-    const dir = ['dist', 'build', 'public', '.'].map((d) => path.join(copyDir, d)).find((d) => existsSync(path.join(d, 'index.html')));
-    if (!dir) throw new Error('No way to run this project: no start/preview/dev script and no index.html.');
+    const dir = ['dist', 'build', 'public', '.']
+      .map((d) => path.join(copyDir, d))
+      .find((d) => existsSync(path.join(d, 'index.html')));
+    if (!dir)
+      throw new Error('No way to run this project: no start/preview/dev script and no index.html.');
     staticServer = await serveStatic(dir, port);
   }
 
@@ -157,5 +214,7 @@ export async function launchApp(projectDir: string, timeoutMs = 120_000): Promis
     await new Promise((r) => setTimeout(r, 1000));
   }
   await stop();
-  throw new Error(`The app did not start (tried ${[...candidates].join(', ')}).\n${output.slice(-2000)}`);
+  throw new Error(
+    `The app did not start (tried ${[...candidates].join(', ')}).\n${output.slice(-2000)}`,
+  );
 }

@@ -30,31 +30,35 @@ describe('workspace path confinement', () => {
 
   it('denies parent-directory traversal', async () => {
     expect(await findPathViolation(cwd, 'Write', { file_path: '../x.txt' })).toMatch(/outside/i);
-    expect(await findPathViolation(cwd, 'Write', { file_path: 'a/../../x.txt' })).toMatch(/outside/i);
+    expect(await findPathViolation(cwd, 'Write', { file_path: 'a/../../x.txt' })).toMatch(
+      /outside/i,
+    );
   });
 
   it('denies absolute paths outside the workspace (the live "wrote to home dir" bug)', async () => {
-    expect(await findPathViolation(cwd, 'Write', { file_path: path.join(root, 'hello.txt') })).toMatch(
-      /outside/i,
-    );
+    expect(
+      await findPathViolation(cwd, 'Write', { file_path: path.join(root, 'hello.txt') }),
+    ).toMatch(/outside/i);
     expect(await findPathViolation(cwd, 'Write', { file_path: os_home() })).toMatch(/outside/i);
   });
 
   it('denies a sibling directory that merely shares the workspace name as a prefix', async () => {
-    expect(await findPathViolation(cwd, 'Write', { file_path: path.join(outside, 'x.txt') })).toMatch(
-      /outside/i,
-    );
+    expect(
+      await findPathViolation(cwd, 'Write', { file_path: path.join(outside, 'x.txt') }),
+    ).toMatch(/outside/i);
   });
 
   it('confines reads and searches too (no host file disclosure to the model)', async () => {
-    expect(await findPathViolation(cwd, 'Read', { file_path: path.join(root, 'secret.txt') })).toMatch(
-      /outside/i,
-    );
+    expect(
+      await findPathViolation(cwd, 'Read', { file_path: path.join(root, 'secret.txt') }),
+    ).toMatch(/outside/i);
     expect(await findPathViolation(cwd, 'Glob', { pattern: '*', path: root })).toMatch(/outside/i);
-    expect(await findPathViolation(cwd, 'Grep', { pattern: 'x', path: outside })).toMatch(/outside/i);
-    expect(await findPathViolation(cwd, 'NotebookEdit', { notebook_path: path.join(root, 'n.ipynb') })).toMatch(
+    expect(await findPathViolation(cwd, 'Grep', { pattern: 'x', path: outside })).toMatch(
       /outside/i,
     );
+    expect(
+      await findPathViolation(cwd, 'NotebookEdit', { notebook_path: path.join(root, 'n.ipynb') }),
+    ).toMatch(/outside/i);
   });
 
   it('a search with no explicit path defaults to the workspace and is allowed', async () => {
@@ -80,8 +84,12 @@ describe('workspace path confinement', () => {
     } catch {
       return; // environment cannot create links; nothing to assert
     }
-    expect(await findPathViolation(cwd, 'Write', { file_path: 'escape/x.txt' })).toMatch(/outside/i);
-    expect(await findPathViolation(cwd, 'Write', { file_path: path.join(link, 'x.txt') })).toMatch(/outside/i);
+    expect(await findPathViolation(cwd, 'Write', { file_path: 'escape/x.txt' })).toMatch(
+      /outside/i,
+    );
+    expect(await findPathViolation(cwd, 'Write', { file_path: path.join(link, 'x.txt') })).toMatch(
+      /outside/i,
+    );
   });
 
   it('confinementGate allows clean calls and denies violations with a message', async () => {

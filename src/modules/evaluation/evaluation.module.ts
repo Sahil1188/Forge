@@ -15,7 +15,15 @@ import { EvaluationWorker } from './evaluation.worker';
 import { EvaluationController } from './evaluation.controller';
 
 @Module({
-  imports: [WorkModule, RuntimesModule, PerformanceModule, MemoryModule, WorkspacesModule, EmployeesModule, BudgetsModule],
+  imports: [
+    WorkModule,
+    RuntimesModule,
+    PerformanceModule,
+    MemoryModule,
+    WorkspacesModule,
+    EmployeesModule,
+    BudgetsModule,
+  ],
   controllers: [EvaluationController],
   providers: [
     ScriptDiscovery,

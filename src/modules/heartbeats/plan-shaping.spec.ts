@@ -1,11 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { attachGoalAcceptance, capPlan, PlannedItem, resolveDependencies, sanitizeChecks, sanitizeItem } from './plan-shaping';
+import {
+  attachGoalAcceptance,
+  capPlan,
+  PlannedItem,
+  resolveDependencies,
+  sanitizeChecks,
+  sanitizeItem,
+} from './plan-shaping';
 
 const items = (...titles: string[]): PlannedItem[] => titles.map((title) => ({ title }));
 
 describe('sanitizeItem / sanitizeChecks', () => {
   it('keeps valid acceptance checks, trimmed', () => {
-    expect(sanitizeItem({ title: 't', acceptance: ['  node -e "1"  ', 'test'] })[0].acceptance).toEqual(['node -e "1"', 'test']);
+    expect(
+      sanitizeItem({ title: 't', acceptance: ['  node -e "1"  ', 'test'] })[0].acceptance,
+    ).toEqual(['node -e "1"', 'test']);
   });
 
   it('drops non-strings, blanks and over-long checks; caps the count', () => {
@@ -49,7 +58,11 @@ describe('capPlan', () => {
   });
 
   it('keeps explicit dependencies of folded items that point at kept items', () => {
-    const p: PlannedItem[] = [{ title: 'a' }, { title: 'b', dependsOn: [] }, { title: 'c', dependsOn: [0, 1] }];
+    const p: PlannedItem[] = [
+      { title: 'a' },
+      { title: 'b', dependsOn: [] },
+      { title: 'c', dependsOn: [0, 1] },
+    ];
     const capped = capPlan(p, 2);
     expect(capped[1].dependsOn).toEqual([0]); // index 1 was folded into itself, so only 0 remains
   });
@@ -66,7 +79,11 @@ describe('resolveDependencies', () => {
 
   it('honours explicit earlier-only deps, ignoring self/forward/negative', () => {
     expect(
-      resolveDependencies([{ title: 'a', dependsOn: [0, 1] }, { title: 'b', dependsOn: [] }, { title: 'c', dependsOn: [0, 2, 9, -1, 0] }]),
+      resolveDependencies([
+        { title: 'a', dependsOn: [0, 1] },
+        { title: 'b', dependsOn: [] },
+        { title: 'c', dependsOn: [0, 2, 9, -1, 0] },
+      ]),
     ).toEqual([[], [], [0]]);
   });
 });
@@ -80,7 +97,11 @@ describe('attachGoalAcceptance', () => {
   });
 
   it('makes the final item wait for every other loose end, so it checks the integrated result', () => {
-    const p: PlannedItem[] = [{ title: 'a' }, { title: 'b', dependsOn: [] }, { title: 'c', dependsOn: [] }];
+    const p: PlannedItem[] = [
+      { title: 'a' },
+      { title: 'b', dependsOn: [] },
+      { title: 'c', dependsOn: [] },
+    ];
     const { deps } = attachGoalAcceptance(p, resolveDependencies(p), ['check']);
     expect(deps[2].sort()).toEqual([0, 1]);
   });

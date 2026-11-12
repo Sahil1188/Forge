@@ -8,7 +8,10 @@ interface OpenAIToolCall {
 }
 
 interface OpenAIResponse {
-  choices?: Array<{ message?: { content?: string | null; tool_calls?: OpenAIToolCall[] }; finish_reason?: string }>;
+  choices?: Array<{
+    message?: { content?: string | null; tool_calls?: OpenAIToolCall[] };
+    finish_reason?: string;
+  }>;
   usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
   error?: { message?: string };
 }
@@ -20,10 +23,16 @@ export interface OpenAICompatibleConfig {
   model?: string;
 }
 
-export function openAICompatibleConfig(env: NodeJS.ProcessEnv = process.env): OpenAICompatibleConfig | null {
+export function openAICompatibleConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): OpenAICompatibleConfig | null {
   const baseUrl = env.FORGE_FALLBACK_BASE_URL?.trim();
   if (!baseUrl) return null;
-  return { baseUrl: baseUrl.replace(/\/+$/, ''), apiKey: env.FORGE_FALLBACK_API_KEY?.trim() || undefined, model: env.FORGE_FALLBACK_MODEL?.trim() || undefined };
+  return {
+    baseUrl: baseUrl.replace(/\/+$/, ''),
+    apiKey: env.FORGE_FALLBACK_API_KEY?.trim() || undefined,
+    model: env.FORGE_FALLBACK_MODEL?.trim() || undefined,
+  };
 }
 
 /**
@@ -38,7 +47,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
 
   async chat(request: ChatRequest): Promise<ChatResponse> {
     const config = openAICompatibleConfig();
-    if (!config) throw new Error('No fallback endpoint configured. Set FORGE_FALLBACK_BASE_URL (and FORGE_FALLBACK_API_KEY).');
+    if (!config)
+      throw new Error(
+        'No fallback endpoint configured. Set FORGE_FALLBACK_BASE_URL (and FORGE_FALLBACK_API_KEY).',
+      );
 
     const messages: Array<Record<string, unknown>> = [];
     if (request.system) messages.push({ role: 'system', content: request.system });
@@ -47,7 +59,11 @@ export class OpenAICompatibleProvider implements ModelProvider {
         messages.push({
           role: 'assistant',
           content: m.content || null,
-          tool_calls: m.toolCalls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.input ?? {}) } })),
+          tool_calls: m.toolCalls.map((c) => ({
+            id: c.id,
+            type: 'function',
+            function: { name: c.name, arguments: JSON.stringify(c.input ?? {}) },
+          })),
         });
       } else if (m.role === 'tool') {
         messages.push({ role: 'tool', tool_call_id: m.toolCallId, content: m.content });
@@ -59,13 +75,19 @@ export class OpenAICompatibleProvider implements ModelProvider {
     const body = JSON.stringify({
       model: request.model,
       messages,
-      tools: request.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.inputSchema } })),
+      tools: request.tools.map((t) => ({
+        type: 'function',
+        function: { name: t.name, description: t.description, parameters: t.inputSchema },
+      })),
       ...(request.maxTokens ? { max_tokens: request.maxTokens } : {}),
       usage: { include: true }, // OpenRouter reports the request's cost when asked
     });
     // A gateway cycling through exhausted providers can hang for minutes (observed live: OmniRoute
     // tried several dead providers until Node's own 5-minute timeout). Bound each attempt, retry once.
-    const timeoutMs = Math.max(10_000, Number(process.env.FORGE_FALLBACK_TIMEOUT_MS ?? 120_000) || 120_000);
+    const timeoutMs = Math.max(
+      10_000,
+      Number(process.env.FORGE_FALLBACK_TIMEOUT_MS ?? 120_000) || 120_000,
+    );
     let res: Response | undefined;
     let raw = '';
     for (let attempt = 1; attempt <= 2; attempt += 1) {
@@ -82,7 +104,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
         });
         raw = await res.text();
       } catch (err) {
-        if (attempt === 2) throw new Error(`Could not reach the fallback endpoint at ${config.baseUrl} (${(err as Error).message}).`);
+        if (attempt === 2)
+          throw new Error(
+            `Could not reach the fallback endpoint at ${config.baseUrl} (${(err as Error).message}).`,
+          );
         await new Promise((r) => setTimeout(r, 3_000));
         continue;
       }
@@ -101,18 +126,29 @@ export class OpenAICompatibleProvider implements ModelProvider {
     }
     if (!res.ok) {
       // Keep the provider's words (they say "rate limit", "insufficient credits", …) but never echo the key.
-      throw new Error(`Fallback provider error ${res.status}: ${(data.error?.message ?? raw).slice(0, 300)}`);
+      throw new Error(
+        `Fallback provider error ${res.status}: ${(data.error?.message ?? raw).slice(0, 300)}`,
+      );
     }
 
     const choice = data.choices?.[0];
     const toolCalls: ToolCall[] = (choice?.message?.tool_calls ?? [])
       .filter((c) => typeof c.function?.name === 'string')
-      .map((c, i) => ({ id: c.id || `call_${i}`, name: c.function!.name!, input: safeJson(c.function?.arguments ?? '{}') }));
+      .map((c, i) => ({
+        id: c.id || `call_${i}`,
+        name: c.function!.name!,
+        input: safeJson(c.function?.arguments ?? '{}'),
+      }));
 
     return {
       text: choice?.message?.content ?? '',
       toolCalls,
-      stopReason: toolCalls.length > 0 ? 'tool_use' : choice?.finish_reason === 'length' ? 'max_tokens' : 'end_turn',
+      stopReason:
+        toolCalls.length > 0
+          ? 'tool_use'
+          : choice?.finish_reason === 'length'
+            ? 'max_tokens'
+            : 'end_turn',
       usage: {
         inputTokens: data.usage?.prompt_tokens ?? 0,
         outputTokens: data.usage?.completion_tokens ?? 0,

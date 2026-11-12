@@ -19,8 +19,12 @@ describe('stopping processes a run left behind', () => {
     const runDir = mkdtempSync(path.join(os.tmpdir(), 'forge-run-cleanup-'));
     const otherDir = mkdtempSync(path.join(os.tmpdir(), 'forge-other-'));
     const keepAlive = 'setInterval(() => {}, 1000)';
-    const leftover = spawn(process.execPath, ['-e', keepAlive, path.join(runDir, 'server.js')], { stdio: 'ignore' });
-    const bystander = spawn(process.execPath, ['-e', keepAlive, path.join(otherDir, 'app.js')], { stdio: 'ignore' });
+    const leftover = spawn(process.execPath, ['-e', keepAlive, path.join(runDir, 'server.js')], {
+      stdio: 'ignore',
+    });
+    const bystander = spawn(process.execPath, ['-e', keepAlive, path.join(otherDir, 'app.js')], {
+      stdio: 'ignore',
+    });
     await new Promise((r) => setTimeout(r, 500));
     try {
       const prev = process.env.FORGE_SKIP_PROCESS_CLEANUP;

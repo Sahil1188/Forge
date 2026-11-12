@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "description": "Forge — Autonomous AI Workforce Operating System",
+  "license": "MIT",
+  "author": "Sahil Shaikh",
+  "engines": {
+    "node": ">=22"
+  },
   "bin": {
     "forge": "bin/forge.cjs"
   },
@@ -22,7 +27,7 @@
     "start:dev": "nest start --watch",
     "forge": "tsx bin/forge.ts",
     "lint": "eslint \"src/**/*.ts\"",
-    "format": "prettier --write \"src/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
@@ -30,7 +35,10 @@
     "db:migrate": "tsx src/infrastructure/database/migrate.ts",
     "db:seed": "tsx src/infrastructure/database/seed.ts",
     "db:up": "docker compose up -d",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "start:prod": "node dist/main.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\""
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.220",

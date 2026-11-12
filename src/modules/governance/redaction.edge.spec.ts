@@ -25,12 +25,17 @@ describe('redactSecrets — coverage', () => {
   }
 
   it('masks bearer tokens (case-insensitive scheme)', () => {
-    expect(redactSecrets('Authorization: Bearer abcdef0123456789xyz')).not.toContain('abcdef0123456789xyz');
-    expect(redactSecrets('authorization: bearer abcdef0123456789xyz')).not.toContain('abcdef0123456789xyz');
+    expect(redactSecrets('Authorization: Bearer abcdef0123456789xyz')).not.toContain(
+      'abcdef0123456789xyz',
+    );
+    expect(redactSecrets('authorization: bearer abcdef0123456789xyz')).not.toContain(
+      'abcdef0123456789xyz',
+    );
   });
 
   it('masks a multi-line private key block entirely', () => {
-    const key = '-----BEGIN RSA PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\nabc123\n-----END RSA PRIVATE KEY-----';
+    const key =
+      '-----BEGIN RSA PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\nabc123\n-----END RSA PRIVATE KEY-----';
     const out = redactSecrets(`key:\n${key}\ntrailer`);
     expect(out).not.toContain('MIIEvQIBADANBg');
     expect(out).not.toContain('BEGIN RSA');

@@ -7,7 +7,11 @@ import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { AppModule } from '../src/app.module';
 import { RuntimeRegistry } from '../src/modules/runtimes/runtime-registry';
 import { HeartbeatWorker } from '../src/modules/heartbeats/heartbeat.worker';
-import { AgentRuntime, RuntimeEvent, RuntimeRunContext } from '../src/modules/runtimes/runtime.port';
+import {
+  AgentRuntime,
+  RuntimeEvent,
+  RuntimeRunContext,
+} from '../src/modules/runtimes/runtime.port';
 
 /** A CEO that plans by writing PLAN.json with one coding work item. */
 class CeoMockRuntime implements AgentRuntime {
@@ -71,7 +75,10 @@ describe('Heartbeat + CEO planning (e2e)', () => {
         role: 'Backend Engineer',
         managerEmployeeId: ceo.body.id,
         runtimeConfig: { runtimeKey: 'claude_code', modelPolicy: { default: 'claude-sonnet-4-6' } },
-        skills: [{ skillKey: 'node', level: 90 }, { skillKey: 'sql', level: 80 }],
+        skills: [
+          { skillKey: 'node', level: 90 },
+          { skillKey: 'sql', level: 80 },
+        ],
       })
       .expect(201);
 

@@ -2,7 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { mkdtemp, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
-import { sdkQueryProvider, SDK_QUERY, SdkQueryFn } from '../src/modules/runtimes/claude-code/sdk.provider';
+import {
+  sdkQueryProvider,
+  SDK_QUERY,
+  SdkQueryFn,
+} from '../src/modules/runtimes/claude-code/sdk.provider';
 import { ClaudeCodeRuntime } from '../src/modules/runtimes/claude-code/claude-code.runtime';
 import { RuntimeEvent } from '../src/modules/runtimes/runtime.port';
 
@@ -12,7 +16,8 @@ import { RuntimeEvent } from '../src/modules/runtimes/runtime.port';
  * ANTHROPIC_API_KEY (that would force per-token billing — see docs §7.1).
  */
 // Opt in with a CI token, or locally with FORGE_LIVE=1 (uses your Claude Code login).
-const hasSubscriptionAuth = Boolean(process.env.CLAUDE_CODE_OAUTH_TOKEN) || process.env.FORGE_LIVE === '1';
+const hasSubscriptionAuth =
+  Boolean(process.env.CLAUDE_CODE_OAUTH_TOKEN) || process.env.FORGE_LIVE === '1';
 
 describe.skipIf(!hasSubscriptionAuth)('ClaudeCodeRuntime (live SDK)', () => {
   it('creates a file in an isolated workspace via a real run', async () => {
