@@ -1056,6 +1056,24 @@ describe('Execution lifecycle (e2e, scripted runtimes)', () => {
       expect(r[2].message).toMatch(/outside the workspace/);
     });
 
+    it('an agent can never stop Forge or stop processes by name (live bug: an agent killed Forge)', async () => {
+      const results: string[] = [];
+      const w = await world(async function* (ctx) {
+        yield { kind: 'session', sessionId: 's' } as RuntimeEvent;
+        for (const command of [
+          `Stop-Process -Id ${process.pid} -Force`,
+          'taskkill /F /IM node.exe',
+          'kill $!',
+        ]) {
+          results.push((await ctx.canUseTool!('Bash', { command })).behavior);
+        }
+        yield { kind: 'completed', result: 'ok', sessionId: 's' } as RuntimeEvent;
+      });
+      await worker().runOnce();
+      await cancel(w.workItemId);
+      expect(results).toEqual(['deny', 'deny', 'allow']);
+    });
+
     it('hands the runtime the denied and whitelisted tools for hard enforcement', async () => {
       const w = await world(() => events(completes()));
       await setGovernance(app, w.employeeId, {

@@ -26,6 +26,9 @@ limits, restarts and sleep.
 - **Live transcripts.** Every event is streamed to a file as it happens, so the console shows what an
   employee is doing right now.
 - **Clean up.** Processes started inside a run's folder are stopped when the run ends.
+- **Process guard.** An agent may stop only processes it started: by a literal PID, `kill %1` or
+  `kill $!`. Stopping Forge itself, or stopping processes by name, pattern, pipeline or variable, is
+  refused (an agent once killed Forge while looking for its own test server).
 - **Approvals.** A tool call that needs approval pauses the run; the decision resumes or stops it.
 - **Safe restarts (drain mode).** `POST /system/intake { paused: true }` stops new runs; once
   `safeToRestart` is true, restarting loses nothing. Interrupted runs and checks resume on start.
@@ -72,11 +75,12 @@ Subscribes to `work.assigned` (start work), `approval.approved` / `approval.deni
 | `fallback-drill.controller.ts` | The fallback drill. |
 | `keep-awake.service.ts` | Keeps Windows awake while work is in flight or queued. |
 | `process-cleanup.ts` | Stops processes left running inside a run's folder; `killTree`. |
+| `process-guard.ts` | Refuses shell commands that would stop processes the agent did not start. |
 | `workers.module.ts` | Wiring. |
 
 ## Tests
 
-Unit: `keep-awake.spec.ts`, `kill-tree.spec.ts`, `process-cleanup.spec.ts`,
+Unit: `process-guard.spec.ts`, `keep-awake.spec.ts`, `kill-tree.spec.ts`, `process-cleanup.spec.ts`,
 `ran-out-of-turns.spec.ts`, `desktop-app-guard.spec.ts`. End to end:
 `test/execution-lifecycle.e2e-spec.ts` (limits, fallback, teammates, transcripts, briefs),
 `test/execution.e2e-spec.ts`, `test/circuit-breakers.e2e-spec.ts`, `test/approvals.e2e-spec.ts`.

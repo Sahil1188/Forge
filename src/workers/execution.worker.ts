@@ -44,6 +44,7 @@ import {
   looksLikeUsageLimit,
 } from '../modules/runtimes/usage-limits';
 import { stopProcessesIn } from './process-cleanup';
+import { processKillViolation } from './process-guard';
 import { evaluations } from '../modules/evaluation/evaluation.schema';
 import { agentRuns } from '../modules/runtimes/agent-runs.schema';
 import { standardsFor } from '../modules/work/standards';
@@ -1328,6 +1329,12 @@ export class ExecutionWorker implements OnModuleInit, OnApplicationBootstrap, On
           message: `${desktop} is not available here: generate and check documents with a library instead.`,
         };
       }
+      // Agents may only stop processes they started (observed live: an agent searching for its test
+      // server by "main.js" force-stopped Forge itself, twice).
+      const kill = processKillViolation(toolName, input);
+      if (kill) {
+        return { behavior: 'deny', message: kill };
+      }
       const decision = this.governance.evaluate(employee.governance, toolName);
       if (decision === 'deny') {
         return { behavior: 'deny', message: `Tool ${toolName} denied by policy` };
@@ -1651,6 +1658,8 @@ export const FORGE_RULES = [
   '  evidence (command, output, what you tried). Do not keep trying the same fix.',
   '- Leave the repository runnable by someone who has never seen it: README.md with the exact install, run and',
   '  test commands and a working start command. Run it once yourself and stop anything you started.',
+  '- Stop only processes you started: `kill %1`, `kill $!`, or the PID your command printed. Forge itself and',
+  '  other employees run as node processes too, so never stop processes by name, pattern or search (blocked).',
   '- Documents are files you generate with code in this folder (Excel: openpyxl/exceljs, Word: python-docx/docx,',
   '  PDF: reportlab/pdfkit, slides: python-pptx) and check by reading them back with the same library. Never open',
   '  them with LibreOffice, Office, a browser or any desktop app (blocked).',

@@ -31,6 +31,7 @@ trusted people with accounts, on a machine they control.
 | A signed-in user exceeding their role | Accounts with per-company roles (viewer, member, admin, owner), checked on every request. |
 | An agent reading Forge's own secrets | Agents and their commands get an allowlisted environment: no `DATABASE_URL`, no `FORGE_API_TOKEN`, no fallback key, no API keys. |
 | An agent writing outside its workspace | File tools are confined to the run's workspace, with symlinks resolved. |
+| An agent stopping Forge or other processes | Shell commands may stop only processes the agent started (literal PID, `kill %1`, `kill $!`); stopping Forge, or stopping by name, pattern or query, is refused. |
 | An agent using a dangerous tool | Per-employee allow, deny and approval rules; approvals are single use and bound to the exact call. |
 | Secrets leaking into stored logs | Secret-shaped text is redacted from transcripts, logs and check output before storage. |
 | Runaway cost or loops | Platform-enforced limits on budget, run time, tool calls and turns. |
