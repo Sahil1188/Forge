@@ -102,8 +102,7 @@ function briefSection(e, data) {
 }
 
 function briefForm(e, b, custom) {
-  const value = (key, isList) => (b ? (isList ? (b[key] ?? []).join('
-') : (b[key] ?? '')) : '');
+  const value = (key, isList) => (b ? (isList ? (b[key] ?? []).join('\n') : (b[key] ?? '')) : '');
   return html`<form class="card" data-form="brief">
     <div class="card-head"><div><h2>Brief</h2><p class="muted" style="margin-top:var(--space-1)">What ${e.name} is told at the start of every task. Changes apply from their next task.</p></div>
       ${custom ? html`<span class="badge info">Edited</span>` : html`<span class="badge plain">Built-in</span>`}</div>
@@ -223,8 +222,7 @@ export const forms = {
     ctx.refresh();
   },
   async brief(data, form, ctx) {
-    const lines = (v) => String(v ?? '').split('
-').map((l) => l.trim()).filter(Boolean);
+    const lines = (v) => String(v ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
     const body = {};
     for (const [key, , , isList] of BRIEF_FIELDS) body[key] = isList ? lines(data[key]) : String(data[key] ?? '').trim();
     await ctx.api(`/employees/${ctx.params.id}/brief`, { method: 'PUT', body });
