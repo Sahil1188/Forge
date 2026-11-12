@@ -8,16 +8,29 @@ import { killTree } from './process-cleanup';
 
 const CHECK_MS = 30_000;
 
+/** ES_CONTINUOUS | ES_SYSTEM_REQUIRED: no idle sleep. */
+const SYSTEM_REQUIRED = 0x80000001;
+/** ES_DISPLAY_REQUIRED as well: the screen stays on. */
+const DISPLAY_REQUIRED = 0x80000003;
+
 /**
- * The PowerShell that holds the "system required" request: SetThreadExecutionState(ES_CONTINUOUS |
- * ES_SYSTEM_REQUIRED) keeps Windows from sleeping on idle while it runs (the screen may still turn off).
- * The request ends with the process, so a crash of Forge can never keep the PC awake for good.
+ * The PowerShell that holds the request via SetThreadExecutionState. On PCs with Modern Standby (S0
+ * low-power idle) the screen turning off IS sleep, and "system required" alone does not stop it
+ * (observed live: the PC went to standby, then hibernated, 15 minutes before Claude's limit reset, and
+ * the queued step waited until morning). So by default the display is kept on too; set
+ * FORGE_KEEP_DISPLAY_ON=0 to keep only the system awake. The request ends with the process, so a
+ * crash of Forge can never keep the PC awake for good.
  */
-export const KEEP_AWAKE_SCRIPT = [
-  "$sig = '[DllImport(\"kernel32.dll\")] public static extern uint SetThreadExecutionState(uint esFlags);'",
-  '$k = Add-Type -MemberDefinition $sig -Name Power -Namespace Forge -PassThru',
-  'while ($true) { [void]$k::SetThreadExecutionState([uint32]2147483649); Start-Sleep -Seconds 60 }',
-].join('; ');
+export function keepAwakeScript(keepDisplayOn = process.env.FORGE_KEEP_DISPLAY_ON !== '0'): string {
+  const flags = keepDisplayOn ? DISPLAY_REQUIRED : SYSTEM_REQUIRED;
+  return [
+    "$sig = '[DllImport(\"kernel32.dll\")] public static extern uint SetThreadExecutionState(uint esFlags);'",
+    '$k = Add-Type -MemberDefinition $sig -Name Power -Namespace Forge -PassThru',
+    `while ($true) { [void]$k::SetThreadExecutionState([uint32]${String(flags)}); Start-Sleep -Seconds 60 }`,
+  ].join('; ');
+}
+
+export const KEEP_AWAKE_SCRIPT = keepAwakeScript();
 
 /**
  * Keeps the computer awake while Forge has work in flight, and lets it sleep again when idle.
@@ -75,7 +88,7 @@ export class KeepAwakeService implements OnModuleInit, OnModuleDestroy {
   }
 
   private hold(): void {
-    this.holder = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', KEEP_AWAKE_SCRIPT], {
+    this.holder = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', keepAwakeScript()], {
       windowsHide: true,
       stdio: 'ignore',
     });
