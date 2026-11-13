@@ -16,4 +16,9 @@ Preview locally:
 cd website && python -m http.server 4500    # then open http://127.0.0.1:4500
 ```
 
-It can be published as-is with GitHub Pages (Settings → Pages → deploy from the `website/` folder).
+## Hosting on GitHub Pages
+
+The workflow `.github/workflows/pages.yml` publishes this folder every time it changes on `main`.
+One-time setup in the GitHub repository: **Settings → Pages → Source: GitHub Actions**. The site is then
+at `https://<your-user>.github.io/<repository>/`. All paths are relative, so it works under that sub-path
+and on a custom domain.
