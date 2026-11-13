@@ -1,0 +1,70 @@
+/* Field Notebook · motion.css — WEBSITE ONLY. Never load inside the platform UI. Requires tokens.css. */
+/* ---------------- Website ---------------- */
+.fw { font-size: 17px; line-height: 28px; background: var(--paper); }
+.fw-wrap { max-width: var(--site-max); margin: 0 auto; padding: 0 var(--space-6); }
+.fw-nav { display: flex; align-items: center; justify-content: space-between; height: 72px; }
+.fw-logo { display: flex; align-items: center; gap: var(--space-2); font-family: var(--font-serif); font-size: 22px; line-height: 28px; color: var(--ink); text-decoration: none; }
+.fw-links { display: flex; align-items: center; gap: var(--space-6); font-size: 14px; font-weight: 500; color: var(--graphite); }
+.fw-links a { color: inherit; text-decoration: none; transition: color 150ms ease-out; }
+.fw-links a:hover { color: var(--ink); }
+.fw-links a[aria-current="page"] { color: var(--ink); text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 1px; }
+.fw .fn-btn { transition: background-color 150ms ease-out; }
+.fw .fn-btn .arr { display: inline-block; transition: transform 150ms ease-out; }
+.fw .fn-btn:hover .arr, .fw-card:hover .arr { transform: translateX(3px); }
+.fw-hero { position: relative; overflow: hidden; background: var(--white); border: 1px solid var(--rule); border-radius: var(--radius-lg); padding: var(--space-6) var(--space-8) var(--space-12); }
+.fw-grid { position: absolute; inset: 0; background-image: linear-gradient(var(--rule) 1px, transparent 1px), linear-gradient(90deg, var(--rule) 1px, transparent 1px); background-size: 32px 32px; opacity: .55; -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 85%); mask-image: linear-gradient(180deg, #000 0%, transparent 85%); }
+.fw-glow { position: absolute; right: -10%; top: -30%; width: 60%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, rgba(30, 107, 92, .16), transparent 65%); }
+.fw-marks { position: absolute; inset: 14px; pointer-events: none; }
+.fw-marks i { position: absolute; width: 14px; height: 14px; border: 0 solid var(--rule-strong); }
+.fw-marks i:nth-child(1) { top: 0; left: 0; border-width: 1px 0 0 1px; } .fw-marks i:nth-child(2) { top: 0; right: 0; border-width: 1px 1px 0 0; } .fw-marks i:nth-child(3) { bottom: 0; left: 0; border-width: 0 0 1px 1px; } .fw-marks i:nth-child(4) { bottom: 0; right: 0; border-width: 0 1px 1px 0; }
+.fw-hero > .in { position: relative; }
+.fw-hero .fn-eyebrow { margin: 72px 0 var(--space-4); }
+.fw-display { margin: 0; font-family: var(--font-serif); font-weight: 400; font-size: 88px; line-height: 84px; letter-spacing: -.02em; max-width: 13ch; color: var(--ink); }
+.fw-display em, .fw-h1 em, .fw-h2 em { font-style: italic; color: var(--fern); }
+.fw-display .w { display: inline-block; }
+.fw-lead { margin: var(--space-5) 0 var(--space-8); max-width: 44ch; font-size: 19px; line-height: 30px; color: var(--graphite); }
+.fw-cta { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.fw-sec-head { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-8); }
+.fw-h1 { margin: var(--space-3) 0 0; font-family: var(--font-serif); font-weight: 400; font-size: 56px; line-height: 58px; letter-spacing: -.02em; }
+.fw-h2 { margin: 0; font-family: var(--font-serif); font-weight: 400; font-size: 40px; line-height: 44px; letter-spacing: -.015em; }
+.fw-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6); }
+.fw-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-6); background: var(--white); border: 1px solid var(--rule); border-radius: var(--radius-md); text-decoration: none; color: var(--ink); min-width: 0; }
+.fw-shot { aspect-ratio: 16/10; border-radius: var(--radius-sm); background: var(--paper); border: 1px solid var(--rule); margin-bottom: var(--space-3); padding: 12px; display: grid; gap: 8px; align-content: start; }
+.fw-shot span { height: 8px; border-radius: 4px; background: var(--linen); }
+.fw-card h3 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -.01em; display: flex; justify-content: space-between; transition: color 150ms ease-out; }
+.fw-card:hover h3 { color: var(--fern); }
+.fw-card p { margin: 0; font-size: 15px; line-height: 24px; color: var(--graphite); }
+.fw-card .tags { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3); }
+.fw-notes { display: grid; }
+.fw-note { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--space-4); padding: var(--space-5) 0; border-bottom: 1px solid var(--rule); text-decoration: none; color: var(--ink); }
+.fw-note b { display: block; font-family: var(--font-serif); font-weight: 400; font-size: 24px; line-height: 30px; transition: color 150ms ease-out; }
+.fw-note:hover b { color: var(--fern); }
+.fw-note span { color: var(--graphite); font-size: 15px; }
+@media (max-width: 760px) {
+  .fw-display { font-size: 48px; line-height: 48px; } .fw-h1 { font-size: 36px; line-height: 40px; } .fw-h2 { font-size: 30px; line-height: 34px; }
+  .fw-cards { grid-template-columns: 1fr; } .fw-links { display: none; } .fw-hero { padding: var(--space-5) var(--space-5) var(--space-10); }
+  .fw-note { grid-template-columns: 1fr; gap: var(--space-1); }
+  .fn-app { grid-template-columns: 1fr; } .fn-side { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .fw-play .fw-grid { animation: fw-grid var(--duration-hero) ease-out both; }
+  @keyframes fw-grid { from { opacity: 0; background-size: 48px 48px; } to { opacity: .55; background-size: 32px 32px; } }
+  .fw-play .fw-glow { animation: fw-glow 1400ms ease-out both; }
+  @keyframes fw-glow { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: none; } }
+  .fw-play .fw-display .w { animation: fw-rise 760ms cubic-bezier(.2,.7,0,1) both; animation-delay: calc(200ms + var(--i) * var(--stagger)); }
+  @keyframes fw-rise { from { opacity: 0; transform: translateY(.4em); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+  .fw-play .fw-marks i { animation: fw-mark 500ms ease-out both 700ms; }
+  @keyframes fw-mark { from { opacity: 0; transform: scale(1.8); } to { opacity: 1; transform: none; } }
+  .fw-play .fn-eyebrow::before { animation: fw-pulse 1.2s ease-out 3 900ms; }
+  @keyframes fw-pulse { 50% { box-shadow: 0 0 0 6px rgba(255, 90, 31, .18); } }
+  .fw-fade.fw-in { animation: fw-up var(--duration-reveal) cubic-bezier(.2,.7,0,1) both; }
+  @keyframes fw-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+}
+.fw-replay { position: absolute; z-index: 2; right: 20px; bottom: 20px; font-family: var(--font-mono); font-size: 11px; background: var(--white); border: 1px solid var(--rule); border-radius: var(--radius-full); padding: 6px 12px; cursor: pointer; color: var(--ink); }
+
+/* Usage
+   1. Hero markup: <header class="fw-hero" id="hero"><div class="fw-grid"></div><div class="fw-glow"></div>
+      <div class="fw-marks"><i></i><i></i><i></i><i></i></div><div class="in">…<h1 class="fw-display">I build AI systems that <em>actually</em> ship.</h1>…</div></header>
+   2. Split the headline into <span class="w" style="--i:N"> words, then add .fw-play to the hero once it is in view.
+   3. Section titles: add .fw-fade; add .fw-in when they first enter the viewport.
+   Everything is visible before and without the script; prefers-reduced-motion turns all of it off. */

@@ -1,0 +1,91 @@
+/* Field Notebook tokens · Sahil Shaikh. Light only: there is no dark theme. */
+:root {
+  color-scheme: light;
+  --paper: #fafaf7;
+  --white: #ffffff;
+  --linen: #f3f3ef;
+  --rule: #e6e5e0;
+  --rule-strong: #8d8c86;
+  --ink: #1c1c1a;
+  --ink-secondary: #3d3c38;
+  --graphite: #64635e;
+  --placeholder: #72716b;
+  --fern: #1e6b5c;
+  --fern-hover: #185a4d;
+  --fern-soft: #e4f1ed;
+  --fern-text: #17574b;
+  --on-fern: #ffffff;
+  --signal: #ff5a1f;
+  --signal-soft: #fff0e8;
+  --signal-text: #a8390c;
+  --success: var(--fern-text);
+  --success-soft: var(--fern-soft);
+  --warning: #8a5a00;
+  --warning-soft: #fff4dc;
+  --danger: #b42318;
+  --danger-soft: #fdeceb;
+  --chart-1: #1e6b5c;
+  --chart-2: #7fa99b;
+  --chart-3: #b9b7ae;
+  --chart-highlight: #ff5a1f;
+  --shadow-pop: 0 4px 12px -2px #1c1c1a14, 0 2px 4px -2px #1c1c1a0f;
+  --shadow-modal: 0 20px 48px -12px #1c1c1a2e, 0 4px 8px -4px #1c1c1a14;
+  --focus-ring: 0 0 0 2px #ffffff, 0 0 0 4px #1e6b5c;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+  --space-32: 128px;
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
+  --control-sm: 28px;
+  --control-md: 34px;
+  --control-lg: 40px;
+  --row-height: 44px;
+  --topbar-height: 56px;
+  --sidebar-width: 232px;
+  --content-max: 1200px;
+  --site-max: 1120px;
+  --mark-size: 8px;
+  --icon-md: 16px;
+  --icon-lg: 20px;
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --duration-reveal: 700ms;
+  --duration-hero: 900ms;
+  --stagger: 70ms;
+  --opacity-disabled: 0.45;
+  --ease-reveal: cubic-bezier(.2, .7, 0, 1);
+  --font-serif: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --font-sans: Onest, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Martian Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+.ui-page-title { font-family: var(--font-serif); font-size: 32px; line-height: 36px; font-weight: 400; letter-spacing: -0.01em; }
+.ui-numeric { font-family: var(--font-serif); font-size: 36px; line-height: 40px; font-weight: 400; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.ui-heading { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: -0.01em; }
+.ui-subheading { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 600; }
+.ui-body { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 400; }
+.ui-body-lg { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 400; }
+.ui-label { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 500; }
+.ui-small { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 400; }
+.ui-meta { font-family: var(--font-mono); font-size: 11px; line-height: 16px; font-weight: 400; }
+.web-display { font-family: var(--font-serif); font-size: 88px; line-height: 84px; font-weight: 400; letter-spacing: -0.02em; }
+.web-h1 { font-family: var(--font-serif); font-size: 56px; line-height: 58px; font-weight: 400; letter-spacing: -0.02em; }
+.web-h2 { font-family: var(--font-serif); font-size: 40px; line-height: 44px; font-weight: 400; letter-spacing: -0.015em; }
+.web-h3 { font-family: var(--font-sans); font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; }
+.web-lead { font-family: var(--font-sans); font-size: 19px; line-height: 30px; font-weight: 400; }
+.web-body { font-family: var(--font-sans); font-size: 17px; line-height: 28px; font-weight: 400; }
+.web-eyebrow { font-family: var(--font-mono); font-size: 11px; line-height: 16px; font-weight: 400; }
+/* Platform UI never animates: wrap the app in .fn-app */
+.fn-app, .fn-app * { transition: none !important; animation: none !important; }
+@media (max-width: 760px) { .web-display { font-size: 48px; line-height: 48px; } .web-h1 { font-size: 36px; line-height: 40px; } .web-h2 { font-size: 30px; line-height: 34px; } }
