@@ -1,0 +1,13 @@
+node_modules
+dist
+workspaces
+data
+.git
+.env
+.env.*
+!.env.example
+coverage
+graphify-out
+.claude
+website
+*.log

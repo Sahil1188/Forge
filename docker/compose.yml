@@ -1,0 +1,53 @@
+# Forge + PostgreSQL. Everything runs in containers, including the agents' commands.
+#
+#   1. Put these two lines in a .env file next to this one:
+#        FORGE_API_TOKEN=<a long random value: openssl rand -hex 32>
+#        CLAUDE_CODE_OAUTH_TOKEN=<from `claude setup-token`>
+#   2. docker compose up -d
+#   3. Open http://localhost:3000/?token=<your FORGE_API_TOKEN> once (it sets a sign-in cookie).
+#
+# Finished projects appear in ./forge-projects next to this file.
+name: forge
+
+services:
+  forge:
+    image: ${FORGE_IMAGE:-ghcr.io/sahil1188/forge:latest}
+    build:
+      context: ..
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://forge:${POSTGRES_PASSWORD:-forge}@postgres:5432/forge
+      # Forge refuses to listen beyond localhost without a token; inside a container it must.
+      FORGE_API_TOKEN: ${FORGE_API_TOKEN:?Set FORGE_API_TOKEN in .env (openssl rand -hex 32)}
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+      FORGE_FALLBACK_BASE_URL: ${FORGE_FALLBACK_BASE_URL:-}
+      FORGE_FALLBACK_API_KEY: ${FORGE_FALLBACK_API_KEY:-}
+      FORGE_FALLBACK_MODEL: ${FORGE_FALLBACK_MODEL:-}
+    ports:
+      # Bound to this machine only.
+      - "127.0.0.1:${FORGE_PORT:-3000}:3000"
+    volumes:
+      - ./forge-projects:/data/projects
+      - forge-workspaces:/app/workspaces
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: forge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-forge}
+      POSTGRES_DB: forge
+    volumes:
+      - forge-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forge -d forge"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  forge-workspaces:
+  forge-pgdata:

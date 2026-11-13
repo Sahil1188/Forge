@@ -143,3 +143,37 @@ img { max-width: 100%; height: auto; display: block; }
   .defs dd { margin-bottom: var(--space-3); }
   .fw-hero { padding: var(--space-8) var(--space-5); }
 }
+
+/* Try it: a simulated goal board */
+.demo-form { display: flex; gap: var(--space-3); align-items: flex-end; flex-wrap: wrap; }
+.demo-form .fn-field { flex: 1 1 360px; }
+.demo-input { height: var(--control-lg); font-size: 16px; }
+.chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-4) 0 var(--space-6); }
+.chip { font: inherit; font-size: 13px; font-weight: 500; height: var(--control-sm); padding: 0 var(--space-3); border-radius: var(--radius-full); border: 1px solid var(--rule); background: var(--white); color: var(--ink-secondary); cursor: pointer; transition: border-color var(--duration-fast) ease-out, color var(--duration-fast) ease-out; }
+.chip:hover { border-color: var(--fern); color: var(--fern-text); }
+.demo { display: grid; gap: var(--space-4); }
+.demo-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); }
+.demo-table td { white-space: nowrap; }
+.demo-table td.step { white-space: normal; color: var(--ink); font-weight: 500; }
+.demo-table .who { display: inline-flex; align-items: center; gap: var(--space-2); }
+.demo-table .fn-avatar { width: 24px; height: 24px; font-size: 10px; }
+.demo-table tr.new td { background: var(--fern-soft); }
+.demo-table tbody tr td { transition: background-color var(--duration-base) ease-out; }
+.demo-empty { text-align: center; color: var(--graphite); padding-block: var(--space-8); white-space: normal; }
+.demo-log { margin: 0; min-height: 16px; }
+.demo .fn-badge { transition: background-color var(--duration-fast) ease-out, color var(--duration-fast) ease-out; }
+
+/* Install tabs */
+.install .fn-tabs { margin-bottom: var(--space-6); }
+.install-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); max-width: 860px; }
+.install-panel p code { overflow-wrap: anywhere; }
+.install-panel[hidden] { display: none; }
+.install-panel p { margin: 0; color: var(--graphite); }
+.install-why b { color: var(--ink); font-weight: 600; }
+.install-panel a { color: var(--fern); }
+
+@media (max-width: 760px) {
+  .demo-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .demo-table th:nth-child(4), .demo-table td:nth-child(4) { display: none; }
+  .demo-form .fn-btn { width: 100%; }
+}

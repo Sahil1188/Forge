@@ -1,8 +1,25 @@
 {
-  "name": "forge",
+  "name": "forge-ai",
   "version": "0.1.0",
-  "private": true,
-  "description": "Forge — Autonomous AI Workforce Operating System",
+  "description": "An AI company on your own machine: an executive plans your idea, specialists build it in parallel, every step is tested before it is accepted.",
+  "keywords": [
+    "ai",
+    "agents",
+    "orchestration",
+    "claude",
+    "claude-code",
+    "autonomous",
+    "multi-agent",
+    "code-generation"
+  ],
+  "homepage": "https://sahil1188.github.io/Forge/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sahil1188/Forge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Sahil1188/Forge/issues"
+  },
   "license": "MIT",
   "author": "Sahil Shaikh",
   "engines": {

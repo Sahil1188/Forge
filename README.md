@@ -71,26 +71,40 @@ commands, run it on Linux, macOS or WSL2 (see [Security](#security)).
 
 ## Quick start
 
+Three ways in. Each needs Claude Code signed in to a Claude subscription (`claude login`, or
+`CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`).
+
+**npm** (quickest; needs Node.js 22 and Docker for the database):
+
 ```bash
-git clone <this repository> forge && cd forge
-npm install
-cp .env.example .env            # defaults work for local use
-npm run db:up                   # PostgreSQL in Docker on port 5433
-npm run db:migrate
+npm install -g forge-ai
+forge up        # PostgreSQL in Docker, migrations, a demo company
+forge serve     # http://127.0.0.1:3000
+```
+
+**Docker** (everything in containers, including the agents' commands; needs only Docker):
+
+```bash
+curl -O https://raw.githubusercontent.com/Sahil1188/Forge/main/docker/compose.yml
+echo "FORGE_API_TOKEN=$(openssl rand -hex 32)" > .env
+echo "CLAUDE_CODE_OAUTH_TOKEN=<from: claude setup-token>" >> .env
+docker compose up -d
+```
+
+Open `http://localhost:3000/?token=<your FORGE_API_TOKEN>` once. Finished projects appear in
+`./forge-projects`.
+
+**From source** (for contributors):
+
+```bash
+git clone https://github.com/Sahil1188/Forge.git && cd Forge
+npm install && cp .env.example .env
+npm run db:up && npm run db:migrate
 npm run build && npm run start:prod
 ```
 
-Open **http://127.0.0.1:3000**. Create a company, add the starter team, and give it a goal.
-
-Or from the command line (`npm run forge -- <command>`, or `npm link` for a global `forge`):
-
-```bash
-forge up                                       # build, PostgreSQL, migrate, seed
-forge task "Create index.js exporting add(a, b), with tests run by npm test"
-forge goal "Build a Node.js string toolkit: slugify, capitalize, truncate, with tests"
-```
-
-See [`bin/README.md`](bin/README.md) for the CLI.
+Open **http://127.0.0.1:3000**, create a company, add the starter team, and give it a goal, or run
+`forge goal "A landing page for my bakery"`. See [`bin/README.md`](bin/README.md) for the CLI.
 
 ### Fallback when Claude is at its limit
 
