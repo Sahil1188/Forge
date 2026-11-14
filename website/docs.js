@@ -1,4 +1,4 @@
-// Docs page: search the contents, mark the section being read, filter the settings table.
+// Docs section: search the contents, mark the section being read, filter the settings table.
 (() => {
   const toc = document.getElementById('toc');
   if (!toc) return;

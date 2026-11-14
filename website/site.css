@@ -121,7 +121,7 @@ img { max-width: 100%; height: auto; display: block; }
 /* Footer */
 .foot { border-top: 1px solid var(--rule); padding-block: var(--space-6); }
 .foot-in { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
-.foot-links { display: flex; gap: var(--space-6); font-size: 14px; font-weight: 500; }
+.foot-links { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); font-size: 14px; font-weight: 500; }
 .foot-links a { color: var(--graphite); text-decoration: none; transition: color var(--duration-fast) ease-out; }
 .foot-links a:hover { color: var(--ink); }
 
@@ -178,7 +178,8 @@ img { max-width: 100%; height: auto; display: block; }
   .demo-form .fn-btn { width: 100%; }
 }
 
-/* Docs page: a sticky contents column beside the article; contents fold into a disclosure on phones. */
+/* Docs section: a sticky contents column beside the article; contents fold into a disclosure on phones. */
+.docs-band { border-top: 1px solid var(--rule); }
 .docs-link { margin: var(--space-8) 0 0; color: var(--graphite); }
 .docs-link a, .doc a { color: var(--fern-text); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

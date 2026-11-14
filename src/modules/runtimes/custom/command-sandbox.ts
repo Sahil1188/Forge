@@ -50,6 +50,17 @@ export class HostCommandSandbox implements CommandSandbox {
 }
 
 /**
+ * On Linux and macOS the command runs as the user who owns the workspace. Root with every capability
+ * dropped cannot write into a folder owned by another user, and files it did create would belong to
+ * root on the host. HOME points at /tmp so tools that write caches (npm, pip) work. Docker Desktop on
+ * Windows maps ownership itself, so no user is passed there.
+ */
+export function hostUser(uid = process.getuid?.(), gid = process.getgid?.()): string[] {
+  if (uid === undefined || gid === undefined) return [];
+  return ['--user', `${uid}:${gid}`, '-e', 'HOME=/tmp'];
+}
+
+/**
  * Production isolation: `docker run --rm` with no network, capped memory/CPU/pids,
  * and only the workspace bind-mounted at /work. The container is torn down after
  * each command, so nothing persists and the host filesystem/network is unreachable.
@@ -80,6 +91,7 @@ export class DockerCommandSandbox implements CommandSandbox {
       'ALL',
       '--security-opt',
       'no-new-privileges',
+      ...hostUser(),
       '-v',
       `${path.resolve(cwd)}:/work`,
       '-w',

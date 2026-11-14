@@ -1,5 +1,10 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { createCommandSandbox, HostCommandSandbox, DockerCommandSandbox } from './command-sandbox';
+import {
+  createCommandSandbox,
+  HostCommandSandbox,
+  DockerCommandSandbox,
+  hostUser,
+} from './command-sandbox';
 
 describe('command sandbox', () => {
   afterEach(() => {
@@ -27,5 +32,10 @@ describe('command sandbox', () => {
   it('host sandbox flags a failing command as an error', async () => {
     const result = await new HostCommandSandbox().run('exit 1', process.cwd());
     expect(result.isError).toBe(true);
+  });
+
+  it('runs the container as the workspace owner where the OS has users', () => {
+    expect(hostUser(1001, 118)).toEqual(['--user', '1001:118', '-e', 'HOME=/tmp']);
+    expect(hostUser(undefined, undefined)).toEqual([]);
   });
 });

@@ -1,8 +1,8 @@
 # `website/` — the Forge website
 
-Two static pages: `index.html` explains what Forge does, how it works, the console, settings, safety and
-how to start; `docs.html` is the documentation (install, tutorials, the console, internals, CLI,
-settings and API reference, troubleshooting). Plain HTML, CSS and small scripts (`site.js`, `demo.js`,
+One static page, `index.html`: what Forge does, how it works, the console, settings, safety, how to
+start, and the full documentation in its Docs section (install, tutorials, the console, internals, CLI,
+settings and API reference, troubleshooting). `docs.html` only forwards old links to that section. Plain HTML, CSS and small scripts (`site.js`, `demo.js`,
 `docs.js`): no build step, no framework.
 
 - Follows the **Field Notebook** brand (`brands/field-notebook.md`, Part 3 · Website).
