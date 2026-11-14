@@ -1,8 +1,8 @@
 # `bin/` — the Forge CLI
 
-One entry point to stand the platform up and drive it. Run in dev with
-`npm run forge -- <command>` (or `node bin/forge.cjs <command>`), or install globally
-(`npm link` / `npm i -g .`) for a `forge` command.
+One entry point to stand the platform up and drive it. Install it with
+`npm install -g @sahil1188/forge` for a `forge` command. From a source checkout, run
+`npm run forge -- <command>`, or `npm link` to put this checkout's `forge` on your PATH.
 
 | File | What it does |
 | --- | --- |

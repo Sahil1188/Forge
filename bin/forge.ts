@@ -160,7 +160,11 @@ const commands: Record<string, Cmd> = {
       if (checks.length) console.log(`✔︎ Acceptance checks: ${checks.length}`);
       await app.get(GoalsService).start(goal.id);
 
-      console.log(direct ? '⚡ Direct task — skipping CEO planning…' : '🧠 CEO planning the goal…');
+      console.log(
+        direct
+          ? '⚡ Direct task — no planning step…'
+          : '🧠 The owning executive is planning the goal…',
+      );
       const plan = await app.get(CeoPlanner).plan(goal.id);
       console.log(`   → project ${plan.projectId} with ${plan.workItems.length} work item(s):`);
       for (const wi of plan.workItems) {
@@ -244,19 +248,24 @@ const commands: Record<string, Cmd> = {
 function usage(): void {
   console.log(
     [
-      'Forge — Autonomous AI Workforce OS',
+      'Forge — describe it, your AI team builds it',
       '',
       'Usage: forge <command>',
       '',
-      '  up               Postgres + migrate + seed (one command)',
-      '  seed             (re)seed the demo company',
-      '  serve            start the HTTP server + /ui dashboard',
+      '  up               PostgreSQL in Docker, migrations and a demo company (one command)',
+      '  seed             re-create the demo company',
+      '  serve            start the server and the console on http://127.0.0.1:3000',
       '  status           show companies and their employees',
-      '  goal "<text>"    the CEO plans it, employees build it, end-to-end, live',
+      '  goal "<text>"    the owning executive plans it, the team builds it, live',
       '  task "<text>"    a short task: one employee, no planning step (fast, cheap)',
-      '                   options: --check "<cmd>" (repeatable, must exit 0)  --company <id>',
       '',
-      'Live runs need Claude Code auth: `claude setup-token` then export CLAUDE_CODE_OAUTH_TOKEN.',
+      'Options for goal and task:',
+      '  --check "<cmd>"  must exit 0 for the work to pass (repeatable)',
+      '  --company <id>   which company does the work',
+      '  --direct         on goal: skip planning, like task',
+      '',
+      'Live runs need Claude Code signed in (`claude login`), or CLAUDE_CODE_OAUTH_TOKEN',
+      'from `claude setup-token`. Docs: https://sahil1188.github.io/Forge/#docs',
     ].join('\n'),
   );
 }
