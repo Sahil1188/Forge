@@ -4,7 +4,7 @@ All notable changes are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [0.1.0] — 2026-11-12
+## [0.1.0] — 2026-11-14
 
 First public release.
 
@@ -58,4 +58,14 @@ First public release.
 - Allowlisted environments for agents and their commands; `ANTHROPIC_API_KEY` always removed.
 - Per-employee tool rules, workspace confinement, single-use approvals, secret redaction.
 - Budget, time, tool-call and turn limits enforced by the platform.
-- Optional Docker sandbox for custom-runtime commands and checks.
+- Optional Docker sandbox for custom-runtime commands and checks; it runs commands as the workspace
+  owner, so it can write to the workspace on Linux.
+- Agents may stop only processes they started.
+
+### Install
+
+- npm package `forge-ai` (`forge up`, `forge serve`, `forge goal`, `forge task`). Uses the SDK's bundled
+  Claude Code program, or the `claude` on PATH when npm skipped that optional download
+  (`FORGE_CLAUDE_PATH` to choose).
+- Docker image and compose file with PostgreSQL.
+- Website with documentation: https://sahil1188.github.io/Forge/
