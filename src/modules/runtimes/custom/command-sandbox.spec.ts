@@ -35,7 +35,7 @@ describe('command sandbox', () => {
   });
 
   it('runs the container as the workspace owner where the OS has users', () => {
-    expect(hostUser(1001, 118)).toEqual(['--user', '1001:118', '-e', 'HOME=/tmp']);
-    expect(hostUser(undefined, undefined)).toEqual([]);
+    expect(hostUser({ uid: 1001, gid: 118 })).toEqual(['--user', '1001:118', '-e', 'HOME=/tmp']);
+    expect(hostUser({})).toEqual([]);
   });
 });

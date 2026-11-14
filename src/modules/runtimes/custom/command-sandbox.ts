@@ -55,9 +55,11 @@ export class HostCommandSandbox implements CommandSandbox {
  * root on the host. HOME points at /tmp so tools that write caches (npm, pip) work. Docker Desktop on
  * Windows maps ownership itself, so no user is passed there.
  */
-export function hostUser(uid = process.getuid?.(), gid = process.getgid?.()): string[] {
-  if (uid === undefined || gid === undefined) return [];
-  return ['--user', `${uid}:${gid}`, '-e', 'HOME=/tmp'];
+export function hostUser(
+  ids: { uid?: number; gid?: number } = { uid: process.getuid?.(), gid: process.getgid?.() },
+): string[] {
+  if (ids.uid === undefined || ids.gid === undefined) return [];
+  return ['--user', `${ids.uid}:${ids.gid}`, '-e', 'HOME=/tmp'];
 }
 
 /**
