@@ -411,7 +411,7 @@
         </div>
         <div class="install-panel" role="tabpanel" id="ip-npm" aria-labelledby="i-npm">
           <p class="install-why"><b>The quickest start.</b> Needs Node.js 22, Docker for the database, and Claude Code signed in (<code>claude login</code>).</p>
-          <div class="code"><pre><code>npm install -g forge-ai
+          <div class="code"><pre><code>npm install -g @sahil1188/forge
 forge up        # database, migrations and a demo company
 forge serve     # open http://127.0.0.1:3000</code></pre><button class="fn-btn fn-btn-ghost fn-btn-sm copy" type="button">Copy</button></div>
           <p>Then give it work from the console, or: <code>forge goal "A landing page for my bakery"</code></p>
@@ -551,7 +551,7 @@ npm run build &amp;&amp; npm run start:prod</code></pre><button class="fn-btn fn
             </div>
             <div class="install-panel" role="tabpanel" id="dp-npm" aria-labelledby="d-npm">
               <p class="install-why"><b>Quickest.</b> Forge runs on your machine; PostgreSQL runs in Docker.</p>
-              <div class="code"><pre><code>npm install -g forge-ai
+              <div class="code"><pre><code>npm install -g @sahil1188/forge
   forge up        # starts PostgreSQL in Docker, applies migrations, adds a demo company
   forge serve     # the server and console on http://127.0.0.1:3000</code></pre><button class="fn-btn fn-btn-ghost fn-btn-sm copy" type="button">Copy</button></div>
               <p>Run <code>forge</code> commands from any folder. Settings come from environment variables or a <code>.env</code> file in the folder you run them from (see <a href="#r-config">Settings</a>).</p>
@@ -970,7 +970,7 @@ npm run build &amp;&amp; npm run start:prod</code></pre><button class="fn-btn fn
           <h2>Troubleshooting</h2>
           <div class="faq">
             <details><summary>Steps fail straight away and nothing runs</summary><p>Usually Claude Code isn't signed in. Check <b>Settings → Claude Code</b>, then run <code>claude login</code> on this machine, or set <code>CLAUDE_CODE_OAUTH_TOKEN</code> from <code>claude setup-token</code>.</p></details>
-            <details><summary>"Native CLI binary … not found"</summary><p>npm skipped the SDK's optional download. Forge falls back to the <code>claude</code> on your PATH; if Claude Code is installed elsewhere, set <code>FORGE_CLAUDE_PATH</code> to it, or reinstall with <code>npm install -g forge-ai</code> on a steady connection.</p></details>
+            <details><summary>"Native CLI binary … not found"</summary><p>npm skipped the SDK's optional download. Forge falls back to the <code>claude</code> on your PATH; if Claude Code is installed elsewhere, set <code>FORGE_CLAUDE_PATH</code> to it, or reinstall with <code>npm install -g @sahil1188/forge</code> on a steady connection.</p></details>
             <details><summary>"Refusing to listen on … without FORGE_API_TOKEN"</summary><p>You set <code>FORGE_HOST</code> to something other than <code>127.0.0.1</code>. Set <code>FORGE_API_TOKEN</code> to 24+ random characters (<code>openssl rand -hex 32</code>).</p></details>
             <details><summary>Can't connect to the database</summary><p>With npm, run <code>forge up</code> (Docker must be running). With your own PostgreSQL, set <code>DATABASE_URL</code>. The default port is 5433, not 5432, to avoid clashing with a local PostgreSQL.</p></details>
             <details><summary>A step keeps getting sent back</summary><p>Open the step and read its checks: each shows the command and its output. A failing <code>regression#n</code> check means the step broke an earlier step's work; the output names which. Retry after fixing the check, or request changes with clearer instructions.</p></details>

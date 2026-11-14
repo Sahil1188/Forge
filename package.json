@@ -1,6 +1,6 @@
 {
-  "name": "forge-ai",
-  "version": "0.1.0",
+  "name": "@sahil1188/forge",
+  "version": "0.1.1",
   "description": "An AI company on your own machine: an executive plans your idea, specialists build it in parallel, every step is tested before it is accepted.",
   "keywords": [
     "ai",
@@ -24,6 +24,9 @@
   "author": "Sahil Shaikh",
   "engines": {
     "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "bin": {
     "forge": "bin/forge.cjs"
@@ -75,7 +78,8 @@
     "playwright-core": "^1.65.0",
     "postgres": "^3.4.5",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "tsx": "^4.23.15"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
@@ -89,7 +93,6 @@
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.10.0",
     "supertest": "^7.3.2",
-    "tsx": "^4.23.15",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.72.2",
     "unplugin-swc": "^1.6.0",

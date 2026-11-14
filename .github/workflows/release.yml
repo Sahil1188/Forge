@@ -2,7 +2,7 @@ name: Release
 
 # Push a tag like v0.1.0 to publish:
 #   - the Docker image to ghcr.io/sahil1188/forge (:0.1.0 and :latest), using the built-in token
-#   - the npm package forge-ai, if the repository has an NPM_TOKEN secret
+#   - the npm package @sahil1188/forge, if the repository has an NPM_TOKEN secret
 on:
   push:
     tags: ['v*.*.*']
@@ -48,7 +48,7 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
       - run: npm ci
-      - name: Publish forge-ai
+      - name: Publish @sahil1188/forge
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |

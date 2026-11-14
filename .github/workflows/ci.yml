@@ -29,6 +29,14 @@ jobs:
       - run: npm run format:check
       - run: npm test
       - run: npm run build
+      # Install the package the way users do and run the CLI, so a runtime dependency listed
+      # only under devDependencies (or a file left out of the package) fails here.
+      - name: Package installs and runs
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP" && npm init -y > /dev/null
+          npm install --omit=dev "$RUNNER_TEMP"/sahil1188-forge-*.tgz
+          npx forge help
 
   e2e:
     name: End-to-end tests

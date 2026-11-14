@@ -2,6 +2,7 @@ import { briefForEmployee } from '../employees/employee-briefs';
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { readFileSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import * as path from 'node:path';
 import { and, desc, eq, gte, inArray, ne, sql } from 'drizzle-orm';
@@ -27,6 +28,16 @@ import { WORKFORCE_ROUTER, WorkforceRouterPort } from '../routing/workforce/work
 import { ReputationService } from '../performance/reputation.service';
 import { FULL_ORG, modelPolicyFor } from './org-template';
 import { inferTaskType } from '../work/domains';
+
+/** Forge's own version, from the package.json beside src/ and dist/ (not the caller's folder). */
+const FORGE_VERSION = ((): string => {
+  try {
+    const file = path.resolve(__dirname, '..', '..', '..', 'package.json');
+    return (JSON.parse(readFileSync(file, 'utf8')) as { version: string }).version;
+  } catch {
+    return 'unknown';
+  }
+})();
 
 const git = promisify(execFile);
 const MAX_FILE_BYTES = 256 * 1024;
@@ -564,7 +575,7 @@ export class ConsoleService {
       this.availability.check('custom', 'openai'),
     ]);
     return {
-      version: process.env.npm_package_version ?? '0.1.0',
+      version: FORGE_VERSION,
       autoRun: !process.env.FORGE_MANUAL_DRIVE,
       sandbox: (process.env.FORGE_SANDBOX ?? 'host').toLowerCase(),
       // Latest subscription usage-limit state per runtime (status, resetsAt epoch ms, window, utilization).

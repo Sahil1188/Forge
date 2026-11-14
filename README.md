@@ -79,7 +79,7 @@ Three ways in. Each needs Claude Code signed in to a Claude subscription (`claud
 **npm** (quickest; needs Node.js 22 and Docker for the database):
 
 ```bash
-npm install -g forge-ai
+npm install -g @sahil1188/forge
 forge up        # PostgreSQL in Docker, migrations, a demo company
 forge serve     # http://127.0.0.1:3000
 ```

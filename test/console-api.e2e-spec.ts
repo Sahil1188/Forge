@@ -92,7 +92,9 @@ describe('Console API — endpoints shaped for the web UI (e2e)', () => {
       'custom:openai',
     ]);
     expect(res.body.runtimes[0].available).toBe(true);
-    expect(typeof res.body.version).toBe('string');
+    // Forge's own version, not the version of whatever folder it was started from.
+    const pkg = JSON.parse(await readFile(path.join(__dirname, '..', 'package.json'), 'utf8'));
+    expect(res.body.version).toBe(pkg.version);
   });
 
   describe('starter team', () => {

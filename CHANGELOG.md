@@ -4,6 +4,13 @@ All notable changes are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] — 2026-11-15
+
+- The npm package is published as `@sahil1188/forge` (`npm install -g @sahil1188/forge`); the name
+  `forge-ai` is held by npm. The command is still `forge`.
+- Dependency updates: Claude Agent SDK 0.3.322, NestJS 11.2.9, class-validator 0.15,
+  playwright-core 1.65; GitHub Actions on their current major versions.
+
 ## [0.1.0] — 2026-11-14
 
 First public release.
@@ -64,7 +71,7 @@ First public release.
 
 ### Install
 
-- npm package `forge-ai` (`forge up`, `forge serve`, `forge goal`, `forge task`). Uses the SDK's bundled
+- npm package (`forge up`, `forge serve`, `forge goal`, `forge task`). Uses the SDK's bundled
   Claude Code program, or the `claude` on PATH when npm skipped that optional download
   (`FORGE_CLAUDE_PATH` to choose).
 - Docker image and compose file with PostgreSQL.
