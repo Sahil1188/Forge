@@ -20,7 +20,19 @@ const exec = promisify(execFile);
 
 // Dependency/build output, plus Forge's per-run CLAUDE.md (employee identity + memories),
 // which belongs to the run, not to the deliverable.
-const DEFAULT_GITIGNORE = ['node_modules/', 'dist/', 'build/', '.venv/', 'venv/', '__pycache__/', '*.pyc', '.next/', 'target/', '/CLAUDE.md', ''].join('\n');
+const DEFAULT_GITIGNORE = [
+  'node_modules/',
+  'dist/',
+  'build/',
+  '.venv/',
+  'venv/',
+  '__pycache__/',
+  '*.pyc',
+  '.next/',
+  'target/',
+  '/CLAUDE.md',
+  '',
+].join('\n');
 const MAIN = 'main';
 
 /**
@@ -46,7 +58,10 @@ export class LocalWorktreeWorkspace implements WorkspacePort {
   async projectPath(projectId: string): Promise<string> {
     const known = this.paths.get(projectId);
     if (known) return known;
-    const [row] = await this.db.select({ repoPath: projects.repoPath }).from(projects).where(eq(projects.id, projectId));
+    const [row] = await this.db
+      .select({ repoPath: projects.repoPath })
+      .from(projects)
+      .where(eq(projects.id, projectId));
     const resolved = row?.repoPath ?? path.join(this.legacyProjectsDir, projectId);
     if (row) this.paths.set(projectId, resolved);
     return resolved;
@@ -64,8 +79,14 @@ export class LocalWorktreeWorkspace implements WorkspacePort {
       // Unique per run, so a rework attempt never collides with an earlier attempt's branch.
       branch = `forge/${input.workItemId ?? 'run'}-${folder.slice(0, 8)}`;
       await this.withLock(input.projectId, async () => {
-        const merging = input.mergeFrom && (await this.branchExists(repo, input.mergeFrom)) ? input.mergeFrom : undefined;
-        const start = !merging && input.baseRef && (await this.branchExists(repo, input.baseRef)) ? input.baseRef : MAIN;
+        const merging =
+          input.mergeFrom && (await this.branchExists(repo, input.mergeFrom))
+            ? input.mergeFrom
+            : undefined;
+        const start =
+          !merging && input.baseRef && (await this.branchExists(repo, input.baseRef))
+            ? input.baseRef
+            : MAIN;
         baseRef = merging ? `${MAIN}+${merging}` : start;
         await this.git(repo, ['worktree', 'add', '-q', '-b', branch, root, start]);
         if (merging) {
@@ -124,7 +145,10 @@ export class LocalWorktreeWorkspace implements WorkspacePort {
       } catch (err) {
         await this.git(repo, ['merge', '--abort']).catch(() => undefined);
         const e = err as { stdout?: string; stderr?: string; message?: string };
-        return { merged: false, conflict: `${e.stdout ?? ''}${e.stderr ?? ''}`.trim() || e.message };
+        return {
+          merged: false,
+          conflict: `${e.stdout ?? ''}${e.stderr ?? ''}`.trim() || e.message,
+        };
       }
     });
   }
@@ -138,13 +162,22 @@ export class LocalWorktreeWorkspace implements WorkspacePort {
       } catch (err) {
         await this.git(rootPath, ['merge', '--abort']).catch(() => undefined);
         const e = err as { stdout?: string; stderr?: string; message?: string };
-        return { merged: false, conflict: `${e.stdout ?? ''}${e.stderr ?? ''}`.trim() || e.message };
+        return {
+          merged: false,
+          conflict: `${e.stdout ?? ''}${e.stderr ?? ''}`.trim() || e.message,
+        };
       }
     });
   }
 
-  async seedFile(projectId: string, relPath: string, content: string, message: string): Promise<void> {
-    if (relPath.includes('..') || path.isAbsolute(relPath)) throw new Error(`Refusing to seed ${relPath} outside the project`);
+  async seedFile(
+    projectId: string,
+    relPath: string,
+    content: string,
+    message: string,
+  ): Promise<void> {
+    if (relPath.includes('..') || path.isAbsolute(relPath))
+      throw new Error(`Refusing to seed ${relPath} outside the project`);
     const repo = await this.ensureProjectRepo(projectId);
     await this.withLock(projectId, async () => {
       const file = path.join(repo, relPath);
@@ -202,7 +235,10 @@ export class LocalWorktreeWorkspace implements WorkspacePort {
   private async withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
     const prev = this.locks.get(key) ?? Promise.resolve();
     const next = prev.then(fn, fn);
-    this.locks.set(key, next.catch(() => undefined));
+    this.locks.set(
+      key,
+      next.catch(() => undefined),
+    );
     return next;
   }
 
