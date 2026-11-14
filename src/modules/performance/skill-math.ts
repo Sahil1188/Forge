@@ -2,6 +2,11 @@ import { DOMAINS, domainOf } from '../work/domains';
 const NEUTRAL_SCORE = 60;
 const MAX_GAIN = 8;
 const DROP_FACTOR = 4;
+/** A failed step scores at most this, so it always counts against the employee. */
+const FAILED_SCORE_CAP = 40;
+/** Each failed attempt before a pass takes this share off the score, up to MAX_DISCOUNTED_RETRIES. */
+const RETRY_DISCOUNT = 0.1;
+const MAX_DISCOUNTED_RETRIES = 4;
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const round1 = (v: number) => Math.round(v * 10) / 10;
@@ -24,6 +29,19 @@ export function computeSkillDelta(
   }
   // Failures decrement regardless of complexity (no diminishing returns).
   return round1(performance * DROP_FACTOR);
+}
+
+/**
+ * The score that skills and reputation learn from. Checks score 100 or 0 each, so a failed step can
+ * still average well (one failing check of three is 67); a failure is capped below neutral so it never
+ * raises anything. A pass is discounted for every failed attempt before it, so passing on the fifth
+ * try is worth less than passing first time, but never drops below neutral: passing work does not
+ * lower a skill.
+ */
+export function learningScore(overallScore: number, passed: boolean, retries: number): number {
+  if (!passed) return Math.min(overallScore, FAILED_SCORE_CAP);
+  const counted = clamp(Math.floor(retries), 0, MAX_DISCOUNTED_RETRIES);
+  return Math.max(NEUTRAL_SCORE, Math.round(overallScore * (1 - RETRY_DISCOUNT * counted)));
 }
 
 /** Maps a work item's task type + priority to a 0..1 complexity factor. */

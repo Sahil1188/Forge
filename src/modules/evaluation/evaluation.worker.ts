@@ -18,7 +18,7 @@ import { EvaluationsService } from './evaluations.service';
 import { Evaluation } from './evaluation.schema';
 import { PerformanceService } from '../performance/performance.service';
 import { SkillProgressionService } from '../performance/skill-progression.service';
-import { complexityOf } from '../performance/skill-math';
+import { complexityOf, learningScore } from '../performance/skill-math';
 import { MemoryService } from '../memory/memory.service';
 
 /** Raised when an item is not (or no longer) in `evaluating` — e.g. a replayed event. */
@@ -262,24 +262,30 @@ export class EvaluationWorker implements OnModuleInit, OnApplicationBootstrap {
     // Performance + skill growth are driven strictly by the objective evaluation
     // (spec §13/§14) — never self-awarded. Skipped when inconclusive (no score).
     if (item.assignedEmployeeId && result.overallScore !== null) {
+      const passed = result.status !== 'failed';
+      const earlier = (await this.evaluations.findByWorkItem(item.id)).slice(1); // newest first; [0] is this one
+      // Retries are failed attempts, not extra runs: a run that continued after a time limit is
+      // the same attempt.
+      const retries = earlier.filter((e) => e.status === 'failed').length;
+      const score = learningScore(result.overallScore, passed, retries);
       await this.performance.recordFromEvaluation({
         employeeId: item.assignedEmployeeId,
         workItemId: item.id,
         taskType: item.taskType,
         result,
+        learningScore: score,
         run: runs[0],
-        retries: Math.max(0, runs.length - 1),
+        retries,
       });
       await this.skills.applyGrowth(
         item.assignedEmployeeId,
-        result.overallScore,
+        item.taskType,
+        score,
         complexityOf(item.taskType, item.priority),
       );
       // Write a durable lesson so the employee carries this outcome into future
       // runs (spec §15). Failures are salient — you learn most from what broke.
-      const passed = result.status !== 'failed';
       const failing = Object.entries(result.dimensions).filter(([, d]) => d.exitCode !== 0);
-      const earlier = (await this.evaluations.findByWorkItem(item.id)).slice(1); // newest first; [0] is this one
       const lastFailure = earlier.find((e) => e.status === 'failed');
       const changed = (
         (item.artifacts as { filesChanged?: string[] } | null)?.filesChanged ?? []

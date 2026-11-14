@@ -11,7 +11,7 @@ import { CandidateInput, executionPool, selectBest } from './candidate-scoring';
 
 /**
  * V1 Workforce Router: scores same-company employees on skill+role+availability
- * (reputation wired but weight 0). Only employees whose runtime can actually run are
+ * (reputation is 15% of the score). Only employees whose runtime can actually run are
  * considered, and executives are used for execution only when nobody else is available.
  */
 @Injectable()

@@ -59,7 +59,10 @@ describe('Performance & reputation (e2e)', () => {
         name: 'Grace',
         role: 'Backend Engineer',
         runtimeConfig: { runtimeKey: 'mock-perf', modelPolicy: { default: 'm' } },
-        skills: [{ skillKey: 'node', level: 50 }],
+        skills: [
+          { skillKey: 'node', level: 50 },
+          { skillKey: 'negotiation', level: 50 },
+        ],
       })
       .expect(201);
 
@@ -103,5 +106,10 @@ describe('Performance & reputation (e2e)', () => {
       (s: { skillKey: string }) => s.skillKey === 'node',
     );
     expect(node.level).toBeGreaterThan(50);
+    // Only skills the task exercised move: a coding pass says nothing about negotiation.
+    const negotiation = after.body.employee.skills.find(
+      (s: { skillKey: string }) => s.skillKey === 'negotiation',
+    );
+    expect(negotiation.level).toBe(50);
   });
 });

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeReputation } from './reputation-math';
-import { computeSkillDelta, complexityOf } from './skill-math';
+import { computeSkillDelta, complexityOf, learningScore } from './skill-math';
+import { skillFitsTask } from '../work/domains';
 
 describe('computeReputation', () => {
   it('returns null with no history', () => {
@@ -50,5 +51,30 @@ describe('complexityOf', () => {
   it('nudges up with priority and stays within [0,1]', () => {
     expect(complexityOf('coding', 100)).toBeGreaterThan(complexityOf('coding', 0));
     expect(complexityOf('architecture', 100)).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('learningScore', () => {
+  it('counts a failed step below neutral even when most of its checks passed', () => {
+    expect(learningScore(67, false, 0)).toBe(40); // 1 of 3 checks failed
+    expect(computeSkillDelta(50, learningScore(67, false, 0), 0.8)).toBeLessThan(0);
+    expect(learningScore(0, false, 2)).toBe(0); // a worse failure stays worse
+  });
+
+  it('discounts a pass for each failed attempt before it, never below neutral', () => {
+    expect(learningScore(100, true, 0)).toBe(100);
+    expect(learningScore(100, true, 1)).toBe(90);
+    expect(learningScore(100, true, 4)).toBe(60);
+    expect(learningScore(100, true, 9)).toBe(60);
+    expect(computeSkillDelta(50, learningScore(100, true, 4), 0.8)).toBe(0);
+  });
+});
+
+describe('skillFitsTask', () => {
+  it("matches only the skills the task's domain exercises", () => {
+    expect(skillFitsTask('coding', 'SQL')).toBe(true);
+    expect(skillFitsTask('coding', 'typescript')).toBe(true);
+    expect(skillFitsTask('coding', 'negotiation')).toBe(false);
+    expect(skillFitsTask('generic', 'typescript')).toBe(false);
   });
 });

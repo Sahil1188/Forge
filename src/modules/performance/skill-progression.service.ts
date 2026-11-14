@@ -2,11 +2,14 @@ import { Inject, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { DRIZZLE, Database } from '../../infrastructure/database/drizzle.provider';
 import { employeeSkills, EmployeeSkill } from '../employees/employees.schema';
+import { skillFitsTask } from '../work/domains';
 import { computeSkillDelta } from './skill-math';
 
 /**
  * Applies non-uniform skill growth after an evaluation (spec §14). Treats the
- * employee profile as a dynamic capability model, not an XP counter.
+ * employee profile as a dynamic capability model, not an XP counter. Only the
+ * skills the task exercised move (the same domain hints routing uses); work of a
+ * kind with no skill hints, or with none of the employee's skills, moves none.
  */
 @Injectable()
 export class SkillProgressionService {
@@ -14,13 +17,13 @@ export class SkillProgressionService {
 
   async applyGrowth(
     employeeId: string,
+    taskType: string,
     evaluationScore: number,
     complexity: number,
   ): Promise<EmployeeSkill[]> {
-    const skills = await this.db
-      .select()
-      .from(employeeSkills)
-      .where(eq(employeeSkills.employeeId, employeeId));
+    const skills = (
+      await this.db.select().from(employeeSkills).where(eq(employeeSkills.employeeId, employeeId))
+    ).filter((skill) => skillFitsTask(taskType, skill.skillKey));
 
     const updated: EmployeeSkill[] = [];
     for (const skill of skills) {

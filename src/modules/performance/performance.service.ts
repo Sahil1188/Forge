@@ -10,6 +10,8 @@ export interface RecordFromEvaluationInput {
   workItemId: string;
   taskType: string;
   result: EvaluationResult;
+  /** The score learning uses (see learningScore); defaults to the raw overall score. */
+  learningScore?: number;
   run?: AgentRun;
   retries?: number;
   humanApproval?: boolean;
@@ -36,7 +38,7 @@ export class PerformanceService {
         reliabilityScore: reliability,
         testsScore: testDim?.score ?? null,
         securityScore: null,
-        evaluationScore: overall,
+        evaluationScore: input.learningScore ?? overall,
         costUsd: input.run?.estimatedCostUsd ?? null,
         durationMs: input.run?.durationMs ?? null,
         humanApproval: input.humanApproval ?? false,

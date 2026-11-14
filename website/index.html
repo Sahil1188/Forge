@@ -789,7 +789,7 @@ npm run build &amp;&amp; npm run start:prod</code></pre><button class="fn-btn fn
         <section class="doc-sec" id="i-learning">
           <h2>Learning</h2>
           <p>After every scored evaluation, Forge writes a <b>lesson</b> to the employee's memory: what broke and the evidence, or what fixed it. Before each run, the most relevant lessons (by salience, task type and recency) go into the prompt as "Lessons: never repeat these mistakes".</p>
-          <p>A <b>performance record</b> stores the scores, cost, duration and retries. <b>Reputation</b> is a recency-weighted average. <b>Skills</b> move unevenly: great work on hard steps raises them most, trivial work barely moves them, failures lower them. <b>Specialisation</b> is inferred from history. Because it all comes from objective checks, never the model's own account, the learning can be trusted.</p>
+          <p>A <b>performance record</b> stores the scores, cost, duration and retries. <b>Reputation</b> is a recency-weighted average. <b>Skills</b> move unevenly, and only the ones the step exercised: great work on hard steps raises them most, trivial work barely moves them, failures lower them. A failed step always counts against the employee, even if most of its checks passed, and a pass is worth less for every failed attempt before it, so passing first time builds reputation fastest. <b>Specialisation</b> is inferred from history. Because it all comes from objective checks, never the model's own account, the learning can be trusted.</p>
         </section>
 
         <section class="doc-sec" id="i-limits">

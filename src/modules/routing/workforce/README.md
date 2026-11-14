@@ -5,7 +5,7 @@ Chooses the best-fit employee for a work item — by capability, not just role l
 | File | What it does | Significance |
 | --- | --- | --- |
 | `workforce-router.port.ts` | `WorkforceRouterPort` interface + `WORKFORCE_ROUTER` token + decision types. | The pluggable seam. |
-| `candidate-scoring.ts` | **Pure** scoring: `scoreCandidate` weighs skill match + role affinity + availability (reputation is an input at **weight 0** in V1) and `selectBest` picks the winner. | Deterministic, unit-testable routing logic; flip reputation on later without changing callers. |
+| `candidate-scoring.ts` | **Pure** scoring: `scoreCandidate` weighs skill match (40%), role affinity (30%), availability (15%) and reputation (15%; newcomers count as neutral) and `selectBest` picks the winner. | Deterministic, unit-testable routing logic. |
 | `scoring-workforce-router.service.ts` | The service: gathers same-company candidates with their skills + computed reputation, then delegates to `selectBest`. | Wires the pure scorer to real data. |
 
 **Relationships:** consumes `employees` (candidates + skills) and `performance` (reputation); its

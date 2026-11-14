@@ -177,6 +177,30 @@ export function domainOf(taskType: string): Domain {
   return (DOMAINS as Record<string, Domain>)[taskType] ?? DOMAINS.generic;
 }
 
+/** Whether an employee's skill is one this kind of work exercises, by the domain's skill hints. */
+export function skillFitsTask(taskType: string, skillKey: string): boolean {
+  const words = wordsOf(skillKey);
+  return domainOf(taskType).skills.some((hint) => {
+    const parts = wordsOf(hint);
+    // A hint matches words in order, each at the start of a word ("test" fits "testing"). Short
+    // hints must be whole words, so "go" fits the Go language but not "governance" or "negotiation".
+    return words.some((_, i) =>
+      parts.every((part, j) => {
+        const word = words[i + j];
+        if (word === undefined) return false;
+        return part.length <= 3 ? word === part || word === `${part}s` : word.startsWith(part);
+      }),
+    );
+  });
+}
+
+function wordsOf(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9+#]+/)
+    .filter(Boolean);
+}
+
 /** Best-guess domain for free text (direct tasks, change requests, choosing a goal's planner). */
 export function inferTaskType(text: string): TaskType {
   return classify(text).taskType;

@@ -8,6 +8,13 @@ All notable changes are listed here. The format follows
 
 - The npm package is published as `@sahil1188/forge` (`npm install -g @sahil1188/forge`); the name
   `forge-ai` is held by npm. The command is still `forge`.
+- Learning is fairer: only the skills a step exercised move; a failed step always counts against the
+  employee, even when most of its checks passed; a pass is discounted for each failed attempt before
+  it; retries count failed attempts, not runs that continued after a time limit.
+- Skill matching uses whole words for short hints, so "go" no longer matches "governance" or
+  "negotiation" (this also sharpens routing).
+- The installed `forge` command works again (`tsx` is a runtime dependency), CI installs the packed
+  package and runs it, and `/system` reports Forge's own version.
 - Dependency updates: Claude Agent SDK 0.3.322, NestJS 11.2.9, class-validator 0.15,
   playwright-core 1.65; GitHub Actions on their current major versions.
 

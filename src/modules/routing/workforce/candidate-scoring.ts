@@ -1,5 +1,5 @@
 import { WorkforceRoutingDecision } from './workforce-router.port';
-import { domainOf } from '../../work/domains';
+import { domainOf, skillFitsTask } from '../../work/domains';
 
 export interface CandidateSkill {
   skillKey: string;
@@ -29,7 +29,7 @@ const AVAILABILITY: Record<string, number> = {
 function relevantSkillScore(taskType: string, skills: CandidateSkill[]): number {
   if (skills.length === 0) return 0;
   const hints = domainOf(taskType).skills;
-  const matched = skills.filter((s) => hints.some((h) => s.skillKey.toLowerCase().includes(h)));
+  const matched = skills.filter((s) => skillFitsTask(taskType, s.skillKey));
   // No relevant skill: general seniority still counts, but at half weight (a finance expert is not a coder).
   const pool = matched.length > 0 ? matched : skills;
   const avg = pool.reduce((a, s) => a + s.level, 0) / pool.length;
