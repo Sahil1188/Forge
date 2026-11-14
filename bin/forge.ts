@@ -224,7 +224,7 @@ const commands: Record<string, Cmd> = {
       const { LocalWorktreeWorkspace } =
         await import('../dist/modules/workspaces/local-worktree.workspace.js');
       console.log(
-        `   Deliverable (project main): ${app.get(LocalWorktreeWorkspace).projectPath(plan.projectId)}`,
+        `   Deliverable (project main): ${await app.get(LocalWorktreeWorkspace).projectPath(plan.projectId)}`,
       );
       return result.exitCode;
     } catch (err) {

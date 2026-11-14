@@ -1,4 +1,5 @@
 import { Provider } from '@nestjs/common';
+import { claudeExecutable } from './claude-executable';
 import { SdkMessage } from './message-normalizer';
 
 export const SDK_QUERY = Symbol('SDK_QUERY');
@@ -25,7 +26,13 @@ export const sdkQueryProvider: Provider = {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const mod = require('@anthropic-ai/claude-agent-sdk');
-      real = (args: SdkQueryArgs) => mod.query(args) as AsyncIterable<SdkMessage>;
+      const executable = claudeExecutable();
+      real = (args: SdkQueryArgs) =>
+        mod.query(
+          executable
+            ? { ...args, options: { pathToClaudeCodeExecutable: executable, ...args.options } }
+            : args,
+        ) as AsyncIterable<SdkMessage>;
     } catch {
       real = undefined;
     }
