@@ -8,6 +8,8 @@ Forge runs on your **Claude subscription** through the Claude Agent SDK. When Cl
 limit, work moves to any OpenAI-compatible endpoint you configure (OmniRoute, OpenRouter, OpenAI…) and
 returns to Claude after the reset, so work doesn't stop.
 
+**Website and docs:** https://sahil1188.github.io/Forge/ ([tutorials, internals and reference](https://sahil1188.github.io/Forge/docs.html))
+
 > Forge lets AI agents write and run code on your computer. Read [Security](#security) before you
 > expose it beyond `localhost` or run it on a machine with data you care about.
 

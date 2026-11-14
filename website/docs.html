@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Forge Docs</title>
+  <meta name="description" content="How to install and use Forge, step-by-step tutorials, how every part works inside, and the full reference for the command line, settings and API." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="components.css" />
+  <link rel="stylesheet" href="motion.css" />
+  <link rel="stylesheet" href="site.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23fafaf7'/%3E%3Ctext x='8' y='24' font-family='Georgia' font-size='22' fill='%231c1c1a'%3EF%3C/text%3E%3Crect x='22' y='20' width='5' height='5' fill='%23ff5a1f'/%3E%3C/svg%3E" />
+</head>
+<body class="fw docs-page">
+  <a class="skip" href="#doc">Skip to content</a>
+
+  <div class="nav-band">
+    <nav class="fw-wrap fw-nav" aria-label="Main">
+      <a class="fw-logo" href="index.html"><span class="fn-mark" aria-hidden="true"></span>Forge</a>
+      <div class="fw-links">
+        <a href="index.html#try">Try it</a>
+        <a href="index.html#how">How it works</a>
+        <a href="index.html#features">Features</a>
+        <a href="docs.html" aria-current="page">Docs</a>
+        <a href="https://github.com/Sahil1188/Forge">GitHub</a>
+        <a href="#install" class="fn-btn fn-btn-primary">Get started <span class="arr" aria-hidden="true">→</span></a>
+      </div>
+    </nav>
+  </div>
+
+  <div class="fw-wrap docs">
+    <aside class="docs-side" aria-label="Documentation">
+      <details class="toc" open>
+        <summary>On this page</summary>
+        <label class="fn-field toc-search">
+          <span class="sr">Search the docs</span>
+          <input class="fn-input" id="toc-filter" type="search" placeholder="Search the docs" autocomplete="off" />
+        </label>
+        <nav id="toc">
+          <p class="toc-group">Getting started</p>
+          <a href="#overview">What Forge is</a>
+          <a href="#concepts">Key ideas</a>
+          <a href="#requirements">Requirements</a>
+          <a href="#install">Install</a>
+          <a href="#first-run">First run</a>
+
+          <p class="toc-group">Tutorials</p>
+          <a href="#t-task">1 · Your first task</a>
+          <a href="#t-goal">2 · Build a product</a>
+          <a href="#t-changes">3 · Ask for changes</a>
+          <a href="#t-team">4 · Shape your team</a>
+          <a href="#t-fallback">5 · Never stop at the limit</a>
+          <a href="#t-server">6 · Run it for a team</a>
+          <a href="#t-restart">7 · Restart safely</a>
+
+          <p class="toc-group">The console</p>
+          <a href="#c-screens">Screens</a>
+          <a href="#c-employee">An employee's page</a>
+          <a href="#c-settings">Settings</a>
+
+          <p class="toc-group">How it works inside</p>
+          <a href="#i-lifecycle">The life of a goal</a>
+          <a href="#i-planning">Planning</a>
+          <a href="#i-routing">Routing</a>
+          <a href="#i-execution">Running a step</a>
+          <a href="#i-evaluation">Checking the work</a>
+          <a href="#i-learning">Learning</a>
+          <a href="#i-limits">Usage limits and fallback</a>
+          <a href="#i-reliability">Reliability</a>
+          <a href="#i-brands">Brands</a>
+
+          <p class="toc-group">Reference</p>
+          <a href="#r-cli">Command line</a>
+          <a href="#r-config">Settings (environment)</a>
+          <a href="#r-api">HTTP API</a>
+          <a href="#r-roles">Roles</a>
+
+          <p class="toc-group">Help</p>
+          <a href="#security">Security</a>
+          <a href="#troubleshooting">Troubleshooting</a>
+          <a href="#contributing">Contributing</a>
+        </nav>
+        <p class="toc-empty fn-meta" id="toc-empty" hidden>Nothing matches. Try another word.</p>
+      </details>
+    </aside>
+
+    <main class="doc" id="doc">
+      <header class="doc-head">
+        <span class="fn-eyebrow">documentation</span>
+        <h1 class="fw-h1">Forge <em>docs</em></h1>
+        <p class="fw-lead">Everything you need: how to install it, step-by-step tutorials, what each part of the console does, how Forge works inside, and the full reference.</p>
+        <div class="doc-paths">
+          <a class="doc-path" href="#install"><b>New here?</b><span>Install, then follow tutorial 1. About ten minutes.</span></a>
+          <a class="doc-path" href="#i-lifecycle"><b>Curious how it works?</b><span>The life of a goal, from one sentence to merged code.</span></a>
+          <a class="doc-path" href="#r-config"><b>Looking something up?</b><span>Every setting, command and endpoint.</span></a>
+        </div>
+      </header>
+
+      <!-- ============ GETTING STARTED ============ -->
+      <section class="doc-sec" id="overview">
+        <h2>What Forge is</h2>
+        <p>Forge is an AI company that runs on your own computer. You describe what you want built. An executive plans it, specialists build it in parallel, every step is checked by real tests before it is accepted, and the finished product lands in a git repository on your disk.</p>
+        <p>It runs on your <b>Claude subscription</b> through Claude Code. When Claude reaches its usage limit, work can move to any OpenAI-compatible endpoint you configure (OmniRoute, OpenRouter, OpenAI…) and returns to Claude after the reset.</p>
+        <div class="callout"><b>Forge lets AI agents write and run code on your computer.</b> Read <a href="#security">Security</a> before exposing it beyond <code>localhost</code> or using it on a machine with data you can't restore.</div>
+      </section>
+
+      <section class="doc-sec" id="concepts">
+        <h2>Key ideas</h2>
+        <p>Seven words cover all of Forge:</p>
+        <dl class="defs doc-defs">
+          <dt>Company</dt><dd>Your workspace. It has a team, a projects folder, a default brand and its own budget. You can have more than one.</dd>
+          <dt>Employee</dt><dd>An AI agent with a role (CTO, backend engineer, designer…), skills, a <b>brief</b> (mission, standards, way of working, definition of done), permissions, a model and a budget.</dd>
+          <dt>Task</dt><dd>A small job for one employee. No planning step: fastest and cheapest.</dd>
+          <dt>Goal</dt><dd>A bigger idea. An executive turns it into a plan of steps.</dd>
+          <dt>Step</dt><dd>One piece of a plan (also called a work item): an owner, the folders it owns, what it depends on, and acceptance checks.</dd>
+          <dt>Run</dt><dd>One attempt by an employee at a step, in its own git worktree, with a live transcript.</dd>
+          <dt>Deliverable</dt><dd>The project's <code>main</code> branch. Work reaches it only after passing every check.</dd>
+        </dl>
+      </section>
+
+      <section class="doc-sec" id="requirements">
+        <h2>Requirements</h2>
+        <ul class="ticks">
+          <li><b>Claude Code signed in</b> to a Claude subscription: run <code>claude login</code> once. For servers and Docker, create a token with <code>claude setup-token</code> and set <code>CLAUDE_CODE_OAUTH_TOKEN</code>.</li>
+          <li><b>Node.js 22</b> or newer (npm and source installs).</li>
+          <li><b>Docker</b> for the database, or your own PostgreSQL 16. The Docker install needs nothing else.</li>
+          <li><b>Git</b>.</li>
+          <li>Optional: Chrome, Edge or Chromium, for the visual review of screens.</li>
+        </ul>
+        <div class="callout warn"><b>Never set <code>ANTHROPIC_API_KEY</code> for Forge.</b> It switches Claude Code to per-token billing. Forge removes it from every process it starts, but don't set it in the first place.</div>
+      </section>
+
+      <section class="doc-sec" id="install">
+        <h2>Install</h2>
+        <p>Pick one. Each ends with the console open at <code>http://127.0.0.1:3000</code>.</p>
+        <div class="install">
+          <div class="fn-tabs" role="tablist" aria-label="Ways to install">
+            <button class="fn-tab" role="tab" id="d-npm" aria-controls="dp-npm" aria-selected="true">npm</button>
+            <button class="fn-tab" role="tab" id="d-docker" aria-controls="dp-docker" aria-selected="false" tabindex="-1">docker</button>
+            <button class="fn-tab" role="tab" id="d-source" aria-controls="dp-source" aria-selected="false" tabindex="-1">from source</button>
+          </div>
+          <div class="install-panel" role="tabpanel" id="dp-npm" aria-labelledby="d-npm">
+            <p class="install-why"><b>Quickest.</b> Forge runs on your machine; PostgreSQL runs in Docker.</p>
+            <div class="code"><pre><code>npm install -g forge-ai
+forge up        # starts PostgreSQL in Docker, applies migrations, adds a demo company
+forge serve     # the server and console on http://127.0.0.1:3000</code></pre><button class="fn-btn fn-btn-ghost fn-btn-sm copy" type="button">Copy</button></div>
+            <p>Run <code>forge</code> commands from any folder. Settings come from environment variables or a <code>.env</code> file in the folder you run them from (see <a href="#r-config">Settings</a>).</p>
+          </div>
+          <div class="install-panel" role="tabpanel" id="dp-docker" aria-labelledby="d-docker" hidden>
+            <p class="install-why"><b>Everything in containers</b>, including the agents' commands. The safest choice on any system.</p>
+            <div class="code"><pre><code>curl -O https://raw.githubusercontent.com/Sahil1188/Forge/main/docker/compose.yml
+echo "FORGE_API_TOKEN=$(openssl rand -hex 32)" &gt; .env
+echo "CLAUDE_CODE_OAUTH_TOKEN=&lt;from: claude setup-token&gt;" &gt;&gt; .env
+docker compose up -d</code></pre><button class="fn-btn fn-btn-ghost fn-btn-sm copy" type="button">Copy</button></div>
+            <p>Open <code>http://localhost:3000/?token=&lt;your FORGE_API_TOKEN&gt;</code> once; it sets a sign-in cookie. Finished projects appear in <code>./forge-projects</code> next to the compose file. The port is bound to <code>127.0.0.1</code>; change <code>FORGE_PORT</code> in <code>.env</code> for another port.</p>
+          </div>
+          <div class="install-panel" role="tabpanel" id="dp-source" aria-labelledby="d-source" hidden>
+            <p class="install-why"><b>For contributors</b> and anyone who wants to change Forge.</p>
+            <div class="code"><pre><code>git clone https://github.com/Sahil1188/Forge.git &amp;&amp; cd Forge
+npm install &amp;&amp; cp .env.example .env
+npm run db:up &amp;&amp; npm run db:migrate
+npm run build &amp;&amp; npm run start:prod</code></pre><button class="fn-btn fn-btn-ghost fn-btn-sm copy" type="button">Copy</button></div>
+            <p>Use <code>npm run start:dev</code> for watch mode, and <code>npm run forge -- &lt;command&gt;</code> for the CLI.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-sec" id="first-run">
+        <h2>First run</h2>
+        <ol class="doc-steps">
+          <li><b>Open the console</b> at <code>http://127.0.0.1:3000</code>. With no company yet, you land on <b>Setup</b>.</li>
+          <li><b>Name your company</b> and, if you like, describe what it works on. The description is given to executives when they plan.</li>
+          <li><b>Add the starter team.</b> One click creates an organisation: Ada (CEO); Linus (CTO) with Grace (backend), Mira (frontend), Tom (QA), Ines (principal reviewer), Kai (cloud) and others; Elena (CPO) with Noor (designer); and executives for the other departments. Each comes with a built-in brief you can change later.</li>
+          <li><b>Check Settings → Claude Code</b> to see that Claude is signed in and runs can start.</li>
+        </ol>
+        <p>Using <code>forge up</code>? It already created a demo company called Acme AI; add the starter team from <b>Team</b> to get the full organisation.</p>
+      </section>
+
+      <!-- ============ TUTORIALS ============ -->
+      <section class="doc-sec" id="t-task">
+        <span class="fn-eyebrow">tutorial 1 · 5 minutes</span>
+        <h2>Your first task</h2>
+        <p>A task goes straight to one employee, with no planning. Use it for small, clear jobs.</p>
+        <h3>In the console</h3>
+        <ol class="doc-steps">
+          <li>On <b>Overview</b>, choose <b>Task</b> in the composer.</li>
+          <li>Describe the job, for example: <i>Create a script that converts a CSV of expenses into a monthly summary, with tests.</i></li>
+          <li>Optional: add an <b>acceptance check</b>, a command that must succeed (exit 0) for the work to count, for example <code>npm test</code>.</li>
+          <li>Press <b>Start work</b>. The task appears in <b>Work</b>. Open it to watch the employee live: every tool call, file and command.</li>
+          <li>When it says <span class="fn-badge fn-badge-done dot">Done</span>, open <b>Deliverables</b> to browse or download the files. They are also in your projects folder as a git repository.</li>
+        </ol>
+        <h3>From the command line</h3>
+        <div class="code"><pre><code>forge task "Create index.js exporting add(a, b), with tests run by npm test" \
+  --check "npm test"</code></pre><button class="fn-btn fn-btn-ghost fn-btn-sm copy" type="button">Copy</button></div>
+        <p>The command prints each step's result and the deliverable's path, and exits non-zero if anything did not pass, so you can use it in scripts.</p>
+        <div class="callout"><b>Write checks for what "done" means to you.</b> Forge never takes the agent's word for it: lint, typecheck, tests, build and your checks must pass, or the work goes back with the evidence.</div>
+      </section>
+
+      <section class="doc-sec" id="t-goal">
+        <span class="fn-eyebrow">tutorial 2 · 20–60 minutes of the team's time</span>
+        <h2>Build a product with a goal</h2>
+        <ol class="doc-steps">
+          <li><b>Describe the outcome, not the code.</b> Choose <b>Goal</b> and write what a real user should be able to do: <i>An invoice tracker for a small agency: clients, invoices with line items, overdue reminders, a dashboard of what's owed.</i></li>
+          <li><b>Optional: pick a brand</b> for its screens, and a projects folder for this goal.</li>
+          <li><b>Press Start work.</b> The executive who owns the domain plans it (a finance goal goes to the CFO, a software product to the CTO). In a minute or two the goal page shows the plan: a small <b>contract</b> step first, then features in parallel, then an independent review.</li>
+          <li><b>Watch it build.</b> Up to five employees work at once. Each step shows its owner, status, live activity, cost and its checks with output.</li>
+          <li><b>Answer approvals</b> if any appear. Some tools need a person's OK; the run waits in <b>Approvals</b> until you approve or deny that exact call.</li>
+          <li><b>Steps sent back are normal.</b> <span class="fn-badge fn-badge-fail dot">Sent back</span> means a check failed. The employee gets the failing output and tries again, up to three attempts.</li>
+          <li><b>Run the result.</b> When the goal is done, open the project folder. Every project ships with a README that says how to install and run it.</li>
+        </ol>
+        <p>From the command line: <code>forge goal "…"</code> does the same and prints progress as it goes. Add <code>--check</code> for checks the whole result must pass.</p>
+      </section>
+
+      <section class="doc-sec" id="t-changes">
+        <span class="fn-eyebrow">tutorial 3</span>
+        <h2>Ask for changes</h2>
+        <p>On a finished goal, use <b>Request changes</b> and describe what you want in plain words: <i>Add a CSV export to the invoice list, and make the overdue badge red.</i></p>
+        <p>Forge turns it into one targeted step on the same project. Its checks include the checks of every earlier step, so the change can't break what already works.</p>
+        <p>Not sure what was built? Ask first in <b>Ask Forge</b>: <i>Where are overdue invoices calculated?</i> Answers come from a model that can only read the project.</p>
+      </section>
+
+      <section class="doc-sec" id="t-team">
+        <span class="fn-eyebrow">tutorial 4</span>
+        <h2>Shape your team</h2>
+        <ol class="doc-steps">
+          <li><b>Add an employee</b> from <b>Team</b>: name, role, department, who they report to, runtime and model.</li>
+          <li><b>Edit their brief</b> on the <b>Brief</b> tab: mission, standards, way of working and definition of done. Changes apply from their next task. <b>Reset</b> goes back to the built-in brief.</li>
+          <li><b>Set skills</b> (0–100 per area). Skills decide who gets which step, and they move with every evaluation.</li>
+          <li><b>Set permissions</b>: tools that are always denied, an allowlist if you want default-deny, and tools that need your approval.</li>
+          <li><b>Set a budget</b>: a soft limit (new runs wait) and a hard limit (a running run stops), per day or for all time.</li>
+        </ol>
+        <p>Forge also staffs itself: when one person has a queue and others in the same role are busy, it adds a teammate with the same role, skills, brief and model (up to <code>FORGE_MAX_PER_ROLE</code>). Planners can also hire a few specialists the company lacks (<code>FORGE_MAX_HIRES_PER_GOAL</code>).</p>
+      </section>
+
+      <section class="doc-sec" id="t-fallback">
+        <span class="fn-eyebrow">tutorial 5</span>
+        <h2>Never stop at the limit</h2>
+        <p>Add an OpenAI-compatible endpoint to <code>.env</code> and restart Forge:</p>
+        <div class="code"><pre><code># OpenRouter
+FORGE_FALLBACK_BASE_URL=https://openrouter.ai/api/v1
+FORGE_FALLBACK_API_KEY=sk-or-...
+FORGE_FALLBACK_MODEL=openrouter/auto
+
+# or OmniRoute: your OmniRoute URL ending in /v1, and a model or combo it serves</code></pre><button class="fn-btn fn-btn-ghost fn-btn-sm copy" type="button">Copy</button></div>
+        <p>When Claude reports its usage limit, new runs (and planning) move to the fallback until the reset, then return to Claude. Fallback runs never use up a step's attempts. If the fallback can't be reached, work is held, never failed, and retried every 10 minutes and at the reset.</p>
+        <p><b>Rehearse it:</b> <code>POST /system/fallback-drill {"minutes": 5}</code> makes Forge treat Claude as limited for five minutes. The key stays inside Forge; agents and their commands never see it.</p>
+      </section>
+
+      <section class="doc-sec" id="t-server">
+        <span class="fn-eyebrow">tutorial 6</span>
+        <h2>Run it for a team</h2>
+        <ol class="doc-steps">
+          <li><b>Set a token.</b> Forge refuses to listen anywhere but <code>127.0.0.1</code> without one: <code>FORGE_API_TOKEN=$(openssl rand -hex 32)</code> and <code>FORGE_HOST=0.0.0.0</code>. The Docker install already does this.</li>
+          <li><b>Create the owner account</b> on the sign-in screen. From then on every request needs a session or the token.</li>
+          <li><b>Invite people</b> in <b>Settings → People &amp; access</b> with a role: viewer, member, admin or owner (see <a href="#r-roles">Roles</a>).</li>
+          <li><b>Serve it over HTTPS</b> behind a proxy, set <code>FORGE_SECURE_COOKIES=1</code>, and add the proxy's host name to <code>FORGE_ALLOWED_HOSTS</code>.</li>
+          <li><b>Isolate the agents:</b> run on Linux, macOS or WSL2 with <code>FORGE_AGENT_SANDBOX=required</code>, or use the Docker install.</li>
+        </ol>
+        <p>API clients send <code>Authorization: Bearer &lt;FORGE_API_TOKEN&gt;</code>.</p>
+      </section>
+
+      <section class="doc-sec" id="t-restart">
+        <span class="fn-eyebrow">tutorial 7</span>
+        <h2>Restart safely</h2>
+        <p>To update or restart without losing work, pause intake first:</p>
+        <div class="code"><pre><code>curl -X POST localhost:3000/system/intake -H 'content-type: application/json' -d '{"paused": true}'
+curl localhost:3000/system/intake     # wait until "safeToRestart": true</code></pre><button class="fn-btn fn-btn-ghost fn-btn-sm copy" type="button">Copy</button></div>
+        <p>New runs stop starting; running ones finish. Once <code>safeToRestart</code> is true, restart. Anything interrupted anyway (a crash, a power cut) resumes on start.</p>
+      </section>
+
+      <!-- ============ CONSOLE ============ -->
+      <section class="doc-sec" id="c-screens">
+        <span class="fn-eyebrow">the console</span>
+        <h2>Screens</h2>
+        <p>The console is served by Forge itself. It is light, works offline and makes one request per screen.</p>
+        <div class="fn-table-wrap"><table class="fn-table doc-table">
+          <thead><tr><th>Screen</th><th>What it's for</th></tr></thead>
+          <tbody>
+            <tr><td>Overview</td><td>The composer (Task or Goal, optional checks, brand, folder), active work, success rate, spend today and what needs your attention.</td></tr>
+            <tr><td>Work</td><td>Every goal and task. Open one for its board: steps in run order, owners, live activity, checks with output, runs and transcripts, retry and cancel, request changes.</td></tr>
+            <tr><td>Deliverables</td><td>Every project's files on <code>main</code>: browse, read and download.</td></tr>
+            <tr><td>Runs</td><td>Every agent run across the company: model, duration, cost, outcome, transcript.</td></tr>
+            <tr><td>Team</td><td>The organisation, who is working on what, and adding people.</td></tr>
+            <tr><td>Approvals</td><td>Tool calls waiting for a person's decision, with the exact input.</td></tr>
+            <tr><td>Ask Forge</td><td>Questions about the company or a goal in plain words, answered read-only.</td></tr>
+            <tr><td>Settings</td><td>Company, brands, people and access, runtimes, Claude Code status.</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <section class="doc-sec" id="c-employee">
+        <h2>An employee's page</h2>
+        <dl class="defs doc-defs">
+          <dt>Profile</dt><dd>Role, department, manager, runtime and model, run limits, reputation and specialisation measured from evaluations.</dd>
+          <dt>Brief</dt><dd>Mission, standards, way of working and definition of done. Edit or reset.</dd>
+          <dt>Skills</dt><dd>0–100 per area. Used for routing; updated by results.</dd>
+          <dt>Permissions</dt><dd>Denied tools, allowed tools, tools that need approval.</dd>
+          <dt>Budget</dt><dd>Soft and hard limits, per day or all time, and current spend.</dd>
+          <dt>Memory</dt><dd>Lessons learned from failures and fixes, shown to them on similar tasks.</dd>
+          <dt>Runs</dt><dd>Their run history with transcripts.</dd>
+        </dl>
+      </section>
+
+      <section class="doc-sec" id="c-settings">
+        <h2>Settings</h2>
+        <dl class="defs doc-defs">
+          <dt>Company</dt><dd>Name, description and projects folder. Each project gets its own subfolder. Add another company here.</dd>
+          <dt>Brands</dt><dd>The default brand for products this company builds. A goal can choose its own.</dd>
+          <dt>People &amp; access</dt><dd>Accounts and their role in this company (owner only).</dd>
+          <dt>Runtimes</dt><dd>Which runtimes can run right now, the sandbox in use, and usage-limit status.</dd>
+          <dt>Claude Code</dt><dd>Sign-in status and how to sign in.</dd>
+        </dl>
+        <p>Everything else is an environment variable; see <a href="#r-config">Settings (environment)</a>.</p>
+      </section>
+
+      <!-- ============ INTERNALS ============ -->
+      <section class="doc-sec" id="i-lifecycle">
+        <span class="fn-eyebrow">how it works inside</span>
+        <h2>The life of a goal</h2>
+        <ol class="life">
+          <li><b>Goal started.</b> Saved with an event in the same database transaction.</li>
+          <li><b>Planned.</b> The owning executive writes <code>PLAN.json</code>: steps, owners, folders, dependencies, checks, brand.</li>
+          <li><b>Routed.</b> The Workforce Router picks who; the Omni Router picks the runtime and model.</li>
+          <li><b>Run.</b> Each step in its own git worktree, under permissions, budgets and limits, up to five at once.</li>
+          <li><b>Checked.</b> Catch up with <code>main</code>, then lint, typecheck, tests, build, the step's checks, every earlier step's checks, and a visual review for screens.</li>
+          <li><b>Merged or sent back.</b> Passed work merges into <code>main</code>. Failed work returns to the same employee with the evidence.</li>
+          <li><b>Learned.</b> Skills, reputation and memory update from the objective result.</li>
+        </ol>
+        <p>Each stage is driven by events (<code>goal.started</code> → plan → <code>work.assigned</code> → run → evaluate → merge or retry → <code>goal.completed</code>), so <code>forge serve</code> runs the whole chain by itself.</p>
+      </section>
+
+      <section class="doc-sec" id="i-planning">
+        <h2>Planning</h2>
+        <ul class="ticks">
+          <li><b>Who plans:</b> the executive heading the department that owns the goal's domain, else the CEO. Only executives plan.</li>
+          <li><b>The rules they follow:</b> usefulness first (a real user's job, end to end); one small contract step first (skeleton, shared types, schema, API contract; at most 15 minutes); then features in parallel; no dependency chain longer than three before the review; each step names the folders it owns so parallel steps don't overlap; at most <code>FORGE_MAX_PLAN_ITEMS</code> steps (12).</li>
+          <li><b>Shaping:</b> the plan is cleaned up, capped and its dependencies resolved to earlier steps only. Your goal-level checks are attached to the last step.</li>
+          <li><b>Hiring:</b> the planner may add up to <code>FORGE_MAX_HIRES_PER_GOAL</code> specialists.</li>
+          <li><b>Brand:</b> committed to the project as <code>BRAND.md</code>.</li>
+          <li><b>Production review:</b> a final independent review step is added; the reviewer is never the builder.</li>
+          <li><b>Never stalls:</b> if a plan can't be read, Forge creates one "Deliver" step instead.</li>
+        </ul>
+      </section>
+
+      <section class="doc-sec" id="i-routing">
+        <h2>Routing</h2>
+        <p><b>Workforce Router: who?</b> Scores every employee on skill match for the step's domain, role fit (or being in the department that owns it), and availability. Only employees whose runtime can run right now are considered. Executives get build work only when nobody else can do it, and builders can be excluded from reviewing their own work.</p>
+        <p><b>Omni Router: which model?</b> Reads the employee's model policy: a mapping for the task type, then the complexity tier (a strong model for hard work, a cheaper one for simple work), then the default. When Claude is at its limit the execution worker swaps in the fallback.</p>
+      </section>
+
+      <section class="doc-sec" id="i-execution">
+        <h2>Running a step</h2>
+        <ul class="ticks">
+          <li><b>Dispatcher:</b> keeps up to <code>FORGE_CONCURRENCY</code> runs going and fills a free slot the moment work arrives. One person never runs two tasks at once.</li>
+          <li><b>Workspace:</b> a git worktree on its own branch, starting from the latest <code>main</code>. A retry starts with the previous attempt merged in, so it continues instead of starting over.</li>
+          <li><b>Prompt:</b> shared rules, Forge rules, the employee's brief, a time budget, the brand, relevant lessons, task standards and the task.</li>
+          <li><b>Circuit breakers:</b> time, tool calls, turns, budget, cancellation, and a permission check on every tool call. File tools are confined to the workspace, symlinks included.</li>
+          <li><b>Limits aren't failures:</b> a run stopped by time, tool or turn limits after changing files continues in a new run, up to <code>FORGE_MAX_CONTINUATIONS</code> times.</li>
+          <li><b>Live transcript:</b> every event is written as it happens, so you can watch.</li>
+          <li><b>Process guard:</b> an agent may only stop processes it started. Stopping Forge, or killing by name or pattern, is refused.</li>
+          <li><b>Clean up:</b> processes started inside the run's folder are stopped when it ends.</li>
+        </ul>
+      </section>
+
+      <section class="doc-sec" id="i-evaluation">
+        <h2>Checking the work</h2>
+        <p>An employee never certifies its own work.</p>
+        <ol class="doc-steps">
+          <li><b>Catch up with <code>main</code>,</b> so the step is checked as the code <code>main</code> will become, including work merged meanwhile. A conflict sends it back to resolve.</li>
+          <li><b>Project checks:</b> <code>lint</code>, <code>typecheck</code>, <code>test</code> and <code>build</code> from <code>package.json</code>.</li>
+          <li><b>Acceptance checks:</b> the step's own commands, then <b>every finished step's commands</b>. A failing earlier check names the step it belongs to, so the employee knows what they broke.</li>
+          <li><b>Broken checks</b> (a syntax error, a missing program) are reported as invalid instead of failing the work; an earlier step's broken check is skipped.</li>
+          <li><b>Visual review</b> for frontend, design and review steps: the app is started, every screen is screenshotted in a real browser, and a designer model scores them against a rubric and the brand. Below <code>FORGE_VISUAL_MIN_SCORE</code> (85) fails.</li>
+          <li><b>Route:</b> passed work merges into <code>main</code>; failed work goes back, up to <code>FORGE_MAX_ATTEMPTS</code> (3). Usage-limit stops, productive limit stops and fallback runs don't count as attempts.</li>
+        </ol>
+        <p>All check output is redacted for secrets before it is stored.</p>
+      </section>
+
+      <section class="doc-sec" id="i-learning">
+        <h2>Learning</h2>
+        <p>After every scored evaluation, Forge writes a <b>lesson</b> to the employee's memory: what broke and the evidence, or what fixed it. Before each run, the most relevant lessons (by salience, task type and recency) go into the prompt as "Lessons: never repeat these mistakes".</p>
+        <p>A <b>performance record</b> stores the scores, cost, duration and retries. <b>Reputation</b> is a recency-weighted average. <b>Skills</b> move unevenly: great work on hard steps raises them most, trivial work barely moves them, failures lower them. <b>Specialisation</b> is inferred from history. Because it all comes from objective checks, never the model's own account, the learning can be trusted.</p>
+      </section>
+
+      <section class="doc-sec" id="i-limits">
+        <h2>Usage limits and fallback</h2>
+        <p>When Claude reports its usage limit, Forge records the reset time. Until then, new runs and planning go to the fallback endpoint, if one is set. After three fallback tries a step waits for Claude. At the reset everything returns to Claude. Without a fallback, work simply waits for the reset; nothing is failed because of a limit.</p>
+      </section>
+
+      <section class="doc-sec" id="i-reliability">
+        <h2>Reliability</h2>
+        <ul class="ticks">
+          <li><b>Transactional outbox:</b> events are written in the same transaction as the change and published afterwards, so a crash can't lose one or publish one for a change that was rolled back.</li>
+          <li><b>Drain mode</b> for safe restarts (tutorial 7); interrupted runs and checks resume on start.</li>
+          <li><b>Locks per project,</b> so merges never race.</li>
+          <li><b>Keep awake</b> on Windows while work is queued, including the display, which Modern Standby PCs need; released when idle.</li>
+          <li><b>Workspaces are kept</b> after each run for audit and transcripts.</li>
+        </ul>
+      </section>
+
+      <section class="doc-sec" id="i-brands">
+        <h2>Brands</h2>
+        <p>Every interface Forge builds follows a brand system from <code>brands/</code>: colours, type, spacing, components and a checklist the visual review scores against. Eleven ship with Forge: Field Notebook, Field Instrument, Glasshouse, Graph Paper, Ivory Press, Lilac Desk, Notepad, Paper Cut, Porcelain, Sage Ledger and Studio Signal.</p>
+        <p>Set a company default in <b>Settings → Brands</b>, or choose one per goal. Add your own by writing a Markdown file in the same format (see <code>brands/README.md</code>), pointing <code>FORGE_BRANDS_DIR</code> at a folder, or <code>POST /brands</code>.</p>
+      </section>
+
+      <!-- ============ REFERENCE ============ -->
+      <section class="doc-sec" id="r-cli">
+        <span class="fn-eyebrow">reference</span>
+        <h2>Command line</h2>
+        <div class="fn-table-wrap"><table class="fn-table doc-table">
+          <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td><code>forge up</code></td><td>Starts PostgreSQL in Docker, applies migrations and seeds a demo company.</td></tr>
+            <tr><td><code>forge serve</code></td><td>Starts the server and console, and runs work automatically.</td></tr>
+            <tr><td><code>forge status</code></td><td>Lists companies and their employees.</td></tr>
+            <tr><td><code>forge seed</code></td><td>Re-creates the demo company.</td></tr>
+            <tr><td><code>forge task "&lt;text&gt;"</code></td><td>One employee, no planning.</td></tr>
+            <tr><td><code>forge goal "&lt;text&gt;"</code></td><td>The executive plans it; the team builds it, live in the terminal.</td></tr>
+          </tbody>
+        </table></div>
+        <p>Options for <code>task</code> and <code>goal</code>: <code>--check "&lt;cmd&gt;"</code> (repeatable; must exit 0), <code>--company &lt;id&gt;</code>, and <code>--direct</code> on <code>goal</code> to skip planning. Exit code is 0 only when every step passed.</p>
+      </section>
+
+      <section class="doc-sec" id="r-config">
+        <h2>Settings (environment)</h2>
+        <p>Set in the environment or a <code>.env</code> file. Type to filter:</p>
+        <label class="fn-field cfg-search"><span class="sr">Filter settings</span><input class="fn-input" id="cfg-filter" type="search" placeholder="Filter, e.g. fallback, sandbox, visual" autocomplete="off" /></label>
+        <div class="fn-table-wrap"><table class="fn-table doc-table" id="cfg-table">
+          <thead><tr><th>Variable</th><th>Default</th><th>Effect</th></tr></thead>
+          <tbody>
+            <tr><td colspan="3" class="grp">Server and access</td></tr>
+            <tr><td><code>DATABASE_URL</code></td><td><code>postgres://forge:forge@127.0.0.1:5433/forge</code></td><td>PostgreSQL connection.</td></tr>
+            <tr><td><code>PORT</code></td><td><code>3000</code></td><td>HTTP port.</td></tr>
+            <tr><td><code>FORGE_HOST</code></td><td><code>127.0.0.1</code></td><td>Listen address. Anything else requires <code>FORGE_API_TOKEN</code>.</td></tr>
+            <tr><td><code>FORGE_API_TOKEN</code></td><td>unset</td><td>Access token, 24+ characters. Browser: open <code>/?token=…</code> once. API: <code>Authorization: Bearer</code>.</td></tr>
+            <tr><td><code>FORGE_ALLOWED_HOSTS</code></td><td>unset</td><td>Extra host names to answer to (proxy, LAN name), comma separated.</td></tr>
+            <tr><td><code>FORGE_WRITE_LIMIT_PER_MINUTE</code></td><td><code>120</code></td><td>State-changing requests per client per minute.</td></tr>
+            <tr><td><code>FORGE_SECURE_COOKIES</code></td><td><code>0</code></td><td><code>1</code> marks the session cookie Secure (HTTPS).</td></tr>
+            <tr><td><code>FORGE_CHILD_ENV_PASSTHROUGH</code></td><td>unset</td><td>Extra variable names agents and their commands may see.</td></tr>
+            <tr><td colspan="3" class="grp">Claude Code</td></tr>
+            <tr><td><code>CLAUDE_CODE_OAUTH_TOKEN</code></td><td>unset</td><td>Subscription token from <code>claude setup-token</code>, for servers and Docker.</td></tr>
+            <tr><td><code>FORGE_CLAUDE_PATH</code></td><td>auto</td><td>The Claude Code program to run. By default the SDK's bundled one, else <code>claude</code> on PATH.</td></tr>
+            <tr><td><code>FORGE_AGENT_SANDBOX</code></td><td><code>on</code></td><td>Claude Code's command sandbox: <code>on</code>, <code>required</code> or <code>off</code>.</td></tr>
+            <tr><td colspan="3" class="grp">Projects and planning</td></tr>
+            <tr><td><code>FORGE_PROJECTS_DIR</code></td><td><code>~/Forge Projects</code></td><td>Where projects are written: <code>&lt;root&gt;/&lt;company&gt;/&lt;project&gt;</code>.</td></tr>
+            <tr><td><code>FORGE_MAX_PLAN_ITEMS</code></td><td><code>12</code></td><td>Most steps in a plan.</td></tr>
+            <tr><td><code>FORGE_PRODUCTION_REVIEW</code></td><td><code>1</code></td><td><code>0</code> skips the final independent review.</td></tr>
+            <tr><td><code>FORGE_MAX_HIRES_PER_GOAL</code></td><td><code>2</code></td><td>Specialists a planner may hire per goal.</td></tr>
+            <tr><td><code>FORGE_BRANDS_DIR</code></td><td>built-in</td><td>Folder of brand systems.</td></tr>
+            <tr><td colspan="3" class="grp">Throughput and limits</td></tr>
+            <tr><td><code>FORGE_CONCURRENCY</code></td><td><code>5</code></td><td>Runs at the same time.</td></tr>
+            <tr><td><code>FORGE_MAX_PER_ROLE</code></td><td><code>3</code></td><td>People per role when adding teammates.</td></tr>
+            <tr><td><code>FORGE_AUTOSTAFF</code></td><td><code>1</code></td><td><code>0</code> never adds teammates.</td></tr>
+            <tr><td><code>FORGE_MAX_RUN_MINUTES</code></td><td><code>30</code></td><td>Time per run before it continues in a new one.</td></tr>
+            <tr><td><code>FORGE_MAX_ATTEMPTS</code></td><td><code>3</code></td><td>Failed attempts before a step fails.</td></tr>
+            <tr><td><code>FORGE_MAX_CONTINUATIONS</code></td><td><code>6</code></td><td>Continuations per step after limit stops.</td></tr>
+            <tr><td colspan="3" class="grp">Checks</td></tr>
+            <tr><td><code>FORGE_MAX_REGRESSION_CHECKS</code></td><td><code>30</code></td><td>Earlier steps' checks re-run per evaluation.</td></tr>
+            <tr><td><code>FORGE_VISUAL_GATE</code></td><td><code>1</code></td><td><code>0</code> turns the visual review off.</td></tr>
+            <tr><td><code>FORGE_VISUAL_MIN_SCORE</code></td><td><code>85</code></td><td>Score a screen must reach.</td></tr>
+            <tr><td><code>FORGE_VISUAL_MODEL</code></td><td><code>opus</code></td><td>The reviewing model.</td></tr>
+            <tr><td><code>FORGE_BROWSER_PATH</code></td><td>auto</td><td>Chrome, Edge or Chromium to use.</td></tr>
+            <tr><td colspan="3" class="grp">Fallback</td></tr>
+            <tr><td><code>FORGE_FALLBACK_BASE_URL</code></td><td>unset</td><td>OpenAI-compatible endpoint ending in <code>/v1</code>.</td></tr>
+            <tr><td><code>FORGE_FALLBACK_API_KEY</code></td><td>unset</td><td>Its key. Agents never see it.</td></tr>
+            <tr><td><code>FORGE_FALLBACK_MODEL</code></td><td>unset</td><td>The model or route to use.</td></tr>
+            <tr><td><code>FORGE_FALLBACK_AUTO</code></td><td><code>1</code></td><td><code>0</code> disables the automatic switch.</td></tr>
+            <tr><td><code>FORGE_FALLBACK_TIMEOUT_MS</code></td><td><code>120000</code></td><td>Time limit per fallback call.</td></tr>
+            <tr><td colspan="3" class="grp">Sandboxing</td></tr>
+            <tr><td><code>FORGE_SANDBOX</code></td><td><code>host</code></td><td><code>docker</code> runs custom-runtime commands and checks in a network-less container.</td></tr>
+            <tr><td><code>FORGE_SANDBOX_IMAGE</code></td><td><code>node:20-alpine</code></td><td>Image for the command sandbox.</td></tr>
+            <tr><td><code>FORGE_SANDBOX_MEMORY</code> / <code>_CPUS</code></td><td><code>1g</code> / <code>2</code></td><td>Sandbox resources.</td></tr>
+            <tr><td colspan="3" class="grp">Machine</td></tr>
+            <tr><td><code>FORGE_KEEP_AWAKE</code></td><td><code>1</code></td><td>Keep Windows awake while there is work.</td></tr>
+            <tr><td><code>FORGE_KEEP_DISPLAY_ON</code></td><td><code>1</code></td><td>Keep the display on too (needed on Modern Standby PCs).</td></tr>
+            <tr><td colspan="3" class="grp">Other runtimes</td></tr>
+            <tr><td><code>FORGE_ANTHROPIC_API_KEY</code></td><td>unset</td><td>Per-token Anthropic API for custom-runtime workers only.</td></tr>
+            <tr><td><code>FORGE_OLLAMA_HOST</code></td><td><code>http://localhost:11434</code></td><td>Local model server for the Ollama provider.</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <section class="doc-sec" id="r-api">
+        <h2>HTTP API</h2>
+        <p>JSON over HTTP on the same port as the console. With accounts or a token set, send the session cookie or <code>Authorization: Bearer &lt;FORGE_API_TOKEN&gt;</code>. Writes from a browser must be same-origin JSON. The role each call needs is listed.</p>
+        <div class="api">
+          <details open><summary>Companies, goals and work</summary><div class="fn-table-wrap"><table class="fn-table doc-table"><tbody>
+            <tr><td><b>POST</b> <code>/companies</code></td><td>Create a company</td><td>—</td></tr>
+            <tr><td><b>GET</b> <code>/companies</code> · <code>/companies/:id</code></td><td>List or read</td><td>viewer</td></tr>
+            <tr><td><b>PATCH</b> <code>/companies/:id</code></td><td>Settings</td><td>admin</td></tr>
+            <tr><td><b>POST</b> <code>/companies/:id/goals</code></td><td>Create a goal</td><td>member</td></tr>
+            <tr><td><b>POST</b> <code>/goals/:id/start</code></td><td>Start it (plans automatically)</td><td>member</td></tr>
+            <tr><td><b>GET</b> <code>/goals/:id/board</code></td><td>Every step with runs, cost and checks</td><td>viewer</td></tr>
+            <tr><td><b>POST</b> <code>/goals/:id/changes</code></td><td>Request changes on delivered work</td><td>member</td></tr>
+            <tr><td><b>POST</b> <code>/work-items/:id/retry</code></td><td>Retry a step</td><td>member</td></tr>
+            <tr><td><b>GET</b> <code>/work-items/:id/evaluations</code></td><td>Its evaluations with check output</td><td>viewer</td></tr>
+          </tbody></table></div></details>
+          <details><summary>Team</summary><div class="fn-table-wrap"><table class="fn-table doc-table"><tbody>
+            <tr><td><b>POST</b> <code>/companies/:id/starter-team</code></td><td>Create the starter organisation</td><td>admin</td></tr>
+            <tr><td><b>GET</b> <code>/companies/:id/team</code></td><td>Everyone and what they're doing</td><td>viewer</td></tr>
+            <tr><td><b>POST</b> <code>/companies/:id/employees</code></td><td>Add an employee</td><td>admin</td></tr>
+            <tr><td><b>PATCH</b> <code>/employees/:id</code></td><td>Model, limits, permissions</td><td>admin</td></tr>
+            <tr><td><b>PUT</b> <code>/employees/:id/skills</code></td><td>Set skills</td><td>admin</td></tr>
+            <tr><td><b>GET · PUT · DELETE</b> <code>/employees/:id/brief</code></td><td>Read, edit or reset the brief</td><td>viewer / admin</td></tr>
+            <tr><td><b>GET · PUT</b> <code>/employees/:id/budget</code></td><td>Read or set the budget</td><td>viewer / admin</td></tr>
+            <tr><td><b>GET</b> <code>/employees/:id/memories</code></td><td>What they've learned</td><td>viewer</td></tr>
+            <tr><td><b>GET</b> <code>/employees/:id/profile</code></td><td>Reputation, skills, specialisation</td><td>viewer</td></tr>
+          </tbody></table></div></details>
+          <details><summary>Runs, files and questions</summary><div class="fn-table-wrap"><table class="fn-table doc-table"><tbody>
+            <tr><td><b>GET</b> <code>/companies/:id/dashboard</code></td><td>Headline numbers and recent activity</td><td>viewer</td></tr>
+            <tr><td><b>GET</b> <code>/companies/:id/runs</code></td><td>Recent runs</td><td>viewer</td></tr>
+            <tr><td><b>GET</b> <code>/agent-runs/:id/transcript</code></td><td>A run's transcript, live while running</td><td>viewer</td></tr>
+            <tr><td><b>GET</b> <code>/projects/:id/files</code> · <code>/file?path=</code> · <code>/download?path=</code></td><td>The deliverable's files</td><td>viewer</td></tr>
+            <tr><td><b>POST</b> <code>/companies/:id/ask</code></td><td>Ask Forge (<code>{question, goalId?}</code>)</td><td>member</td></tr>
+            <tr><td><b>POST</b> <code>/approvals/:id/decision</code></td><td><code>{decision: "approved" | "denied"}</code></td><td>admin</td></tr>
+          </tbody></table></div></details>
+          <details><summary>System and accounts</summary><div class="fn-table-wrap"><table class="fn-table doc-table"><tbody>
+            <tr><td><b>GET</b> <code>/health</code></td><td>Liveness and database</td><td>public</td></tr>
+            <tr><td><b>GET</b> <code>/system</code></td><td>Version, sandbox, usage limits, runtimes</td><td>viewer</td></tr>
+            <tr><td><b>GET · POST</b> <code>/system/intake</code></td><td>Drain mode: <code>{paused}</code></td><td>viewer / admin</td></tr>
+            <tr><td><b>GET · POST · DELETE</b> <code>/system/fallback-drill</code></td><td>Rehearse the fallback: <code>{minutes}</code></td><td>viewer / admin</td></tr>
+            <tr><td><b>GET</b> <code>/brands</code> · <b>POST</b> <code>/brands</code></td><td>List or add brand systems</td><td>viewer / admin</td></tr>
+            <tr><td><b>POST</b> <code>/auth/setup</code> · <code>/auth/login</code> · <code>/auth/logout</code></td><td>First account, sign in, sign out</td><td>public</td></tr>
+            <tr><td><b>GET · POST · PATCH · DELETE</b> <code>/companies/:id/members</code></td><td>People and their roles</td><td>owner</td></tr>
+          </tbody></table></div></details>
+        </div>
+        <p>Each module's README in the repository lists its endpoints in full.</p>
+      </section>
+
+      <section class="doc-sec" id="r-roles">
+        <h2>Roles</h2>
+        <p>Without accounts, Forge is a single-operator app on <code>127.0.0.1</code>. Once the first account exists, everyone needs a role in each company:</p>
+        <dl class="defs doc-defs">
+          <dt>Viewer</dt><dd>Reads everything in the company.</dd>
+          <dt>Member</dt><dd>Gives work, requests changes, starts, retries and cancels work, asks Forge.</dd>
+          <dt>Admin</dt><dd>Manages employees and their briefs, budgets, permissions, approvals, company settings, brands, drain mode and the fallback drill.</dd>
+          <dt>Owner</dt><dd>Manages people and their access.</dd>
+        </dl>
+      </section>
+
+      <!-- ============ HELP ============ -->
+      <section class="doc-sec" id="security">
+        <span class="fn-eyebrow">help</span>
+        <h2>Security</h2>
+        <p>Forge treats agents as untrusted.</p>
+        <ul class="ticks">
+          <li>Listens on <code>127.0.0.1</code> only unless a token is set, and refuses to start otherwise.</li>
+          <li>Blocks browser attacks on the local API: Host allowlist (DNS rebinding), same-origin JSON for writes (CSRF), security headers, rate limits.</li>
+          <li>Accounts with roles; passwords hashed with scrypt; HttpOnly, SameSite=Strict sessions.</li>
+          <li>Every tool call checked against the employee's permissions; file tools confined to the workspace; sensitive tools paused for approval.</li>
+          <li>Agents get an allowlisted environment: no database URL, API keys or Forge token.</li>
+          <li>Secrets are redacted from transcripts, logs and check output before storage.</li>
+          <li>Budgets, time, tool-call and turn limits enforced by the platform; agents may only stop processes they started.</li>
+        </ul>
+        <div class="callout warn"><b>What it can't do on native Windows:</b> Claude Code can't sandbox its own shell commands there, so agents' commands run as your user. For real isolation use Linux, macOS or WSL2 with <code>FORGE_AGENT_SANDBOX=required</code>, or the Docker install. Report vulnerabilities privately as described in <a href="https://github.com/Sahil1188/Forge/blob/main/SECURITY.md">SECURITY.md</a>.</div>
+      </section>
+
+      <section class="doc-sec" id="troubleshooting">
+        <h2>Troubleshooting</h2>
+        <div class="faq">
+          <details><summary>Steps fail straight away and nothing runs</summary><p>Usually Claude Code isn't signed in. Check <b>Settings → Claude Code</b>, then run <code>claude login</code> on this machine, or set <code>CLAUDE_CODE_OAUTH_TOKEN</code> from <code>claude setup-token</code>.</p></details>
+          <details><summary>"Native CLI binary … not found"</summary><p>npm skipped the SDK's optional download. Forge falls back to the <code>claude</code> on your PATH; if Claude Code is installed elsewhere, set <code>FORGE_CLAUDE_PATH</code> to it, or reinstall with <code>npm install -g forge-ai</code> on a steady connection.</p></details>
+          <details><summary>"Refusing to listen on … without FORGE_API_TOKEN"</summary><p>You set <code>FORGE_HOST</code> to something other than <code>127.0.0.1</code>. Set <code>FORGE_API_TOKEN</code> to 24+ random characters (<code>openssl rand -hex 32</code>).</p></details>
+          <details><summary>Can't connect to the database</summary><p>With npm, run <code>forge up</code> (Docker must be running). With your own PostgreSQL, set <code>DATABASE_URL</code>. The default port is 5433, not 5432, to avoid clashing with a local PostgreSQL.</p></details>
+          <details><summary>A step keeps getting sent back</summary><p>Open the step and read its checks: each shows the command and its output. A failing <code>regression#n</code> check means the step broke an earlier step's work; the output names which. Retry after fixing the check, or request changes with clearer instructions.</p></details>
+          <details><summary>Work stopped at Claude's usage limit</summary><p>That's expected without a fallback: work waits and resumes at the reset. Set up tutorial 5 to keep going.</p></details>
+          <details><summary>The PC slept in the middle of a goal</summary><p>Forge keeps Windows awake while there is work. On Modern Standby PCs the display must stay on too, which is the default (<code>FORGE_KEEP_DISPLAY_ON=1</code>).</p></details>
+          <details><summary>The visual review is skipped</summary><p>It needs Chrome, Edge or Chromium. Install one, or set <code>FORGE_BROWSER_PATH</code>.</p></details>
+          <details><summary>The console says I'm not signed in on another device</summary><p>Open <code>http://&lt;host&gt;:&lt;port&gt;/?token=&lt;FORGE_API_TOKEN&gt;</code> once on that device, or sign in with your account.</p></details>
+        </div>
+      </section>
+
+      <section class="doc-sec" id="contributing">
+        <h2>Contributing</h2>
+        <p>Forge is MIT licensed and contributions are welcome. Every folder under <code>src/</code> has a README describing what it does, its endpoints and settings; <code>docs/FLOW.md</code> walks through the code file by file.</p>
+        <div class="code"><pre><code>npm run start:dev     # watch mode
+npm test              # unit tests, no database needed
+npm run test:e2e      # end-to-end tests against PostgreSQL
+npm run lint &amp;&amp; npm run typecheck</code></pre><button class="fn-btn fn-btn-ghost fn-btn-sm copy" type="button">Copy</button></div>
+        <p>Read <a href="https://github.com/Sahil1188/Forge/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> before opening a pull request.</p>
+      </section>
+    </main>
+  </div>
+
+  <footer class="foot">
+    <div class="fw-wrap foot-in">
+      <span class="fn-meta">■ forge · mit license · © 2026 sahil shaikh</span>
+      <div class="foot-links">
+        <a href="index.html">Home</a>
+        <a href="docs.html">Docs</a>
+        <a href="https://github.com/Sahil1188/Forge">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="site.js" defer></script>
+  <script src="docs.js" defer></script>
+</body>
+</html>

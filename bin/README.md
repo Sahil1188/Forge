@@ -15,7 +15,7 @@ One entry point to stand the platform up and drive it. Run in dev with
 # A short task: one employee, no planning step — fastest and cheapest (one agent run).
 forge task "Create index.js at the root exporting add(a, b), with tests run by npm test"
 
-# A bigger goal: the CEO breaks it into at most 3 ordered work items (FORGE_MAX_PLAN_ITEMS).
+# A bigger goal: the owning executive plans it into steps (at most FORGE_MAX_PLAN_ITEMS, default 12).
 forge goal "Build a Node.js string toolkit: slugify, capitalize, truncate, wordCount, with tests"
 
 # Pin down what "done" means: each --check must exit 0 for the work to pass evaluation.
@@ -29,7 +29,7 @@ previous items' merged work. Each item is evaluated objectively — the project'
 `npm build/test/lint` **plus** its acceptance checks (yours, and the ones the CEO writes per item) —
 passing work is merged into the project's `main`, failing work is retried with the failure in the
 employee's memory (up to `FORGE_MAX_ATTEMPTS`, default 3). The command ends with an honest summary,
-the path of the deliverable (`workspaces/projects/<projectId>`), and a non-zero exit code if
+the path of the deliverable (under `FORGE_PROJECTS_DIR`, default `~/Forge Projects`), and a non-zero exit code if
 anything did not pass.
 
 ## The web console
